@@ -199,7 +199,9 @@ const LEAD_PRICES={
   'Handyman':5,
   'Moving Services':9,
   'Catering':7,
-  'Event Planning':10
+  'Event Planning':10,
+  'Home Insurance':1,
+  'Vehicle Insurance':1
 };
 /* Slug → price for contact form values */
 const LEAD_PRICE_SLUGS={
@@ -214,7 +216,9 @@ const LEAD_PRICE_SLUGS={
   'handyman':5,
   'moving':9,
   'catering':7,
-  'event-planning':10
+  'event-planning':10,
+  'home-insurance':1,
+  'vehicle-insurance':1
 };
 const getCategoryPrice=(cat)=>{
   if(!cat)return 5;
