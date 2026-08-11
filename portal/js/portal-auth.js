@@ -93,3 +93,21 @@ function showActivateError(text) {
     $('[data-activate-error-text]').textContent = text;
   }
 }
+
+/* ── Password visibility toggle ── */
+document.querySelectorAll('input[type="password"]').forEach(input=>{
+  const wrapper=document.createElement('div');
+  wrapper.className='password-field';
+  wrapper.style.position='relative';
+  input.parentNode.insertBefore(wrapper,input);
+  wrapper.appendChild(input);
+  const toggle=document.createElement('button');
+  toggle.type='button';
+  toggle.className='password-toggle';
+  toggle.innerHTML='\u25C9';
+  toggle.setAttribute('aria-label','Show or hide password');
+  toggle.addEventListener('click',()=>{
+    if(input.type==='password'){input.type='text';toggle.innerHTML='\u25CD';}else{input.type='password';toggle.innerHTML='\u25C9';}
+  });
+  wrapper.appendChild(toggle);
+});

@@ -1,0 +1,117 @@
+/* ═══════════════════════════════════════════════════
+   Shedlr Enhancements — animations, interactions, polish
+   ═══════════════════════════════════════════════════ */
+
+/* ── Scroll reveal animations ── */
+.reveal{opacity:0;transform:translateY(28px);transition:opacity .7s cubic-bezier(.16,1,.3,1),transform .7s cubic-bezier(.16,1,.3,1)}
+.reveal.visible{opacity:1;transform:translateY(0)}
+.reveal-delay-1{transition-delay:.1s}
+.reveal-delay-2{transition-delay:.2s}
+.reveal-delay-3{transition-delay:.3s}
+.reveal-delay-4{transition-delay:.4s}
+
+@media(prefers-reduced-motion:reduce){
+  .reveal{opacity:1;transform:none;transition:none}
+}
+
+/* ── Hover lift on category cards ── */
+.area-grid a{transition:transform .35s cubic-bezier(.16,1,.3,1),box-shadow .35s ease}
+.area-grid a:hover{transform:translateY(-6px)}
+.area-grid a img{transition:transform .5s cubic-bezier(.16,1,.3,1)}
+.area-grid a:hover img{transform:scale(1.06)}
+
+/* ── Trust card hover ── */
+.trust-grid article{transition:transform .3s ease,box-shadow .3s ease}
+.trust-grid article:hover{transform:translateY(-4px)}
+
+/* ── Step card hover ── */
+.steps article{transition:border-color .3s ease,transform .3s ease}
+.steps article:hover{transform:translateY(-3px)}
+
+/* ── Button micro-interactions ── */
+.primary,.apply,.topbar-cta{transition:transform .15s ease,box-shadow .2s ease,filter .2s ease}
+.primary:hover,.apply:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(11,31,51,.18)}
+.primary:active,.apply:active{transform:translateY(0)}
+
+/* ── Stats counter animation ── */
+.stat-counter{display:inline-block}
+
+/* ── Social proof section ── */
+.social-proof{background:#0b1f33;color:#fff;padding:80px 0}
+.social-proof .section-head{text-align:center;margin-bottom:48px}
+.social-proof .eyebrow{color:#d4af37}
+.social-proof h2{color:#fff;font:700 38px 'Cormorant Garamond',serif;margin:8px 0 0}
+.social-proof .section-head p{color:#c8cfd8;margin:12px 0 0;max-width:520px;margin-left:auto;margin-right:auto}
+.testimonial-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
+@media(max-width:860px){.testimonial-grid{grid-template-columns:1fr}}
+.testimonial-card{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);padding:32px 28px;border-radius:4px}
+.testimonial-card .stars{color:#d4af37;font-size:16px;letter-spacing:2px;margin-bottom:16px}
+.testimonial-card .quote{font:500 16px/1.6 'Inter',sans-serif;color:#e8edf2;margin:0 0 24px}
+.testimonial-card .author{display:flex;align-items:center;gap:12px}
+.testimonial-card .avatar{width:42px;height:42px;border-radius:50%;background:#d4af37;display:flex;align-items:center;justify-content:center;font:700 16px 'Inter',sans-serif;color:#0b1f33}
+.testimonial-card .author-info strong{display:block;font-size:14px;font-weight:700;color:#fff}
+.testimonial-card .author-info small{font-size:12px;color:#8993a0}
+
+/* ── Price calculator ── */
+.calculator-section{background:#f7f8fa;padding:72px 0}
+.calculator-wrap{max-width:680px;margin:0 auto;background:#fff;border:1px solid #dfe3e7;box-shadow:0 18px 50px rgba(16,32,59,.08);padding:40px 36px}
+.calc-header{text-align:center;margin-bottom:32px}
+.calc-header h2{font:700 34px 'Cormorant Garamond',serif;margin:0 0 8px}
+.calc-header p{color:#66717d;margin:0}
+.calc-row{margin-bottom:24px}
+.calc-row label{display:block;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.09em;margin-bottom:10px;color:#33404d}
+.calc-row select{width:100%;padding:14px;border:1px solid #cfd6da;background:#fff;font:inherit;font-size:15px;cursor:pointer}
+.calc-row select:focus{outline:2px solid #0b1f33;outline-offset:1px}
+.calc-qty-display{display:flex;align-items:center;gap:16px}
+.calc-qty-slider{flex:1;-webkit-appearance:none;appearance:none;height:6px;background:#e5e8eb;border-radius:3px;outline:none}
+.calc-qty-slider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:24px;height:24px;border-radius:50%;background:#0b1f33;cursor:pointer;border:3px solid #d4af37}
+.calc-qty-slider::-moz-range-thumb{width:24px;height:24px;border-radius:50%;background:#0b1f33;cursor:pointer;border:3px solid #d4af37}
+.calc-qty-number{font:700 32px 'Cormorant Garamond',serif;color:#0b1f33;min-width:60px;text-align:center}
+.calc-result{margin-top:32px;padding:28px;background:#0b1f33;color:#fff;text-align:center;border-radius:4px}
+.calc-result .calc-total{font:700 48px 'Cormorant Garamond',serif;color:#d4af37;line-height:1;margin:8px 0}
+.calc-result .calc-per-lead{font-size:13px;color:#8993a0;text-transform:uppercase;letter-spacing:.1em;font-weight:700}
+.calc-result .calc-cta{display:inline-block;margin-top:20px;background:#d4af37;color:#0b1f33;padding:14px 32px;font-weight:800;text-decoration:none;border-radius:999px;font-size:15px;transition:transform .15s ease,filter .2s ease}
+.calc-result .calc-cta:hover{transform:translateY(-1px);filter:brightness(1.08)}
+
+/* ── Password visibility toggle ── */
+.password-field{position:relative}
+.password-field input{padding-right:44px}
+.password-toggle{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:18px;color:#8993a0;padding:4px 8px;line-height:1}
+.password-toggle:hover{color:#0b1f33}
+
+/* ── Portal/auth background enhancement ── */
+.auth-shell{position:relative;overflow:hidden}
+.auth-shell::before{content:'';position:absolute;top:-50%;right:-30%;width:500px;height:500px;background:radial-gradient(circle,rgba(212,175,55,.06) 0%,transparent 70%);pointer-events:none}
+
+/* ── FAQ smooth animation ── */
+#faqList details{transition:border-color .2s ease}
+#faqList details[open]{border-color:#d4af37}
+#faqList details summary{transition:color .2s ease}
+#faqList details summary:hover{color:#d4af37}
+
+/* ── Footer link hover ── */
+.footer-grid ul li a{transition:color .2s ease,padding-left .2s ease}
+.footer-grid ul li a:hover{color:#d4af37;padding-left:4px}
+
+/* ── Badge pulse ── */
+.hero-image .badge{animation:badgeFloat 3s ease-in-out infinite}
+@keyframes badgeFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+
+/* ── Topbar CTA refine ── */
+.topbar-cta{transition:filter .2s ease,transform .15s ease}
+.topbar-cta:hover{filter:brightness(1.1)}
+
+/* ── Category label overlay improvement ── */
+.area-grid a span{transition:background .3s ease;display:flex;flex-direction:column;align-items:center;gap:4px}
+.area-grid a:hover span{background:rgba(212,175,55,.92)}
+
+/* ── Category price badge ── */
+.cat-price{font:700 13px 'Inter',sans-serif;background:rgba(255,255,255,.15);padding:3px 10px;border-radius:99px;display:inline-block;margin-top:2px;backdrop-filter:blur(4px)}
+.cat-price-deal{background:#d4af37;color:#0b1f33;animation:dealPulse 2s ease-in-out infinite}
+@keyframes dealPulse{0%,100%{box-shadow:0 0 0 0 rgba(212,175,55,.6)}50%{box-shadow:0 0 0 6px rgba(212,175,55,0)}}
+
+/* ── Live total on contact form ── */
+.live-total{margin:20px 0;padding:20px 24px;background:#0b1f33;color:#fff;display:flex;align-items:center;gap:16px;flex-wrap:wrap;border-radius:4px}
+.live-total-label{font-size:12px;text-transform:uppercase;letter-spacing:.1em;font-weight:700;color:#8993a0}
+.live-total-amount{font:700 36px 'Cormorant Garamond',serif;color:#d4af37;line-height:1}
+.live-total-detail{font-size:13px;color:#c8cfd8;margin-left:auto}

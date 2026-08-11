@@ -3,7 +3,23 @@ const SESSION_TTL_SECONDS = 60 * 60 * 8;
 const BUSINESS_SESSION_COOKIE = "shedlr_business";
 const BUSINESS_SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
 const ACTIVATION_TTL_MS = 30 * 60 * 1000;
-const LEAD_PRICE_CENTS = 100;
+const LEAD_PRICE_CENTS = 100; // fallback default
+
+const CATEGORY_PRICES = {
+  "personal-trainer": 400,
+  "life-coach": 100,
+  "maintenance": 500,
+  "dog-walker": 200,
+  "house-cleaning": 600,
+  "landscaping": 700,
+  "tutoring": 400,
+  "photography": 800,
+  "handyman": 500,
+  "moving": 900,
+  "catering": 700,
+  "event-planning": 1000
+};
+const getCategoryPriceCents = (slug) => CATEGORY_PRICES[slug] || 500;
 
 const CATEGORIES = [
   "personal-trainer", "life-coach", "maintenance", "dog-walker",
@@ -169,12 +185,13 @@ async function saveOrderLead(env, request, data) {
   const now = new Date().toISOString();
   const category = clean(data.category, 60);
   const quantity = Math.max(1, Math.min(10000, Number(data.quantity) || 0));
-  const totalCents = quantity * LEAD_PRICE_CENTS;
+  const unitPriceCents = getCategoryPriceCents(category);
+  const totalCents = quantity * unitPriceCents;
   const result = await env.DB.prepare(`INSERT INTO lead_orders
     (business_name, name, email, phone, category, quantity, unit_price_cents, total_cents, status, message, submitted_at, ip_address, user_agent)
     VALUES (?,?,?,?,?,?,?,?, 'pending_payment', ?, ?, ?, ?)`)
     .bind(clean(data.company || data.business_name, 200), clean(data.name, 120), clean(data.email, 254).toLowerCase(),
-      clean(data.phone, 40), category, quantity, LEAD_PRICE_CENTS, totalCents,
+      clean(data.phone, 40), category, quantity, unitPriceCents, totalCents,
       clean(data.message, 4000), now, request.headers.get("CF-Connecting-IP"),
       clean(request.headers.get("User-Agent"), 500)).run();
   return result.meta?.last_row_id;
@@ -282,7 +299,7 @@ export default {
       if (!order.quantity || order.quantity < 1) return json({ error: "Please select a valid lead quantity." }, 400);
 
       const id = await saveOrderLead(env, request, order);
-      const orderRecord = { ...order, total_cents: order.quantity * LEAD_PRICE_CENTS, business_name: order.company };
+      const orderRecord = { ...order, total_cents: order.quantity * getCategoryPriceCents(order.category), unit_price_cents: getCategoryPriceCents(order.category), business_name: order.company };
       ctx.waitUntil(Promise.all([
         notify(env, orderRecord),
         saveEvent(env, request, { event_name: "order_submitted", page_path: clean(data.page_path,500), session_id: clean(data.session_id,120), order_id: id, metadata: { category: order.category, quantity: order.quantity } })
