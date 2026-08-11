@@ -85,6 +85,9 @@ track('page_view',{title:document.title,referrer:document.referrer||''});
   }
 })();
 
+/* ── Stripe Payment Link ── */
+const STRIPE_PAYMENT_LINK='https://buy.stripe.com/aFa14ndWdduSg2WgaYak002';
+
 /* ── Order form submission ── */
 const orderForm=document.querySelector('[data-order-form]');
 if(orderForm){
@@ -120,13 +123,16 @@ if(orderForm){
       if(!response.ok){
         throw new Error(result.error||'We could not submit your order. Please try again.');
       }
-      message.textContent=result.message||'Thank you. Your order has been received. You will get a payment link by email shortly.';
-      if(paymentNextStep){paymentNextStep.hidden=false;}
-      orderForm.reset();
       track('order_submitted',{category:payload.category,quantity:payload.quantity});
+      message.textContent='Order received. Redirecting to secure payment...';
+      message.classList.remove('error');
+      orderForm.reset();
+      /* Redirect to Stripe payment after short delay */
+      setTimeout(()=>{window.location.href=STRIPE_PAYMENT_LINK;},1500);
     }catch(error){
       track('order_submit_error',{message:error.message||'Unknown error'});
       message.textContent=error.message||'We could not submit your order. Please call (307) 303-7530 or email support@liferise.cc.';
+      message.classList.add('error');
     }finally{
       button.disabled=false;
       button.textContent=originalText;
