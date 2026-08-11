@@ -115,3 +115,11 @@
 .live-total-label{font-size:12px;text-transform:uppercase;letter-spacing:.1em;font-weight:700;color:#8993a0}
 .live-total-amount{font:700 36px 'Cormorant Garamond',serif;color:#d4af37;line-height:1}
 .live-total-detail{font-size:13px;color:#c8cfd8;margin-left:auto}
+
+/* ── Logo image ── */
+.brand-logo{height:38px;width:auto;display:inline-block;vertical-align:middle}
+.footer-logo .brand-logo{height:32px;filter:brightness(0) invert(1)}
+.brand-row .brand-logo{height:42px}
+.portal-brand .brand-logo{height:40px}
+.admin-brand .brand-logo{height:36px}
+.admin-tag{font:700 13px 'Inter',sans-serif;color:#8993a0;margin-left:6px;vertical-align:middle}
