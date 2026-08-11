@@ -17,14 +17,17 @@ const CATEGORY_PRICES = {
   "handyman": 500,
   "moving": 900,
   "catering": 700,
-  "event-planning": 1000
+  "event-planning": 1000,
+  "home-insurance": 100,
+  "vehicle-insurance": 100
 };
 const getCategoryPriceCents = (slug) => CATEGORY_PRICES[slug] || 500;
 
 const CATEGORIES = [
   "personal-trainer", "life-coach", "maintenance", "dog-walker",
   "house-cleaning", "landscaping", "tutoring", "photography",
-  "handyman", "moving", "catering", "event-planning"
+  "handyman", "moving", "catering", "event-planning",
+  "home-insurance", "vehicle-insurance"
 ];
 
 const CATEGORY_LABELS = {
@@ -39,7 +42,9 @@ const CATEGORY_LABELS = {
   "handyman": "Handyman",
   "moving": "Moving Services",
   "catering": "Catering",
-  "event-planning": "Event Planning"
+  "event-planning": "Event Planning",
+  "home-insurance": "Home Insurance",
+  "vehicle-insurance": "Vehicle Insurance"
 };
 
 const json = (body, status = 200, extraHeaders = {}) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", ...extraHeaders } });
