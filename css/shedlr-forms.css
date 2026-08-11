@@ -1,0 +1,20 @@
+/* ── Shedlr supplementary styles (extends site.css) ── */
+
+/* Order form */
+.prose-form{display:flex;flex-direction:column;gap:0}
+.prose-form h2{font:700 28px 'Cormorant Garamond',serif;margin:0 0 8px}
+.prose-form .form-intro{color:#66717d;margin:0 0 28px;line-height:1.5}
+.prose-form h3{font:700 20px 'Cormorant Garamond',serif;margin:32px 0 12px}
+.prose-form label{display:block;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.09em;margin:18px 0 8px;color:#33404d}
+.prose-form input,.prose-form select,.prose-form textarea{width:100%;padding:14px;border:1px solid #cfd6da;background:#fff;font:inherit;font-size:15px;border-radius:0}
+.prose-form input:focus,.prose-form select:focus,.prose-form textarea:focus{outline:2px solid #0b1f33;outline-offset:1px}
+.prose-form button[type=submit]{width:100%;border:0;background:#0b1f33;color:#fff;padding:16px;font-weight:800;cursor:pointer;margin-top:26px;letter-spacing:.02em;font-size:15px}
+.prose-form button[type=submit]:hover{background:#132a45}
+.prose-form button[type=submit]:disabled{opacity:.6;cursor:not-allowed}
+.prose-form .form-message{margin-top:18px;padding:13px 15px;background:#eef6f1;border-left:4px solid #2e8b57;color:#40514a;font-size:14px;line-height:1.45}
+.prose-form .form-message.error{background:#fbeceb;border-left-color:#b3372c;color:#7d271f}
+.consent-label{display:flex!important;align-items:flex-start;gap:10px;font-size:13px!important;text-transform:none!important;font-weight:600!important;letter-spacing:0!important;margin:24px 0 0!important;color:#33404d;line-height:1.5}
+.consent-label input{width:auto!important;margin-top:3px}
+.payment-next-step{margin-top:18px}
+.payment-next-step .notice{background:#f0f4f8;border-left:4px solid #0b1f33;padding:14px 16px;font-size:14px;line-height:1.5}
+.payment-next-step .notice a{color:#0b1f33;font-weight:800;border-bottom:2px solid #d4af37}

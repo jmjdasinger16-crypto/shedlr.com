@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>My Shedlr Portal</title>
+  <meta name="robots" content="noindex,nofollow">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/portal.css">
+</head>
+<body>
+  <header class="portal-topbar">
+    <div class="wrap">
+      <div class="portal-brand">
+        <span class="brand-dot"></span>
+        <div><strong>Shedlr</strong><small>Client Portal</small></div>
+      </div>
+      <div class="top-actions">
+        <a href="../index.html">Main site</a>
+        <button type="button" data-logout>Sign out</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="portal-main">
+    <div class="portal-hello">
+      <h1>Welcome back<span data-business-name-suffix></span><span class="status-pill" data-status-pill hidden></span></h1>
+      <p>Here are your purchased leads and order history. Click any lead to view details and add notes.</p>
+    </div>
+
+    <div class="portal-grid">
+      <div class="stack">
+        <section class="panel">
+          <h2>Your leads</h2>
+          <p class="panel-sub">Leads that have been verified and delivered to your account.</p>
+          <div data-leads-list><p class="empty-state">Loading your leads…</p></div>
+        </section>
+      </div>
+
+      <div class="stack">
+        <section class="panel">
+          <h2>Your orders</h2>
+          <p class="panel-sub">Lead credit purchases and fulfillment status.</p>
+          <div data-orders-list><p class="empty-state">Loading your orders…</p></div>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <!-- Lead detail dialog -->
+  <dialog data-lead-dialog>
+    <form method="dialog" class="dialog-card">
+      <button class="dialog-close" value="cancel" aria-label="Close" formnovalidate>×</button>
+      <h2 data-lead-title>Lead details</h2>
+      <div class="detail-grid" data-lead-details></div>
+
+      <div class="business-tabs">
+        <section class="business-subsection">
+          <h3>Notes</h3>
+          <div data-lead-notes-list></div>
+          <div class="business-inline-form">
+            <textarea rows="3" placeholder="Write a note about this lead..." data-note-content required></textarea>
+            <button type="button" data-note-add>Add note</button>
+          </div>
+        </section>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="js/portal-dashboard.js"></script>
+</body>
+</html>

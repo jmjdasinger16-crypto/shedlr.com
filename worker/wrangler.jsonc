@@ -1,0 +1,26 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "shedlr-api",
+  "main": "src/index.js",
+  "compatibility_date": "2026-08-10",
+  "workers_dev": true,
+  "routes": [
+    {
+      "pattern": "shedlr.com/api/*",
+      "zone_name": "shedlr.com"
+    }
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "shedlr-leads",
+      "database_id": "YOUR_D1_DATABASE_ID"
+    }
+  ],
+  "send_email": [
+    {
+      "name": "EMAIL",
+      "allowed_destination_addresses": ["support@liferise.cc"]
+    }
+  ]
+}

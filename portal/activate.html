@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Activate Account · Shedlr</title>
+  <meta name="robots" content="noindex,nofollow">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/portal.css">
+</head>
+<body>
+  <div class="auth-shell">
+    <div class="brand-row"><span class="brand-dot"></span><strong>Shedlr</strong></div>
+
+    <div class="auth-loading" data-activate-loading>
+      <h1>Activating your account…</h1>
+      <p>Please wait while we verify your activation link.</p>
+    </div>
+
+    <div hidden data-activate-form>
+      <h1>Set your password</h1>
+      <p class="lead" data-activate-lead>Create a password to access your lead portal.</p>
+      <form data-set-password-form>
+        <label for="password">Password (min 8 characters)</label>
+        <input id="password" name="password" type="password" autocomplete="new-password" required minlength="8">
+        <label for="confirmPassword">Confirm password</label>
+        <input id="confirmPassword" name="confirmPassword" type="password" autocomplete="new-password" required minlength="8">
+        <button type="submit">Set password & sign in</button>
+        <p class="form-message" data-activate-message hidden></p>
+      </form>
+    </div>
+
+    <div hidden data-activate-error>
+      <h1>Activation issue</h1>
+      <p class="lead" data-activate-error-text></p>
+      <p class="switch-link"><a href="index.html">Go to login</a></p>
+    </div>
+
+    <p class="switch-link"><a href="../index.html">← Back to Shedlr</a></p>
+  </div>
+  <script src="js/portal-auth.js"></script>
+</body>
+</html>
