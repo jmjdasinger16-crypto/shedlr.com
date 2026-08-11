@@ -15,7 +15,7 @@
 /* ── Password visibility toggle ── */
 .password-field{position:relative}
 .password-field input{padding-right:44px!important}
-.password-toggle{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:18px;color:#8993a0;padding:4px 8px;line-height:1}
+.password-toggle{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:18px;color:#8993a0;padding:4px 8px;line-height:1;width:auto!important;margin:0!important}
 .password-toggle:hover{color:#0b1f33}
 
 /* ── Logo image ── */

@@ -14,7 +14,7 @@
     {
       "binding": "DB",
       "database_name": "shedlr-leads",
-      "database_id": "YOUR_D1_DATABASE_ID"
+      "database_id": "8c6d07eb-5206-4c96-b84d-5bb8aa30a617"
     }
   ],
   "send_email": [
