@@ -296,7 +296,6 @@ export default {
       };
       if (!order.name || !validEmail(order.email) || !validPhone(order.phone)) return json({ error: "Please provide a valid name, email, and phone number." }, 400);
       if (!order.category || !CATEGORIES.includes(order.category)) return json({ error: "Please select a valid lead category." }, 400);
-      if (!order.quantity || order.quantity < 1) return json({ error: "Please select a valid lead quantity." }, 400);
 
       const id = await saveOrderLead(env, request, order);
       const orderRecord = { ...order, total_cents: order.quantity * getCategoryPriceCents(order.category), unit_price_cents: getCategoryPriceCents(order.category), business_name: order.company };

@@ -112,7 +112,7 @@ if(orderForm){
         phone:formData.phone,
         company:formData.company,
         category:formData.category,
-        quantity:formData.quantity==='custom'?Number(formData.custom_quantity):Number(formData.quantity),
+        quantity:0,
         message:formData.message,
         page_path:location.pathname+location.search,
         session_id:sessionId
