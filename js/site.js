@@ -201,7 +201,8 @@ const LEAD_PRICES={
   'Catering':7,
   'Event Planning':10,
   'Home Insurance':1,
-  'Vehicle Insurance':1
+  'Vehicle Insurance':1,
+  'Roofing':3
 };
 /* Slug → price for contact form values */
 const LEAD_PRICE_SLUGS={
@@ -218,7 +219,8 @@ const LEAD_PRICE_SLUGS={
   'catering':7,
   'event-planning':10,
   'home-insurance':1,
-  'vehicle-insurance':1
+  'vehicle-insurance':1,
+  'roofing':3
 };
 const getCategoryPrice=(cat)=>{
   if(!cat)return 5;
