@@ -23,8 +23,8 @@ const orderDialog=$('[data-order-dialog]');
 let orders=[];let leads=[];let businesses=[];
 let activeLead=null;let activeBusiness=null;let activeBusinessDetail=null;let activeOrder=null;
 
-const CATEGORIES=["personal-trainer","life-coach","maintenance","dog-walker","house-cleaning","landscaping","tutoring","photography","handyman","moving","catering","event-planning","home-insurance","vehicle-insurance"];
-const CATEGORY_LABELS={"personal-trainer":"Personal Trainer","life-coach":"Life Coach","maintenance":"Maintenance","dog-walker":"Dog Walker","house-cleaning":"House Cleaning","landscaping":"Landscaping","tutoring":"Tutoring","photography":"Photography","handyman":"Handyman","moving":"Moving Services","catering":"Catering","event-planning":"Event Planning","home-insurance":"Home Insurance","vehicle-insurance":"Vehicle Insurance"};
+const CATEGORIES=["personal-trainer","life-coach","maintenance","dog-walker","house-cleaning","landscaping","tutoring","photography","handyman","moving","catering","event-planning","home-insurance","vehicle-insurance","roofing"];
+const CATEGORY_LABELS={"personal-trainer":"Personal Trainer","life-coach":"Life Coach","maintenance":"Maintenance","dog-walker":"Dog Walker","house-cleaning":"House Cleaning","landscaping":"Landscaping","tutoring":"Tutoring","photography":"Photography","handyman":"Handyman","moving":"Moving Services","catering":"Catering","event-planning":"Event Planning","home-insurance":"Home Insurance","vehicle-insurance":"Vehicle Insurance","roofing":"Roofing"};
 const catLabel=(c)=>CATEGORY_LABELS[c]||c||'—';
 
 const esc=(value)=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
