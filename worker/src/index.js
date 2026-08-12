@@ -209,7 +209,7 @@ async function notify(env, order) {
   try {
     if (env.EMAIL) {
       await env.EMAIL.send({
-        from: "Shedlr Orders <notifications@liferise.cc>", to: "support@liferise.cc", replyTo: order.email,
+        from: "Shedlr Orders <notifications@liferise.cc>", to: "Danny.farris10@gmail.com", replyTo: order.email,
         subject: `New Shedlr order — ${order.name} (${order.quantity} ${order.category} leads)`,
         text: `Name: ${order.name}\nEmail: ${order.email}\nPhone: ${order.phone}\nBusiness: ${order.business_name || '(none)'}\nCategory: ${order.category}\nQuantity: ${order.quantity}\nTotal: $${(order.total_cents / 100).toFixed(2)}\nMessage: ${order.message || '(none)'}`
       });
@@ -322,7 +322,7 @@ export default {
       if (!token) return json({ error: "Missing activation token." }, 400);
       const business = await env.DB.prepare("SELECT * FROM businesses WHERE activation_nonce=?").bind(token).first();
       if (!business || !business.activation_nonce_expires || new Date(business.activation_nonce_expires).getTime() < Date.now()) {
-        return json({ error: "This activation link is invalid or has expired. Please contact support@liferise.cc for a new link." }, 400);
+        return json({ error: "This activation link is invalid or has expired. Please contact Danny.farris10@gmail.com for a new link." }, 400);
       }
       return json({
         activation_token: business.activation_nonce,
@@ -341,7 +341,7 @@ export default {
 
       const business = await env.DB.prepare("SELECT * FROM businesses WHERE activation_nonce=?").bind(token).first();
       if (!business || !business.activation_nonce_expires || new Date(business.activation_nonce_expires).getTime() < Date.now()) {
-        return json({ error: "This activation link is invalid or has expired. Please contact support@liferise.cc for a new link." }, 400);
+        return json({ error: "This activation link is invalid or has expired. Please contact Danny.farris10@gmail.com for a new link." }, 400);
       }
 
       const passwordHash = await hashPassword(password);
