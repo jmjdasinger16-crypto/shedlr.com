@@ -131,7 +131,7 @@ if(orderForm){
       setTimeout(()=>{window.location.href=STRIPE_PAYMENT_LINK;},1500);
     }catch(error){
       track('order_submit_error',{message:error.message||'Unknown error'});
-      message.textContent=error.message||'We could not submit your order. Please call (806) 319-5785 or email Danny.farris10@gmail.com.';
+      message.textContent=error.message||'We could not submit your order. Please call (307) 303-7530 or email support@liferise.cc.';
       message.classList.add('error');
     }finally{
       button.disabled=false;
