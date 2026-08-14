@@ -31,6 +31,8 @@ CREATE TABLE IF NOT EXISTS lead_orders (
   email TEXT NOT NULL,
   phone TEXT,
   category TEXT NOT NULL,
+  lead_type TEXT,
+  zip TEXT,
   quantity INTEGER NOT NULL DEFAULT 1,
   unit_price_cents INTEGER NOT NULL DEFAULT 100,
   total_cents INTEGER NOT NULL,
