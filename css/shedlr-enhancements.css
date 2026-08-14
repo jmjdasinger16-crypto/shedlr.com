@@ -140,6 +140,7 @@
 
 /* ── ZIP code availability checker ── */
 .zip-check-block{margin:18px 0 8px;padding:22px;background:#f0f4f8;border:1px solid #dfe3e7;border-radius:4px}
+.optional-tag{text-transform:none;letter-spacing:0;font-weight:500;color:#87909b;font-size:12px}
 .zip-check-block label{margin-top:0!important}
 .zip-check-row{display:flex;gap:10px}
 .zip-check-row input{flex:1}
@@ -147,8 +148,10 @@
 .zip-check-row button:hover{background:#132a45}
 .zip-check-row button:disabled{opacity:.65;cursor:default}
 .zip-result{margin-top:14px;font-size:14px;font-weight:700;display:flex;align-items:center;gap:10px;min-height:20px}
+.zip-result[hidden]{display:none}
 .zip-result.checking{color:#66717d}
 .zip-result.available{color:#1f7a4d}
+.zip-result.info{color:#526070;font-weight:600}
 .zip-spinner{width:14px;height:14px;border:2px solid #cfd6da;border-top-color:#0b1f33;border-radius:50%;display:inline-block;animation:zipSpin .7s linear infinite}
 @keyframes zipSpin{to{transform:rotate(360deg)}}
 .zip-check{color:#1f7a4d;font-size:16px}

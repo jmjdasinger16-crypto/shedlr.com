@@ -80,9 +80,9 @@
           </select>
 
           <div class="zip-check-block">
-            <label for="zip">Your service ZIP code</label>
+            <label for="zip">Your service ZIP code <span class="optional-tag">(optional — leave blank for any)</span></label>
             <div class="zip-check-row">
-              <input type="text" id="zip" name="zip" inputmode="numeric" pattern="[0-9]{5}" maxlength="5" required placeholder="79401">
+              <input type="text" id="zip" name="zip" inputmode="numeric" pattern="[0-9]{5}" maxlength="5" placeholder="79401">
               <button type="button" id="zipCheckBtn">Check Availability</button>
             </div>
             <p class="zip-result" id="zipResult" hidden></p>
