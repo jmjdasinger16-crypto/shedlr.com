@@ -30,6 +30,12 @@ track('page_view',{title:document.title,referrer:document.referrer||''});
 
   const runCheck=()=>{
     const zip=zipInput.value.trim();
+    if(!zip){
+      result.hidden=false;
+      result.className='zip-result info';
+      result.textContent="No ZIP? No problem \u2014 leave it blank and we'll send leads from any area we service.";
+      return;
+    }
     if(!/^\d{5}$/.test(zip)){
       result.hidden=false;
       result.className='zip-result';
@@ -54,6 +60,7 @@ track('page_view',{title:document.title,referrer:document.referrer||''});
   if(checkBtn)checkBtn.addEventListener('click',runCheck);
   zipInput.addEventListener('input',()=>{
     zipInput.value=zipInput.value.replace(/\D/g,'').slice(0,5);
+    if(zipInput.value.length===0){result.hidden=true;return;}
     if(zipInput.value.length===5)runCheck();
   });
 })();
