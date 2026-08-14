@@ -3,19 +3,19 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Get Leads | Shedlr</title>
-  <meta name="description" content="Choose your lead category and purchase verified leads at competitive prices. Personal trainers, life coaches, maintenance, dog walkers, and more — from $1 per lead.">
+  <title>Get Pre-Qualified Leads | Shedlr</title>
+  <meta name="description" content="Choose your lead category and lead type — appointment booking, phone call scheduling, or raw leads. Roofing, auto hail damage, home services, and more, all pre-qualified by hand.">
   <meta name="robots" content="index,follow,max-image-preview:large">
   <link rel="canonical" href="https://shedlr.com/contact.html">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Shedlr">
-  <meta property="og:title" content="Get Leads | Shedlr">
-  <meta property="og:description" content="Choose your lead category and purchase verified leads at competitive prices from $1 per lead.">
+  <meta property="og:title" content="Get Pre-Qualified Leads | Shedlr">
+  <meta property="og:description" content="Choose your lead category and lead type. Every lead is pre-qualified by hand before it reaches you.">
   <meta property="og:url" content="https://shedlr.com/contact.html">
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="Get Leads | Shedlr">
-  <meta name="twitter:description" content="Purchase verified leads at competitive prices from $1 per lead.">
-  <script type="application/ld+json">{"@context":"https://schema.org","@type":"ContactPage","name":"Get Leads from Shedlr","url":"https://shedlr.com/contact.html","description":"Purchase verified customer leads at competitive prices from $1 per lead.","mainEntity":{"@type":"Organization","name":"Shedlr","url":"https://shedlr.com/","email":"support@liferise.cc","telephone":"+1-307-303-7530","contactPoint":{"@type":"ContactPoint","contactType":"customer support","email":"support@liferise.cc","telephone":"+1-307-303-7530","availableLanguage":"English"}}}</script>
+  <meta name="twitter:title" content="Get Pre-Qualified Leads | Shedlr">
+  <meta name="twitter:description" content="Pre-qualified leads, delivered your way — appointments, scheduled calls, or raw leads.">
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"ContactPage","name":"Get Leads from Shedlr","url":"https://shedlr.com/contact.html","description":"Order pre-qualified customer leads by category and lead type.","mainEntity":{"@type":"Organization","name":"Shedlr","url":"https://shedlr.com/","email":"support@liferise.cc","telephone":"+1-307-303-7530","contactPoint":{"@type":"ContactPoint","contactType":"customer support","email":"support@liferise.cc","telephone":"+1-307-303-7530","availableLanguage":"English"}}}</script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -25,36 +25,68 @@
   <link rel="stylesheet" href="css/shedlr-enhancements.css">
 </head>
 <body>
-  <div class="topbar"><span><i></i>Real leads, verified by real people</span><b>|</b><span>Competitively priced — no trial, no fluff</span><b>|</b><a class="text-link" href="portal/index.html">Client Login</a></div>
-  <header><div class="wrap nav"><a class="brand" href="index.html" aria-label="Shedlr home"><img src="assets/shedlr-logo.jpg" alt="Shedlr" class="brand-logo"></a><nav><a href="index.html#how">How It Works</a><a href="index.html#categories">Categories</a><a href="index.html#faq">FAQ</a></nav><div class="navright"><a class="text-link" href="portal/index.html">Client Login</a><a class="apply" href="#order-form">Purchase Leads ↗</a></div></div></header>
+  <div class="topbar"><span><i></i>Pre-qualified leads, verified by real people</span><b>|</b><span>We roll up our sleeves and do the prospecting for you</span><b>|</b><a class="text-link" href="portal/index.html">Client Login</a></div>
+  <header><div class="wrap nav"><a class="brand" href="index.html" aria-label="Shedlr home"><img src="assets/shedlr-logo.png" alt="Shedlr" class="brand-logo"></a><nav><a href="index.html#how">How It Works</a><a href="index.html#lead-types">Lead Types</a><a href="index.html#faq">FAQ</a></nav><div class="navright"><a class="text-link" href="portal/index.html">Client Login</a><a class="apply" href="#order-form">Purchase Leads ↗</a></div></div></header>
   <main>
-    <section class="page-hero"><div class="wrap"><span class="eyebrow">From $1 per lead</span><h1>Get your<br><em>first leads.</em></h1><p>Choose your lead category, tell us how many you want, and we will start manually verifying leads for your business. Prices vary by category, starting at $1 per lead — no trial, no subscription required.</p></div></section>
+    <section class="page-hero"><div class="wrap"><span class="eyebrow">Pre-qualified. Ready to buy.</span><h1>Get your<br><em>first pre-qualified leads.</em></h1><p>Choose your lead category and how you want it delivered — booked appointment, scheduled call, or raw lead. We roll up our sleeves and pre-qualify every lead before it reaches you. No trial, no subscription required.</p></div></section>
 
     <section class="section">
       <div class="wrap narrow">
         <form data-order-form id="order-form" class="prose-form">
           <h2>Order your leads</h2>
-          <p class="form-intro">Fill out the form below and we will begin researching and verifying leads in your selected category. You will receive a payment link for your lead credits.</p>
+          <p class="form-intro">Fill out the form below and we will begin prospecting and pre-qualifying leads in your selected category. You will receive a payment link for your lead credits.</p>
+
+          <label for="leadType">How do you want your leads delivered?</label>
+          <select id="leadType" name="lead_type" required>
+            <option value="">— Select a lead type —</option>
+            <option value="appointment-booking">Appointment Booking — booked on your calendar</option>
+            <option value="phone-call-scheduling">Phone Call Scheduling — live call scheduled for you</option>
+            <option value="raw-leads">Raw Leads — full contact info, you make the first move</option>
+          </select>
 
           <label for="category">What kind of leads do you want?</label>
           <select id="category" name="category" required>
             <option value="">— Select a category —</option>
-            <option value="personal-trainer" data-price="4">Personal Trainer — $4/lead</option>
-            <option value="life-coach" data-price="1">Life Coach — $1/lead</option>
-            <option value="maintenance" data-price="5">Maintenance — $5/lead</option>
-            <option value="dog-walker" data-price="2">Dog Walker — $2/lead</option>
-            <option value="house-cleaning" data-price="6">House Cleaning — $6/lead</option>
-            <option value="landscaping" data-price="7">Landscaping — $7/lead</option>
-            <option value="tutoring" data-price="4">Tutoring — $4/lead</option>
-            <option value="photography" data-price="8">Photography — $8/lead</option>
-            <option value="handyman" data-price="5">Handyman — $5/lead</option>
-            <option value="moving" data-price="9">Moving Services — $9/lead</option>
-            <option value="catering" data-price="7">Catering — $7/lead</option>
-            <option value="event-planning" data-price="10">Event Planning — $10/lead</option>
-            <option value="home-insurance" data-price="1">Home Insurance — $1/lead</option>
-            <option value="vehicle-insurance" data-price="1">Vehicle Insurance — $1/lead</option>
-            <option value="roofing" data-price="3">Roofing — $3/lead</option>
+            <optgroup label="Storm &amp; Specialty Claims">
+              <option value="roofing" data-price="3">Roofing</option>
+              <option value="auto-hail-damage" data-price="12">Auto Hail Damage</option>
+            </optgroup>
+            <optgroup label="Home Services">
+              <option value="home-services" data-price="6">Home Services (general)</option>
+              <option value="hvac" data-price="7">HVAC</option>
+              <option value="plumbing" data-price="7">Plumbing</option>
+              <option value="maintenance" data-price="5">Maintenance</option>
+              <option value="landscaping" data-price="7">Landscaping</option>
+              <option value="handyman" data-price="5">Handyman</option>
+              <option value="house-cleaning" data-price="6">House Cleaning</option>
+              <option value="pest-control" data-price="5">Pest Control</option>
+            </optgroup>
+            <optgroup label="Solar, Insurance &amp; Real Estate">
+              <option value="solar" data-price="10">Solar</option>
+              <option value="home-insurance" data-price="1">Home Insurance</option>
+              <option value="vehicle-insurance" data-price="1">Vehicle Insurance</option>
+              <option value="real-estate" data-price="8">Real Estate</option>
+            </optgroup>
+            <optgroup label="Personal &amp; Lifestyle">
+              <option value="personal-trainer" data-price="4">Personal Trainer</option>
+              <option value="life-coach" data-price="1">Life Coach</option>
+              <option value="dog-walker" data-price="2">Dog Walker</option>
+              <option value="tutoring" data-price="4">Tutoring</option>
+              <option value="photography" data-price="8">Photography</option>
+              <option value="moving" data-price="9">Moving Services</option>
+              <option value="catering" data-price="7">Catering</option>
+              <option value="event-planning" data-price="10">Event Planning</option>
+            </optgroup>
           </select>
+
+          <div class="zip-check-block">
+            <label for="zip">Your service ZIP code</label>
+            <div class="zip-check-row">
+              <input type="text" id="zip" name="zip" inputmode="numeric" pattern="[0-9]{5}" maxlength="5" required placeholder="79401">
+              <button type="button" id="zipCheckBtn">Check Availability</button>
+            </div>
+            <p class="zip-result" id="zipResult" hidden></p>
+          </div>
 
           <h3 style="margin-top:36px">Your business information</h3>
 
@@ -73,7 +105,7 @@
           <label for="message">Anything specific? (optional)</label>
           <textarea id="message" name="message" rows="3" placeholder="e.g. I serve the Lubbock, TX area and prefer leads within 50 miles."></textarea>
 
-          <label class="consent-label"><input type="checkbox" id="consent" name="consent" required> I agree to be contacted by phone, text, and email about my lead order. I understand that lead prices vary by category ($1 to $10 per lead), there is no free trial, and cancellation requires 30 days' notice per the Terms of Service. Message and data rates may apply. Consent is not a condition of purchase.</label>
+          <label class="consent-label"><input type="checkbox" id="consent" name="consent" required> I agree to be contacted by phone, text, and email about my lead order. I understand that lead pricing varies by category and lead type, there is no free trial, and cancellation requires 30 days' notice per the Terms of Service. Message and data rates may apply. Consent is not a condition of purchase.</label>
 
           <button type="submit">Submit & Pay →</button>
           <p class="form-message" data-form-message hidden></p>
@@ -98,12 +130,12 @@
   <footer>
     <div class="wrap footer-grid">
       <div class="footer-brand">
-        <a class="brand footer-logo" href="index.html" aria-label="Shedlr home"><img src="assets/shedlr-logo.jpg" alt="Shedlr" class="brand-logo"></a>
+        <a class="brand footer-logo" href="index.html" aria-label="Shedlr home"><img src="assets/shedlr-logo.png" alt="Shedlr" class="brand-logo"></a>
         <p>Real leads for real businesses — competitively priced.</p>
       </div>
-      <div><h4>Explore</h4><ul><li><a href="index.html#how">How It Works</a></li><li><a href="index.html#categories">Categories</a></li><li><a href="contact.html">Get Leads</a></li></ul></div>
+      <div><h4>Explore</h4><ul><li><a href="index.html#how">How It Works</a></li><li><a href="index.html#lead-types">Lead Types</a></li><li><a href="contact.html">Get Leads</a></li></ul></div>
       <div><h4>Support</h4><ul><li><a href="contact.html">Contact</a></li><li><a href="disclaimer.html">Disclaimer</a></li><li><a href="terms.html">Terms of Service</a></li></ul></div>
-      <div><h4>Our Promise</h4><ul><li>Manually verified leads</li><li>Competitive pricing from $1</li><li>No trial required</li></ul></div>
+      <div><h4>Our Promise</h4><ul><li>Manually verified leads</li><li>Competitive, transparent pricing</li><li>No trial required</li></ul></div>
     </div>
     <div class="wrap copyright"><p>© 2026 Shedlr. Operated by LifeRise Unlimited Corporation.</p></div>
   </footer>

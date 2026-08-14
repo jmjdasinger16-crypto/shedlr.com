@@ -20,7 +20,14 @@ const CATEGORY_PRICES = {
   "event-planning": 1000,
   "home-insurance": 100,
   "vehicle-insurance": 100,
-  "roofing": 300
+  "roofing": 300,
+  "auto-hail-damage": 1200,
+  "home-services": 600,
+  "hvac": 700,
+  "plumbing": 700,
+  "pest-control": 500,
+  "solar": 1000,
+  "real-estate": 800
 };
 const getCategoryPriceCents = (slug) => CATEGORY_PRICES[slug] || 500;
 
@@ -29,8 +36,11 @@ const CATEGORIES = [
   "house-cleaning", "landscaping", "tutoring", "photography",
   "handyman", "moving", "catering", "event-planning",
   "home-insurance", "vehicle-insurance",
-  "roofing"
+  "roofing", "auto-hail-damage", "home-services", "hvac",
+  "plumbing", "pest-control", "solar", "real-estate"
 ];
+
+const LEAD_TYPES = ["appointment-booking", "phone-call-scheduling", "raw-leads"];
 
 const CATEGORY_LABELS = {
   "personal-trainer": "Personal Trainer",
@@ -47,7 +57,14 @@ const CATEGORY_LABELS = {
   "event-planning": "Event Planning",
   "home-insurance": "Home Insurance",
   "vehicle-insurance": "Vehicle Insurance",
-  "roofing": "Roofing"
+  "roofing": "Roofing",
+  "auto-hail-damage": "Auto Hail Damage",
+  "home-services": "Home Services",
+  "hvac": "HVAC",
+  "plumbing": "Plumbing",
+  "pest-control": "Pest Control",
+  "solar": "Solar",
+  "real-estate": "Real Estate"
 };
 
 const json = (body, status = 200, extraHeaders = {}) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", ...extraHeaders } });
@@ -196,10 +213,11 @@ async function saveOrderLead(env, request, data) {
   const unitPriceCents = getCategoryPriceCents(category);
   const totalCents = quantity * unitPriceCents;
   const result = await env.DB.prepare(`INSERT INTO lead_orders
-    (business_name, name, email, phone, category, quantity, unit_price_cents, total_cents, status, message, submitted_at, ip_address, user_agent)
-    VALUES (?,?,?,?,?,?,?,?, 'pending_payment', ?, ?, ?, ?)`)
+    (business_name, name, email, phone, category, lead_type, zip, quantity, unit_price_cents, total_cents, status, message, submitted_at, ip_address, user_agent)
+    VALUES (?,?,?,?,?,?,?,?,?,?, 'pending_payment', ?, ?, ?, ?)`)
     .bind(clean(data.company || data.business_name, 200), clean(data.name, 120), clean(data.email, 254).toLowerCase(),
-      clean(data.phone, 40), category, quantity, unitPriceCents, totalCents,
+      clean(data.phone, 40), category, clean(data.lead_type, 40), clean(data.zip, 10).replace(/\D/g, "").slice(0, 5),
+      quantity, unitPriceCents, totalCents,
       clean(data.message, 4000), now, request.headers.get("CF-Connecting-IP"),
       clean(request.headers.get("User-Agent"), 500)).run();
   return result.meta?.last_row_id;
@@ -211,7 +229,7 @@ async function notify(env, order) {
       await env.EMAIL.send({
         from: "Shedlr Orders <notifications@liferise.cc>", to: "support@liferise.cc", replyTo: order.email,
         subject: `New Shedlr order — ${order.name} (${order.quantity} ${order.category} leads)`,
-        text: `Name: ${order.name}\nEmail: ${order.email}\nPhone: ${order.phone}\nBusiness: ${order.business_name || '(none)'}\nCategory: ${order.category}\nQuantity: ${order.quantity}\nTotal: $${(order.total_cents / 100).toFixed(2)}\nMessage: ${order.message || '(none)'}`
+        text: `Name: ${order.name}\nEmail: ${order.email}\nPhone: ${order.phone}\nBusiness: ${order.business_name || '(none)'}\nCategory: ${order.category}\nLead Type: ${order.lead_type || '(not specified)'}\nZIP: ${order.zip || '(not specified)'}\nQuantity: ${order.quantity}\nTotal: $${(order.total_cents / 100).toFixed(2)}\nMessage: ${order.message || '(none)'}`
       });
     }
   } catch (error) { console.error("Email notification failed", error); }
@@ -300,10 +318,12 @@ export default {
       const order = {
         name: clean(data.name, 120), email: clean(data.email, 254).toLowerCase(), phone: clean(data.phone, 40),
         company: clean(data.company || data.business_name, 200), category: clean(data.category, 60),
+        lead_type: clean(data.lead_type, 40), zip: clean(data.zip, 10).replace(/\D/g, "").slice(0, 5),
         quantity: Number(data.quantity) || 0, message: clean(data.message, 4000)
       };
       if (!order.name || !validEmail(order.email) || !validPhone(order.phone)) return json({ error: "Please provide a valid name, email, and phone number." }, 400);
       if (!order.category || !CATEGORIES.includes(order.category)) return json({ error: "Please select a valid lead category." }, 400);
+      if (order.lead_type && !LEAD_TYPES.includes(order.lead_type)) return json({ error: "Please select a valid lead type." }, 400);
 
       const id = await saveOrderLead(env, request, order);
       const orderRecord = { ...order, total_cents: order.quantity * getCategoryPriceCents(order.category), unit_price_cents: getCategoryPriceCents(order.category), business_name: order.company };

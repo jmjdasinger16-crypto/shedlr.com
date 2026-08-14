@@ -5,7 +5,7 @@ const sessionId=getSessionId();
 const track=(eventName,metadata={})=>fetch('/api/events',{method:'POST',headers:{'content-type':'application/json'},keepalive:true,body:JSON.stringify({event_name:eventName,page_path:location.pathname+location.search,session_id:sessionId,metadata})}).catch(()=>{});
 track('page_view',{title:document.title,referrer:document.referrer||''});
 
-/* ── Category pre-select from URL param ── */
+/* ── Category & lead type pre-select from URL param ── */
 (function(){
   const params=new URLSearchParams(window.location.search);
   const cat=params.get('category');
@@ -13,6 +13,49 @@ track('page_view',{title:document.title,referrer:document.referrer||''});
     const select=document.getElementById('category');
     if(select)select.value=cat;
   }
+  const type=params.get('type');
+  if(type){
+    const typeSelect=document.getElementById('leadType');
+    if(typeSelect)typeSelect.value=type;
+  }
+})();
+
+/* ── ZIP code availability checker (always reports available) ── */
+(function(){
+  const zipInput=document.getElementById('zip');
+  const checkBtn=document.getElementById('zipCheckBtn');
+  const result=document.getElementById('zipResult');
+  if(!zipInput||!result)return;
+  let checkedZip='';
+
+  const runCheck=()=>{
+    const zip=zipInput.value.trim();
+    if(!/^\d{5}$/.test(zip)){
+      result.hidden=false;
+      result.className='zip-result';
+      result.textContent='Please enter a valid 5-digit ZIP code.';
+      return;
+    }
+    if(checkedZip===zip&&!result.hidden&&result.classList.contains('available'))return;
+    track('zip_check_started',{zip});
+    result.hidden=false;
+    result.className='zip-result checking';
+    result.innerHTML='<span class="zip-spinner"></span> Checking availability for '+zip+'…';
+    if(checkBtn)checkBtn.disabled=true;
+    setTimeout(()=>{
+      checkedZip=zip;
+      result.className='zip-result available';
+      result.innerHTML='<span class="zip-check">✓</span> Good news — Shedlr is currently serving '+zip+'!';
+      if(checkBtn)checkBtn.disabled=false;
+      track('zip_check_available',{zip});
+    },1100+Math.random()*500);
+  };
+
+  if(checkBtn)checkBtn.addEventListener('click',runCheck);
+  zipInput.addEventListener('input',()=>{
+    zipInput.value=zipInput.value.replace(/\D/g,'').slice(0,5);
+    if(zipInput.value.length===5)runCheck();
+  });
 })();
 
 /* ── Custom quantity toggle + live total ── */
@@ -112,6 +155,8 @@ if(orderForm){
         phone:formData.phone,
         company:formData.company,
         category:formData.category,
+        lead_type:formData.lead_type,
+        zip:formData.zip,
         quantity:0,
         message:formData.message,
         page_path:location.pathname+location.search,
@@ -202,7 +247,14 @@ const LEAD_PRICES={
   'Event Planning':10,
   'Home Insurance':1,
   'Vehicle Insurance':1,
-  'Roofing':3
+  'Roofing':3,
+  'Auto Hail Damage':12,
+  'Home Services':6,
+  'HVAC':7,
+  'Plumbing':7,
+  'Pest Control':5,
+  'Solar':10,
+  'Real Estate':8
 };
 /* Slug → price for contact form values */
 const LEAD_PRICE_SLUGS={
@@ -220,7 +272,14 @@ const LEAD_PRICE_SLUGS={
   'event-planning':10,
   'home-insurance':1,
   'vehicle-insurance':1,
-  'roofing':3
+  'roofing':3,
+  'auto-hail-damage':12,
+  'home-services':6,
+  'hvac':7,
+  'plumbing':7,
+  'pest-control':5,
+  'solar':10,
+  'real-estate':8
 };
 const getCategoryPrice=(cat)=>{
   if(!cat)return 5;

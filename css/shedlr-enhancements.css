@@ -116,6 +116,54 @@
 .live-total-amount{font:700 36px 'Cormorant Garamond',serif;color:#d4af37;line-height:1}
 .live-total-detail{font-size:13px;color:#c8cfd8;margin-left:auto}
 
+/* ── Roll-up-our-sleeves prospecting band ── */
+.prospecting-band{background:#0b1f33;color:#fff;padding:90px 0}
+.prospecting-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:60px;align-items:center}
+.prospecting-copy h2{font:600 44px 'Cormorant Garamond',serif;color:#fff;margin:10px 0 20px;letter-spacing:-.03em;line-height:1.08}
+.prospecting-copy h2 em{color:#d4af37;font-style:normal}
+.prospecting-copy p{color:#c8cfd8;font-size:16px;line-height:1.7;max-width:520px}
+.prospecting-points{display:flex;flex-direction:column;gap:22px}
+.prospecting-points div{display:flex;gap:18px;align-items:flex-start;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);padding:20px 22px;border-radius:4px}
+.prospecting-points b{font:700 22px 'Cormorant Garamond',serif;color:#d4af37;flex:0 0 auto}
+.prospecting-points span{color:#e8edf2;font-size:14.5px;line-height:1.6}
+@media(max-width:860px){.prospecting-grid{grid-template-columns:1fr}.prospecting-copy h2{font-size:34px}}
+
+/* ── Lead type cards (homepage) ── */
+.leadtype-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
+.leadtype-card{display:flex;flex-direction:column;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.14);border-radius:6px;padding:36px 30px;transition:transform .3s cubic-bezier(.16,1,.3,1),background .3s ease,border-color .3s ease}
+.leadtype-card:hover{transform:translateY(-6px);background:rgba(255,255,255,.09);border-color:#d4af37}
+.leadtype-icon{font-size:34px;margin-bottom:18px;display:block}
+.leadtype-card h3{font:600 26px 'Cormorant Garamond',serif;color:#fff;margin:0 0 12px}
+.leadtype-card p{color:#c8cfd8;font-size:14.5px;line-height:1.7;margin:0 0 22px;flex:1}
+.leadtype-cta{color:#d4af37;font-weight:800;font-size:13px;letter-spacing:.04em;text-transform:uppercase}
+@media(max-width:860px){.leadtype-grid{grid-template-columns:1fr}}
+
+/* ── ZIP code availability checker ── */
+.zip-check-block{margin:18px 0 8px;padding:22px;background:#f0f4f8;border:1px solid #dfe3e7;border-radius:4px}
+.zip-check-block label{margin-top:0!important}
+.zip-check-row{display:flex;gap:10px}
+.zip-check-row input{flex:1}
+.zip-check-row button{flex:0 0 auto;background:#0b1f33;color:#fff;border:0;padding:0 22px;font-weight:800;font-size:13px;letter-spacing:.03em;cursor:pointer;border-radius:2px;white-space:nowrap}
+.zip-check-row button:hover{background:#132a45}
+.zip-check-row button:disabled{opacity:.65;cursor:default}
+.zip-result{margin-top:14px;font-size:14px;font-weight:700;display:flex;align-items:center;gap:10px;min-height:20px}
+.zip-result.checking{color:#66717d}
+.zip-result.available{color:#1f7a4d}
+.zip-spinner{width:14px;height:14px;border:2px solid #cfd6da;border-top-color:#0b1f33;border-radius:50%;display:inline-block;animation:zipSpin .7s linear infinite}
+@keyframes zipSpin{to{transform:rotate(360deg)}}
+.zip-check{color:#1f7a4d;font-size:16px}
+
+/* ── Vertical / industry landing pages ── */
+.claim-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;margin-top:10px}
+.claim-card{background:#fff;border:1px solid #dfe3e7;padding:32px 28px;border-radius:4px}
+.claim-card .num{display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;background:#0b1f33;color:#d4af37;font:700 16px 'Inter',sans-serif;border-radius:50%;margin-bottom:18px}
+.claim-card h3{font:700 19px 'Inter',sans-serif;margin:0 0 10px}
+.claim-card p{color:#5f6975;font-size:14px;line-height:1.7;margin:0}
+.checklist{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:16px 30px}
+.checklist li{padding-left:30px;position:relative;font-size:15px;line-height:1.6;color:#33404d}
+.checklist li:before{content:'✓';position:absolute;left:0;top:0;color:#1f7a4d;font-weight:800}
+@media(max-width:760px){.claim-grid{grid-template-columns:1fr}.checklist{grid-template-columns:1fr}}
+
 /* ── Logo image ── */
 .brand-logo{height:38px;width:auto;display:inline-block;vertical-align:middle}
 .footer-logo .brand-logo{height:32px;filter:brightness(0) invert(1)}
