@@ -2,7 +2,7 @@ document.querySelectorAll('a[href^="#"]').forEach(link=>{link.addEventListener('
 
 const getSessionId=()=>{let id=localStorage.getItem('shedlr_session_id');if(!id){id=(crypto.randomUUID?crypto.randomUUID():`${Date.now()}-${Math.random()}`);localStorage.setItem('shedlr_session_id',id);}return id;};
 const sessionId=getSessionId();
-const track=(eventName,metadata={})=>fetch('/api/events',{method:'POST',headers:{'content-type':'application/json'},keepalive:true,body:JSON.stringify({event_name:eventName,page_path:location.pathname+location.search,session_id:sessionId,metadata})}).catch(()=>{});
+const track=(eventName,metadata={})=>fetch('/api/events',{method:'POST',headers:{'content-type':'application/json'},keepalive:true,body:JSON.stringify({event_name:eventName,page_path:location.pathname+location.search,session_id:sessionId,referrer:document.referrer||'',metadata})}).catch(()=>{});
 track('page_view',{title:document.title,referrer:document.referrer||''});
 
 /* ── Category & lead type pre-select from URL param ── */

@@ -198,12 +198,13 @@ async function verifyStripeSignature(rawBody, sigHeader, secret) {
 
 async function saveEvent(env, request, data) {
   const occurredAt = new Date().toISOString();
+  const referrer = clean(data.referrer, 500) || clean(data.metadata && data.metadata.referrer, 500) || clean(request.headers.get("Referer"), 500) || null;
   await env.DB.prepare(`INSERT INTO site_events
-    (event_name,page_path,session_id,business_id,order_id,metadata,occurred_at,ip_address,user_agent)
-    VALUES (?,?,?,?,?,?,?,?,?)`)
+    (event_name,page_path,session_id,business_id,order_id,metadata,occurred_at,ip_address,user_agent,referrer)
+    VALUES (?,?,?,?,?,?,?,?,?,?)`)
     .bind(clean(data.event_name,80), clean(data.page_path,500), clean(data.session_id,120), data.business_id || null,
       data.order_id || null, JSON.stringify(data.metadata || {}), occurredAt,
-      request.headers.get("CF-Connecting-IP"), clean(request.headers.get("User-Agent"),500)).run();
+      request.headers.get("CF-Connecting-IP"), clean(request.headers.get("User-Agent"),500), referrer).run();
 }
 
 async function saveOrderLead(env, request, data) {
@@ -467,7 +468,7 @@ export default {
           FROM site_events WHERE occurred_at >= ? AND occurred_at <= ?`).bind(from, to).first();
         const orderCount = await env.DB.prepare("SELECT COUNT(*) total, COALESCE(SUM(total_cents),0) revenue_cents, COALESCE(SUM(CASE WHEN status='paid' THEN total_cents ELSE 0 END),0) paid_cents FROM lead_orders WHERE submitted_at >= ? AND submitted_at <= ?").bind(from, to).first();
         const orders = await env.DB.prepare(`SELECT id, business_name, name, email, phone, category, quantity, unit_price_cents, total_cents, status, message, submitted_at, paid_at, fulfilled_leads, stripe_session_id FROM lead_orders WHERE submitted_at >= ? AND submitted_at <= ? ORDER BY submitted_at DESC LIMIT 250`).bind(from, to).all();
-        const events = await env.DB.prepare(`SELECT id, event_name, page_path, session_id, business_id, order_id, metadata, occurred_at FROM site_events WHERE occurred_at >= ? AND occurred_at <= ? ORDER BY occurred_at DESC LIMIT 500`).bind(from, to).all();
+        const events = await env.DB.prepare(`SELECT id, event_name, page_path, session_id, business_id, order_id, metadata, occurred_at, referrer FROM site_events WHERE occurred_at >= ? AND occurred_at <= ? ORDER BY occurred_at DESC LIMIT 500`).bind(from, to).all();
         const pages = await env.DB.prepare(`SELECT page_path,
           SUM(CASE WHEN event_name='page_view' THEN 1 ELSE 0 END) views,
           COUNT(DISTINCT CASE WHEN event_name='page_view' THEN session_id END) unique_visitors,

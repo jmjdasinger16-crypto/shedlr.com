@@ -121,6 +121,7 @@ CREATE TABLE IF NOT EXISTS site_events (
   occurred_at TEXT NOT NULL,
   ip_address TEXT,
   user_agent TEXT,
+  referrer TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_events_occurred ON site_events(occurred_at);
