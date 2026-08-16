@@ -136,7 +136,7 @@ track('page_view',{title:document.title,referrer:document.referrer||''});
 })();
 
 /* ── Stripe Payment Link ── */
-const STRIPE_PAYMENT_LINK='https://buy.stripe.com/aFa14ndWdduSg2WgaYak002';
+const STRIPE_PAYMENT_LINK='https://buy.stripe.com/4gMcN5g4lbmKdUOe2Qak003';
 
 /* ── Order form submission ── */
 const orderForm=document.querySelector('[data-order-form]');
@@ -356,4 +356,3 @@ const getCategoryPrice=(cat)=>{
     wrapper.appendChild(toggle);
   });
 })();
-
