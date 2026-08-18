@@ -388,6 +388,53 @@ $('[data-bulk-import-submit]').addEventListener('click',async()=>{
   btn.textContent=originalText;
 });
 
+/* ── Create business ── */
+const createBusinessDialog=$('[data-create-business-dialog]');
+const createBusinessMessage=$('[data-create-business-message]');
+const createBusinessResult=$('[data-create-business-result]');
+
+function populateCreateBusinessCategory(){
+  const sel=$('[data-create-business-category]');
+  sel.innerHTML='<option value="">— None —</option>'+CATEGORIES.map(c=>`<option value="${c}">${catLabel(c)}</option>`).join('');
+}
+
+$('[data-open-create-business]').addEventListener('click',()=>{
+  populateCreateBusinessCategory();
+  $('[data-create-business-email]').value='';
+  $('[data-create-business-name]').value='';
+  $('[data-create-business-phone]').value='';
+  $('[data-create-business-company]').value='';
+  $('[data-create-business-category]').value='';
+  createBusinessMessage.hidden=true;
+  createBusinessResult.hidden=true;
+  createBusinessDialog.showModal();
+});
+
+$('[data-create-business-submit]').addEventListener('click',async()=>{
+  const email=$('[data-create-business-email]').value.trim();
+  if(!email){createBusinessMessage.hidden=false;createBusinessMessage.textContent='Email is required.';return;}
+  const btn=$('[data-create-business-submit]');
+  const originalText=btn.textContent;
+  btn.textContent='Creating...';
+  createBusinessMessage.hidden=false;createBusinessMessage.textContent='Creating account...';
+  createBusinessResult.hidden=true;
+  try{
+    const res=await api('/api/admin/businesses',{method:'POST',body:JSON.stringify({
+      email,
+      name:$('[data-create-business-name]').value.trim(),
+      phone:$('[data-create-business-phone]').value.trim(),
+      company_name:$('[data-create-business-company]').value.trim(),
+      preferred_category:$('[data-create-business-category]').value||null
+    })});
+    createBusinessMessage.textContent=`Business created (ID ${res.business.id}).`;
+    createBusinessResult.hidden=false;
+    createBusinessResult.innerHTML=`Activation link — share this with the client so they can set a password and log in:<br><strong>${esc(res.activation_url)}</strong>`;
+    if(navigator.clipboard)navigator.clipboard.writeText(res.activation_url).catch(()=>{});
+    await loadBusinesses().catch(()=>{});
+  }catch(error){createBusinessMessage.textContent=error.message;}
+  btn.textContent=originalText;
+});
+
 /* ── Search/filters ── */
 orderSearch.addEventListener('input',()=>{
   const q=orderSearch.value.trim().toLowerCase();

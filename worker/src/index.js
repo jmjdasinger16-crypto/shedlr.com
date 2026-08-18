@@ -508,6 +508,27 @@ export default {
         return json({ businesses: businesses.results || [] });
       }
 
+      if (request.method === "POST" && url.pathname === "/api/admin/businesses") {
+        let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); }
+        const email = clean(data.email, 254).toLowerCase();
+        if (!validEmail(email)) return json({ error: "A valid email is required." }, 400);
+        const existing = await env.DB.prepare("SELECT id FROM businesses WHERE email=?").bind(email).first();
+        if (existing) return json({ error: "A business with this email already exists." }, 409);
+        const name = clean(data.name, 120) || null;
+        const phone = clean(data.phone, 40) || null;
+        const companyName = clean(data.company_name, 200) || null;
+        const preferredCategory = data.preferred_category && CATEGORIES.includes(clean(data.preferred_category, 60)) ? clean(data.preferred_category, 60) : null;
+        const now = new Date().toISOString();
+        const result = await env.DB.prepare(`INSERT INTO businesses
+          (email, name, phone, company_name, preferred_category, status, created_at, updated_at)
+          VALUES (?,?,?,?,?,'active',?,?)`)
+          .bind(email, name, phone, companyName, preferredCategory, now, now).run();
+        const businessId = result.meta?.last_row_id;
+        if (!businessId) return json({ error: "Failed to create business." }, 500);
+        const token = await issueActivationToken(env, businessId);
+        return json({ success: true, business: await findBusinessById(env, businessId), activation_url: `https://shedlr.com/portal/activate.html?token=${token}` }, 201);
+      }
+
       const businessDetailMatch = url.pathname.match(/^\/api\/admin\/businesses\/(\d+)$/);
       if (request.method === "GET" && businessDetailMatch) {
         const id = Number(businessDetailMatch[1]);
@@ -591,7 +612,7 @@ export default {
         const now = new Date().toISOString();
         const result = await env.DB.prepare(`INSERT INTO leads
           (name, email, phone, category, message, source, city, state, status, submitted_at, assigned_to)
-          VALUES (?,?,?,?,?,'manual',?,?,?,'unassigned')`)
+          VALUES (?,?,?,?,?,'manual',?,?,?,?,'unassigned')`)
           .bind(name, email, phone, category, clean(data.message, 4000), clean(data.city, 120), clean(data.state, 60), "new", now).run();
         return json({ success: true, lead_id: result.meta?.last_row_id }, 201);
       }

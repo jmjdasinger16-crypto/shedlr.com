@@ -106,6 +106,7 @@
           <div><h2>Businesses</h2><p>Business accounts, lead credits, and portal access.</p></div>
           <div class="panel-actions">
             <input type="search" placeholder="Search name, email, company..." data-business-search>
+            <button type="button" data-open-create-business>Create Business</button>
             <button type="button" class="panel-toggle" data-panel-toggle aria-expanded="true">Minimize</button>
           </div>
         </div>
@@ -262,6 +263,39 @@
         <button type="button" data-bulk-import-submit>Import leads</button>
         <span class="meta" data-bulk-import-message hidden></span>
       </div>
+    </form>
+  </dialog>
+
+  <dialog data-create-business-dialog>
+    <form method="dialog" class="dialog-card" style="max-width:480px">
+      <button class="dialog-close" value="cancel" aria-label="Close" formnovalidate>×</button>
+      <h2>Create Business Account</h2>
+      <p style="color:#5a6a7a;font-size:14px;margin-bottom:12px">Manually create a business account, bypassing Stripe checkout. An activation link will be generated so they can set a password and log into the portal.</p>
+
+      <label style="display:block;margin-bottom:8px">Email *
+        <input type="email" data-create-business-email required style="width:100%;padding:8px;border:1px solid #cfd6da;font:inherit">
+      </label>
+      <label style="display:block;margin-bottom:8px">Contact name
+        <input type="text" data-create-business-name style="width:100%;padding:8px;border:1px solid #cfd6da;font:inherit">
+      </label>
+      <label style="display:block;margin-bottom:8px">Phone
+        <input type="text" data-create-business-phone style="width:100%;padding:8px;border:1px solid #cfd6da;font:inherit">
+      </label>
+      <label style="display:block;margin-bottom:8px">Company name
+        <input type="text" data-create-business-company style="width:100%;padding:8px;border:1px solid #cfd6da;font:inherit">
+      </label>
+      <label style="display:block;margin-bottom:12px">Preferred category
+        <select data-create-business-category style="width:100%;padding:8px;border:1px solid #cfd6da;font:inherit">
+          <option value="">— None —</option>
+        </select>
+      </label>
+
+      <div style="display:flex;gap:8px;align-items:center">
+        <button type="button" data-create-business-submit>Create account</button>
+        <span class="meta" data-create-business-message hidden></span>
+      </div>
+
+      <div data-create-business-result hidden style="margin-top:12px;padding:10px;background:#f4f7f8;border-radius:6px;font-size:13px;word-break:break-all"></div>
     </form>
   </dialog>
 
