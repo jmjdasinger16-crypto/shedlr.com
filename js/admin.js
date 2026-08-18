@@ -23,8 +23,8 @@ const orderDialog=$('[data-order-dialog]');
 let orders=[];let leads=[];let businesses=[];
 let activeLead=null;let activeBusiness=null;let activeBusinessDetail=null;let activeOrder=null;
 
-const CATEGORIES=["personal-trainer","life-coach","maintenance","dog-walker","house-cleaning","landscaping","tutoring","photography","handyman","moving","catering","event-planning","home-insurance","vehicle-insurance","roofing"];
-const CATEGORY_LABELS={"personal-trainer":"Personal Trainer","life-coach":"Life Coach","maintenance":"Maintenance","dog-walker":"Dog Walker","house-cleaning":"House Cleaning","landscaping":"Landscaping","tutoring":"Tutoring","photography":"Photography","handyman":"Handyman","moving":"Moving Services","catering":"Catering","event-planning":"Event Planning","home-insurance":"Home Insurance","vehicle-insurance":"Vehicle Insurance","roofing":"Roofing"};
+const CATEGORIES=["personal-trainer","life-coach","maintenance","dog-walker","house-cleaning","landscaping","tutoring","photography","handyman","moving","catering","event-planning","home-insurance","vehicle-insurance","roofing","auto-hail-damage","home-services","hvac","plumbing","pest-control","solar","real-estate"];
+const CATEGORY_LABELS={"personal-trainer":"Personal Trainer","life-coach":"Life Coach","maintenance":"Maintenance","dog-walker":"Dog Walker","house-cleaning":"House Cleaning","landscaping":"Landscaping","tutoring":"Tutoring","photography":"Photography","handyman":"Handyman","moving":"Moving Services","catering":"Catering","event-planning":"Event Planning","home-insurance":"Home Insurance","vehicle-insurance":"Vehicle Insurance","roofing":"Roofing","auto-hail-damage":"Auto Hail Damage","home-services":"Home Services","hvac":"HVAC","plumbing":"Plumbing","pest-control":"Pest Control","solar":"Solar","real-estate":"Real Estate"};
 const catLabel=(c)=>CATEGORY_LABELS[c]||c||'—';
 
 const esc=(value)=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
@@ -197,6 +197,7 @@ function openBusiness(id){
     $('[data-business-save-message]').hidden=true;
     renderBusinessOrders(detail.orders||[]);
     renderBusinessLeads(detail.assignments||[]);
+    loadAdminBusinessNotes(id);
     businessDialog.showModal();
   }).catch(error=>{alert(error.message);});
 }
@@ -212,6 +213,38 @@ function renderBusinessLeads(assignments){
 }
 
 businessesTable.addEventListener('click',event=>{const button=event.target.closest('[data-open-business]');if(!button)return;openBusiness(button.dataset.openBusiness);});
+
+/* ── Admin business notes ── */
+async function loadAdminBusinessNotes(bizId){
+  const input=$('[data-admin-business-notes-content]');
+  const meta=$('[data-admin-business-notes-meta]');
+  input.value='';
+  meta.hidden=true;
+  try{
+    const res=await api(`/api/admin/businesses/${bizId}/notes`);
+    input.value=res.note?.content||'';
+    if(res.note?.updated_at){
+      meta.hidden=false;
+      const author=res.note.updated_by==='admin'?'Admin':'Business';
+      meta.textContent=`Last updated by ${author} on ${fmt(res.note.updated_at)}`;
+    }
+  }catch(error){meta.hidden=false;meta.textContent=error.message;}
+}
+
+$('[data-admin-business-notes-save]').addEventListener('click',async()=>{
+  if(!activeBusiness)return;
+  const input=$('[data-admin-business-notes-content]');
+  const meta=$('[data-admin-business-notes-meta]');
+  const btn=$('[data-admin-business-notes-save]');
+  const originalText=btn.textContent;
+  btn.textContent='Saving...';
+  try{
+    const res=await api(`/api/admin/businesses/${activeBusiness.id}/notes`,{method:'PUT',body:JSON.stringify({content:input.value})});
+    meta.hidden=false;
+    meta.textContent=`Saved on ${fmt(res.note.updated_at)}`;
+  }catch(error){meta.hidden=false;meta.textContent=error.message;}
+  btn.textContent=originalText;
+});
 
 $('[data-business-save]').addEventListener('click',async()=>{
   if(!activeBusiness)return;
@@ -230,6 +263,129 @@ $('[data-business-reset-password]').addEventListener('click',async()=>{
     message.textContent=`Share this link: ${data.activation_url}`;
     if(navigator.clipboard)navigator.clipboard.writeText(data.activation_url).catch(()=>{});
   }catch(error){message.textContent=error.message;}
+});
+
+/* ── Bulk import ── */
+const bulkDialog=$('[data-bulk-import-dialog]');
+const bulkPaste=$('[data-bulk-paste]');
+const bulkFile=$('[data-bulk-file]');
+const bulkPreview=$('[data-bulk-preview]');
+const bulkMessage=$('[data-bulk-import-message]');
+let bulkParsedLeads=[]
+
+function populateBulkCategory(){
+  const sel=$('[data-bulk-default-category]');
+  sel.innerHTML='<option value="">— Select category —</option>'+CATEGORIES.map(c=>`<option value="${c}">${catLabel(c)}</option>`).join('');
+}
+
+function populateBulkBusinesses(){
+  const sel=$('[data-bulk-business]');
+  sel.innerHTML='<option value="">— None —</option>'+businesses.map(b=>`<option value="${b.id}">${esc(b.name||b.email)}${b.company_name?` (${esc(b.company_name)})`:''}</option>`).join('');
+}
+
+$('[data-bulk-business]').addEventListener('change',async()=>{
+  const bizId=$('[data-bulk-business]').value;
+  const orderSelect=$('[data-bulk-order]');
+  if(!bizId){orderSelect.innerHTML='<option value="">— None —</option>';return;}
+  try{
+    const detail=await api(`/api/admin/businesses/${bizId}`);
+    orderSelect.innerHTML='<option value="">— None —</option>'+(detail.orders||[]).filter(o=>o.status==='paid'||o.status==='fulfilling').map(o=>`<option value="${o.id}">${catLabel(o.category)} — ${o.quantity} leads ($${(o.total_cents/100).toFixed(2)})</option>`).join('');
+  }catch{orderSelect.innerHTML='<option value="">— None —</option>';}
+});
+
+function parseCSV(text){
+  const lines=text.trim().split(/\r?\n/).filter(l=>l.trim());
+  if(!lines.length)return [];
+  const detectDelimiter=(line)=>{const comma=(line.match(/,/g)||[]).length;const tab=(line.match(/\t/g)||[]).length;return tab>comma?'\t':',';};
+  const delim=detectDelimiter(lines[0]);
+  const parseLine=(line)=>{
+    const result=[];let cur='';let inQuotes=false;
+    for(let i=0;i<line.length;i++){
+      const ch=line[i];
+      if(ch==='"'){if(inQuotes&&line[i+1]==='"'){cur+='"';i++;}else{inQuotes=!inQuotes;}}
+      else if(ch===delim&&!inQuotes){result.push(cur);cur='';}
+      else{cur+=ch;}
+    }
+    result.push(cur);
+    return result.map(c=>c.trim());
+  };
+  const header=parseLine(lines[0]).map(h=>h.toLowerCase().replace(/\s+/g,'_'));
+  const hasHeader=header.some(h=>['name','email','phone','category','city','state','message'].includes(h));
+  const rows=hasHeader?lines.slice(1):lines;
+  const fieldOrder=['name','email','phone','category','city','state','message'];
+  const leads=rows.map(line=>{
+    const vals=parseLine(line);
+    if(hasHeader){
+      const obj={};header.forEach((h,i)=>{if(fieldOrder.includes(h))obj[h]=vals[i]||'';});
+      return obj;
+    }
+    const obj={};fieldOrder.forEach((f,i)=>{obj[f]=vals[i]||'';});return obj;
+  }).filter(l=>l.name);
+  return leads;
+}
+
+function renderBulkPreview(leads){
+  bulkParsedLeads=leads;
+  if(!leads.length){bulkPreview.innerHTML='<p class="empty-hint">No valid leads parsed. Make sure each row has at least a name.</p>';return;}
+  bulkPreview.innerHTML=`<p class="meta" style="margin-bottom:4px">${leads.length} lead${leads.length===1?'':'s'} parsed:</p>`+
+    `<table style="width:100%;font-size:12px;border-collapse:collapse"><thead><tr><th style="text-align:left;padding:4px">Name</th><th style="text-align:left;padding:4px">Email</th><th style="text-align:left;padding:4px">Phone</th><th style="text-align:left;padding:4px">Category</th><th style="text-align:left;padding:4px">City</th><th style="text-align:left;padding:4px">State</th></tr></thead><tbody>`+
+    leads.slice(0,50).map(l=>`<tr><td style="padding:4px">${esc(l.name||'—')}</td><td style="padding:4px">${esc(l.email||'—')}</td><td style="padding:4px">${esc(l.phone||'—')}</td><td style="padding:4px">${esc(l.category||'(default)')}</td><td style="padding:4px">${esc(l.city||'—')}</td><td style="padding:4px">${esc(l.state||'—')}</td></tr>`).join('')+
+    (leads.length>50?`<tr><td colspan="6" style="padding:4px;color:#888">...and ${leads.length-50} more</td></tr>`:'')+
+    `</tbody></table>`;
+}
+
+$('[data-bulk-import-open]').addEventListener('click',()=>{
+  populateBulkCategory();
+  populateBulkBusinesses();
+  $('[data-bulk-order]').innerHTML='<option value="">— None —</option>';
+  bulkPaste.value='';
+  bulkFile.value='';
+  bulkPreview.innerHTML='';
+  bulkMessage.hidden=true;
+  bulkParsedLeads=[];
+  bulkDialog.showModal();
+});
+
+bulkFile.addEventListener('change',async()=>{
+  const file=bulkFile.files[0];
+  if(!file)return;
+  const text=await file.text();
+  bulkPaste.value=text;
+  renderBulkPreview(parseCSV(text));
+});
+
+$('[data-bulk-preview-btn]').addEventListener('click',()=>{
+  const text=bulkPaste.value;
+  if(!text.trim()){bulkPreview.innerHTML='<p class="empty-hint">Paste data first.</p>';return;}
+  renderBulkPreview(parseCSV(text));
+});
+
+$('[data-bulk-import-submit]').addEventListener('click',async()=>{
+  const defaultCat=$('[data-bulk-default-category]').value;
+  if(!defaultCat){bulkMessage.hidden=false;bulkMessage.textContent='Please select a default category.';return;}
+  if(!bulkParsedLeads.length){
+    const text=bulkPaste.value;
+    if(text.trim()){renderBulkPreview(parseCSV(text));}
+    if(!bulkParsedLeads.length){bulkMessage.hidden=false;bulkMessage.textContent='No valid leads to import.';return;}
+  }
+  const bizId=$('[data-bulk-business]').value||null;
+  const orderId=$('[data-bulk-order]').value||null;
+  const btn=$('[data-bulk-import-submit]');
+  const originalText=btn.textContent;
+  btn.textContent='Importing...';
+  bulkMessage.hidden=false;bulkMessage.textContent='Importing leads...';
+  try{
+    const res=await api('/api/admin/leads/bulk',{method:'POST',body:JSON.stringify({leads:bulkParsedLeads,default_category:defaultCat,business_id:bizId?Number(bizId):null,order_id:orderId?Number(orderId):null})});
+    bulkMessage.textContent=`Imported ${res.succeeded} of ${res.total} leads${res.assigned?` (${res.assigned} assigned)`:''}.${res.failed?` ${res.failed} failed.`:''}`;
+    if(res.failed){
+      const failures=res.results.filter(r=>!r.success);
+      bulkPreview.innerHTML='<p class="meta" style="margin-bottom:4px">Failures:</p>'+failures.map(f=>`<div class="note-item"><div>Row ${f.row}: ${esc(f.error)}</div></div>`).join('');
+    }else{
+      bulkPreview.innerHTML='<p class="empty-hint">All leads imported successfully.</p>';
+    }
+    await loadLeads();
+  }catch(error){bulkMessage.textContent=error.message;}
+  btn.textContent=originalText;
 });
 
 /* ── Search/filters ── */
@@ -291,6 +447,7 @@ document.querySelectorAll('[data-panel-toggle]').forEach(button=>{
 
 resetRange();
 populateCategoryFilters();
+populateBulkCategory();
 loadDashboard().catch(()=>showLogin());
 
 /* ── Password visibility toggle ── */

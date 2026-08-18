@@ -109,6 +109,18 @@ CREATE TABLE IF NOT EXISTS lead_notes (
 CREATE INDEX IF NOT EXISTS idx_notes_assignment ON lead_notes(assignment_id);
 CREATE INDEX IF NOT EXISTS idx_notes_lead ON lead_notes(lead_id);
 
+-- Business notes (business-level details/profile notes written by the business or admin)
+CREATE TABLE IF NOT EXISTS business_notes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  business_id INTEGER NOT NULL UNIQUE,
+  content TEXT NOT NULL DEFAULT '',
+  updated_by TEXT NOT NULL DEFAULT 'business',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (business_id) REFERENCES businesses(id)
+);
+CREATE INDEX IF NOT EXISTS idx_business_notes_business ON business_notes(business_id);
+
 -- Site events (analytics)
 CREATE TABLE IF NOT EXISTS site_events (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

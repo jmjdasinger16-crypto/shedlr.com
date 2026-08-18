@@ -103,6 +103,40 @@ $('[data-note-add]').addEventListener('click', async () => {
   }
 });
 
+/* ── Business notes ── */
+async function loadBusinessNotes() {
+  try {
+    const res = await api('/api/portal/business-notes');
+    const note = res.note || {};
+    $('[data-business-notes-content]').value = note.content || '';
+    const meta = $('[data-business-notes-meta]');
+    if (note.updated_at) {
+      meta.hidden = false;
+      const author = note.updated_by === 'admin' ? 'Shedlr' : 'You';
+      meta.textContent = `Last updated by ${author} on ${fmt(note.updated_at)}`;
+    }
+  } catch (error) {
+    // silent fail — notes panel is secondary
+  }
+}
+
+$('[data-business-notes-save]').addEventListener('click', async () => {
+  const input = $('[data-business-notes-content]');
+  const meta = $('[data-business-notes-meta]');
+  const btn = $('[data-business-notes-save]');
+  btn.textContent = 'Saving...';
+  try {
+    const res = await api('/api/portal/business-notes', { method: 'PUT', body: JSON.stringify({ content: input.value }) });
+    meta.hidden = false;
+    meta.textContent = `Saved on ${fmt(res.note.updated_at)}`;
+    btn.textContent = 'Save business details';
+  } catch (error) {
+    meta.hidden = false;
+    meta.textContent = error.message;
+    btn.textContent = 'Save business details';
+  }
+});
+
 /* ── Init ── */
 $('[data-logout]').addEventListener('click', async () => {
   try { await api('/api/portal/logout', { method: 'POST', body: '{}' }); } finally { window.location.href = 'index.html'; }
@@ -123,6 +157,7 @@ async function loadDashboard() {
 
   renderLeads(leadsRes.leads || []);
   renderOrders(ordersRes.orders || []);
+  loadBusinessNotes().catch(() => {});
 }
 
 loadDashboard().catch((error) => {

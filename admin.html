@@ -89,6 +89,7 @@
             <select data-lead-category-filter style="padding:8px;border:1px solid #cfd6da;font:inherit">
               <option value="">All categories</option>
             </select>
+            <button type="button" data-bulk-import-open>Bulk Import</button>
             <button type="button" class="panel-toggle" data-panel-toggle aria-expanded="true">Minimize</button>
           </div>
         </div>
@@ -189,6 +190,14 @@
           <h3>Assigned leads</h3>
           <div data-business-leads-list></div>
         </section>
+        <section class="business-subsection">
+          <h3>Business details note</h3>
+          <textarea rows="5" placeholder="The client's business details will appear here. You can edit this too." data-admin-business-notes-content style="width:100%;font:inherit;padding:8px;border:1px solid #cfd6da;border-radius:6px;resize:vertical"></textarea>
+          <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
+            <button type="button" data-admin-business-notes-save>Save note</button>
+            <span class="meta" data-admin-business-notes-meta hidden></span>
+          </div>
+        </section>
       </div>
     </form>
   </dialog>
@@ -211,6 +220,48 @@
       </label>
       <button type="button" data-order-save>Save changes</button>
       <p class="form-message" data-order-save-message hidden></p>
+    </form>
+  </dialog>
+
+  <!-- Bulk import dialog -->
+  <dialog data-bulk-import-dialog>
+    <form method="dialog" class="dialog-card" style="max-width:720px">
+      <button class="dialog-close" value="cancel" aria-label="Close" formnovalidate>×</button>
+      <h2>Bulk Import Leads</h2>
+      <p style="color:#5a6a7a;font-size:14px;margin-bottom:12px">Paste CSV or tab-separated data below, or upload a .csv file. Columns: <strong>name, email, phone, category, city, state, message</strong> (name is required; category is optional if a default is set).</p>
+
+      <div style="display:flex;gap:8px;margin-bottom:8px;align-items:flex-end">
+        <label style="flex:1">Default category (applies if not in row)
+          <select data-bulk-default-category style="width:100%;padding:8px;border:1px solid #cfd6da;font:inherit"></select>
+        </label>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:8px;align-items:flex-end">
+        <label style="flex:1">Assign all to business (optional)
+          <select data-bulk-business style="width:100%;padding:8px;border:1px solid #cfd6da;font:inherit">
+            <option value="">— None —</option>
+          </select>
+        </label>
+        <label style="flex:1">Order (optional)
+          <select data-bulk-order style="width:100%;padding:8px;border:1px solid #cfd6da;font:inherit">
+            <option value="">— None —</option>
+          </select>
+        </label>
+      </div>
+
+      <label style="display:block;margin-bottom:4px">CSV / pasted data
+        <textarea rows="8" data-bulk-paste placeholder="name,email,phone,category,city,state,message\nJohn Doe,john@example.com,555-1234,roofing,Dallas,TX,Needs roof inspection\n..." style="width:100%;font-family:monospace;font-size:13px;padding:10px;border:1px solid #cfd6da;border-radius:6px;resize:vertical"></textarea>
+      </label>
+      <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center">
+        <input type="file" accept=".csv,text/csv" data-bulk-file style="font-size:13px">
+        <button type="button" class="secondary" data-bulk-preview-btn>Preview parsed leads</button>
+      </div>
+
+      <div data-bulk-preview style="max-height:200px;overflow-y:auto;margin-bottom:8px"></div>
+
+      <div style="display:flex;gap:8px;align-items:center">
+        <button type="button" data-bulk-import-submit>Import leads</button>
+        <span class="meta" data-bulk-import-message hidden></span>
+      </div>
     </form>
   </dialog>
 

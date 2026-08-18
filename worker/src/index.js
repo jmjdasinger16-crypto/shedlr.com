@@ -440,6 +440,23 @@ export default {
         return json({ success: true, note: { id: result.meta?.last_row_id, author: "business", content, created_at: now } }, 201);
       }
 
+      /* ── Business notes (business-level profile/details) ── */
+      if (request.method === "GET" && url.pathname === "/api/portal/business-notes") {
+        const note = await env.DB.prepare("SELECT id, content, updated_by, created_at, updated_at FROM business_notes WHERE business_id=?").bind(business.id).first();
+        return json({ note: note || { content: "", updated_by: null, created_at: null, updated_at: null } });
+      }
+
+      if (request.method === "PUT" && url.pathname === "/api/portal/business-notes") {
+        let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); }
+        const content = clean(data.content, 10000);
+        const now = new Date().toISOString();
+        await env.DB.prepare(`INSERT INTO business_notes (business_id, content, updated_by, created_at, updated_at)
+          VALUES (?,?, 'business', ?, ?)
+          ON CONFLICT(business_id) DO UPDATE SET content=excluded.content, updated_by='business', updated_at=excluded.updated_at`)
+          .bind(business.id, content, now, now).run();
+        return json({ success: true, note: { content, updated_by: "business", updated_at: now } });
+      }
+
       return json({ error: "Not found" }, 404);
     }
 
@@ -530,6 +547,30 @@ export default {
         return json({ success: true, activation_url: `https://shedlr.com/portal/activate.html?token=${token}` });
       }
 
+      /* ── Business notes (admin view/edit) ── */
+      const businessNotesAdminMatch = url.pathname.match(/^\/api\/admin\/businesses\/(\d+)\/notes$/);
+      if (businessNotesAdminMatch) {
+        const bizId = Number(businessNotesAdminMatch[1]);
+        const business = await findBusinessById(env, bizId);
+        if (!business) return json({ error: "Business not found." }, 404);
+
+        if (request.method === "GET") {
+          const note = await env.DB.prepare("SELECT id, content, updated_by, created_at, updated_at FROM business_notes WHERE business_id=?").bind(bizId).first();
+          return json({ note: note || { content: "", updated_by: null, created_at: null, updated_at: null } });
+        }
+
+        if (request.method === "PUT") {
+          let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); }
+          const content = clean(data.content, 10000);
+          const now = new Date().toISOString();
+          await env.DB.prepare(`INSERT INTO business_notes (business_id, content, updated_by, created_at, updated_at)
+            VALUES (?,?, 'admin', ?, ?)
+            ON CONFLICT(business_id) DO UPDATE SET content=excluded.content, updated_by='admin', updated_at=excluded.updated_at`)
+            .bind(bizId, content, now, now).run();
+          return json({ success: true, note: { content, updated_by: "admin", updated_at: now } });
+        }
+      }
+
       /* ── Lead management ── */
       if (request.method === "GET" && url.pathname === "/api/admin/leads") {
         const category = clean(url.searchParams.get("category"), 60);
@@ -550,9 +591,77 @@ export default {
         const now = new Date().toISOString();
         const result = await env.DB.prepare(`INSERT INTO leads
           (name, email, phone, category, message, source, city, state, status, submitted_at, assigned_to)
-          VALUES (?,?,?,?,?,?,'manual',?,?,?,'unassigned')`)
+          VALUES (?,?,?,?,?,'manual',?,?,?,'unassigned')`)
           .bind(name, email, phone, category, clean(data.message, 4000), clean(data.city, 120), clean(data.state, 60), "new", now).run();
         return json({ success: true, lead_id: result.meta?.last_row_id }, 201);
+      }
+
+      /* ── Bulk lead import ── */
+      if (request.method === "POST" && url.pathname === "/api/admin/leads/bulk") {
+        let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); }
+        const rawLeads = Array.isArray(data.leads) ? data.leads : [];
+        if (!rawLeads.length) return json({ error: "No leads provided. Paste or upload CSV data first." }, 400);
+        const defaultCategory = clean(data.default_category, 60);
+        if (!CATEGORIES.includes(defaultCategory)) return json({ error: "A valid default category is required." }, 400);
+        const businessId = data.business_id ? Number(data.business_id) : null;
+        const orderId = data.order_id ? Number(data.order_id) : null;
+        if (businessId) {
+          const biz = await findBusinessById(env, businessId);
+          if (!biz) return json({ error: "Business not found." }, 404);
+        }
+        if (orderId && businessId) {
+          const order = await env.DB.prepare("SELECT * FROM lead_orders WHERE id=? AND email=(SELECT email FROM businesses WHERE id=?)").bind(orderId, businessId).first();
+          if (!order) return json({ error: "Order not found for this business." }, 404);
+        }
+
+        const now = new Date().toISOString();
+        const results = [];
+        let assignedCount = 0;
+
+        for (let i = 0; i < rawLeads.length; i++) {
+          const row = rawLeads[i];
+          const name = clean(row.name, 120);
+          const category = clean(row.category, 60) || defaultCategory;
+          if (!name) { results.push({ row: i + 1, success: false, error: "Name is required." }); continue; }
+          if (!CATEGORIES.includes(category)) { results.push({ row: i + 1, success: false, error: `Invalid category: ${category}` }); continue; }
+          const email = clean(row.email, 254).toLowerCase();
+          const phone = clean(row.phone, 40);
+          const city = clean(row.city, 120);
+          const state = clean(row.state, 60);
+          const message = clean(row.message, 4000);
+          try {
+            const insertResult = await env.DB.prepare(`INSERT INTO leads
+              (name, email, phone, category, message, source, city, state, status, submitted_at, assigned_to)
+              VALUES (?,?,?,?,?,'manual',?,?,?,'unassigned')`)
+              .bind(name, email, phone, category, message, city, state, "new", now).run();
+            const leadId = insertResult.meta?.last_row_id;
+
+            if (businessId) {
+              const existingAsg = await env.DB.prepare("SELECT id FROM lead_assignments WHERE lead_id=? AND business_id=?").bind(leadId, businessId).first();
+              if (!existingAsg) {
+                const asgResult = await env.DB.prepare("INSERT INTO lead_assignments (lead_id, business_id, order_id, status, assigned_at) VALUES (?,?,?,'delivered',?)")
+                  .bind(leadId, businessId, orderId, now).run();
+                await env.DB.prepare("UPDATE leads SET status='assigned', assigned_to=?, updated_at=? WHERE id=?").bind(String(businessId), now, leadId).run();
+                if (orderId) assignedCount++;
+                results.push({ row: i + 1, success: true, lead_id: leadId, assignment_id: asgResult.meta?.last_row_id });
+              } else {
+                results.push({ row: i + 1, success: true, lead_id: leadId, error: "Already assigned to this business." });
+              }
+            } else {
+              results.push({ row: i + 1, success: true, lead_id: leadId });
+            }
+          } catch (err) {
+            results.push({ row: i + 1, success: false, error: err.message || "Database error." });
+          }
+        }
+
+        if (orderId && assignedCount > 0) {
+          await env.DB.prepare("UPDATE lead_orders SET fulfilled_leads = fulfilled_leads + ? WHERE id=?").bind(assignedCount, orderId).run();
+        }
+
+        const succeeded = results.filter(r => r.success).length;
+        const failed = results.length - succeeded;
+        return json({ success: true, total: rawLeads.length, succeeded, failed, assigned: assignedCount, results }, 201);
       }
 
       const leadMatch = url.pathname.match(/^\/api\/admin\/leads\/(\d+)$/);
