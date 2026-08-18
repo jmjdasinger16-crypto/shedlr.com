@@ -20,6 +20,13 @@ const mimeTypes = {
   '.ico': 'image/x-icon'
 };
 
+const htmlHeaders = {
+  'content-type': 'text/html; charset=utf-8',
+  'cache-control': 'no-store, no-cache, must-revalidate, max-age=0',
+  'pragma': 'no-cache',
+  'expires': '0'
+};
+
 const server = http.createServer((req, res) => {
   let urlPath = req.url.split('?')[0];
   if (urlPath === '/') urlPath = '/index.html';
@@ -40,18 +47,21 @@ const server = http.createServer((req, res) => {
       const htmlPath = filePath.replace(/\/$/, '') + '.html';
       fs.readFile(htmlPath, (err2, data2) => {
         if (err2) {
-          res.writeHead(404, { 'content-type': 'text/html; charset=utf-8' });
+          res.writeHead(404, htmlHeaders);
           res.end('<h1>404 — Page not found</h1>');
           return;
         }
-        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+        res.writeHead(200, htmlHeaders);
         res.end(data2);
       });
       return;
     }
     const ext = path.extname(filePath);
     const mime = mimeTypes[ext] || 'application/octet-stream';
-    res.writeHead(200, { 'content-type': mime });
+    const headers = ext === '.html'
+      ? htmlHeaders
+      : { 'content-type': mime };
+    res.writeHead(200, headers);
     res.end(data);
   });
 });
