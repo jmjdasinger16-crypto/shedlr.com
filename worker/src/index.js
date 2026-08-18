@@ -401,7 +401,19 @@ export default {
       if (!business) return json({ error: "Unauthorized." }, 401);
 
       if (request.method === "GET" && url.pathname === "/api/portal/me") {
-        return json({ business: { id: business.id, email: business.email, name: business.name, phone: business.phone, company_name: business.company_name, preferred_category: business.preferred_category, status: business.status } });
+        return json({ business: { id: business.id, email: business.email, name: business.name, phone: business.phone, company_name: business.company_name, address: business.address, preferred_category: business.preferred_category, status: business.status } });
+      }
+
+      if (request.method === "PATCH" && url.pathname === "/api/portal/me") {
+        let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); }
+        const name = data.name !== undefined ? clean(data.name, 120) : business.name;
+        const phone = data.phone !== undefined ? clean(data.phone, 40) : business.phone;
+        const companyName = data.company_name !== undefined ? clean(data.company_name, 200) : business.company_name;
+        const address = data.address !== undefined ? clean(data.address, 300) : business.address;
+        const now = new Date().toISOString();
+        await env.DB.prepare("UPDATE businesses SET name=?, phone=?, company_name=?, address=?, updated_at=? WHERE id=?")
+          .bind(name, phone, companyName, address, now, business.id).run();
+        return json({ success: true, business: { id: business.id, email: business.email, name, phone, company_name: companyName, address, preferred_category: business.preferred_category, status: business.status } });
       }
 
       if (request.method === "GET" && url.pathname === "/api/portal/orders") {
@@ -553,9 +565,10 @@ export default {
         const name = data.name !== undefined ? clean(data.name, 120) : business.name;
         const phone = data.phone !== undefined ? clean(data.phone, 40) : business.phone;
         const companyName = data.company_name !== undefined ? clean(data.company_name, 200) : business.company_name;
+        const address = data.address !== undefined ? clean(data.address, 300) : business.address;
         const preferredCategory = data.preferred_category !== undefined && CATEGORIES.includes(clean(data.preferred_category, 60)) ? clean(data.preferred_category, 60) : business.preferred_category;
-        await env.DB.prepare("UPDATE businesses SET status=?, name=?, phone=?, company_name=?, preferred_category=?, updated_at=? WHERE id=?")
-          .bind(status, name, phone, companyName, preferredCategory, new Date().toISOString(), id).run();
+        await env.DB.prepare("UPDATE businesses SET status=?, name=?, phone=?, company_name=?, address=?, preferred_category=?, updated_at=? WHERE id=?")
+          .bind(status, name, phone, companyName, address, preferredCategory, new Date().toISOString(), id).run();
         return json({ success: true, business: await findBusinessById(env, id) });
       }
 

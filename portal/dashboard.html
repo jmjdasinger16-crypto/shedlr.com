@@ -47,6 +47,27 @@
         </section>
 
         <section class="panel">
+          <h2>Business profile</h2>
+          <p class="panel-sub">Keep your contact info up to date.</p>
+          <label style="display:block;margin-bottom:8px">Business name
+            <input type="text" data-profile-company style="width:100%;padding:8px;border:1px solid #cfd6da;border-radius:6px;font:inherit">
+          </label>
+          <label style="display:block;margin-bottom:8px">Contact name
+            <input type="text" data-profile-name style="width:100%;padding:8px;border:1px solid #cfd6da;border-radius:6px;font:inherit">
+          </label>
+          <label style="display:block;margin-bottom:8px">Phone number
+            <input type="tel" data-profile-phone style="width:100%;padding:8px;border:1px solid #cfd6da;border-radius:6px;font:inherit">
+          </label>
+          <label style="display:block;margin-bottom:8px">Address
+            <input type="text" data-profile-address placeholder="Street, city, state, ZIP" style="width:100%;padding:8px;border:1px solid #cfd6da;border-radius:6px;font:inherit">
+          </label>
+          <div class="business-inline-form" style="margin-top:8px">
+            <button type="button" data-profile-save>Save profile</button>
+            <span class="meta" data-profile-meta hidden></span>
+          </div>
+        </section>
+
+        <section class="panel">
           <h2>Business details</h2>
           <p class="panel-sub">Tell us about your business so we can match you with better leads.</p>
           <textarea rows="6" placeholder="Describe your business — services offered, service area, target customers, hours, anything that helps us send you the right leads..." data-business-notes-content style="width:100%;font:inherit;padding:10px;border:1px solid #cfd6da;border-radius:6px;resize:vertical"></textarea>

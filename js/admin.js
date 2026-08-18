@@ -193,6 +193,7 @@ function openBusiness(id){
     $('[data-business-name]').value=detail.business.name||'';
     $('[data-business-phone]').value=detail.business.phone||'';
     $('[data-business-company]').value=detail.business.company_name||'';
+    $('[data-business-address]').value=detail.business.address||'';
     $('[data-business-category]').value=detail.business.preferred_category||'';
     $('[data-business-save-message]').hidden=true;
     renderBusinessOrders(detail.orders||[]);
@@ -250,7 +251,7 @@ $('[data-business-save]').addEventListener('click',async()=>{
   if(!activeBusiness)return;
   const message=$('[data-business-save-message]');message.hidden=false;message.textContent='Saving...';
   try{
-    const updated=await api(`/api/admin/businesses/${activeBusiness.id}`,{method:'PATCH',body:JSON.stringify({status:$('[data-business-status]').value,name:$('[data-business-name]').value,phone:$('[data-business-phone]').value,company_name:$('[data-business-company]').value,preferred_category:$('[data-business-category]').value})});
+    const updated=await api(`/api/admin/businesses/${activeBusiness.id}`,{method:'PATCH',body:JSON.stringify({status:$('[data-business-status]').value,name:$('[data-business-name]').value,phone:$('[data-business-phone]').value,company_name:$('[data-business-company]').value,address:$('[data-business-address]').value,preferred_category:$('[data-business-category]').value})});
     Object.assign(activeBusiness,updated.business);renderBusinesses(businesses);message.textContent='Saved.';
   }catch(error){message.textContent=error.message;}
 });

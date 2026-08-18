@@ -142,9 +142,42 @@ $('[data-logout]').addEventListener('click', async () => {
   try { await api('/api/portal/logout', { method: 'POST', body: '{}' }); } finally { window.location.href = 'index.html'; }
 });
 
+function fillProfileForm(business) {
+  $('[data-profile-company]').value = business.company_name || '';
+  $('[data-profile-name]').value = business.name || '';
+  $('[data-profile-phone]').value = business.phone || '';
+  $('[data-profile-address]').value = business.address || '';
+}
+
+$('[data-profile-save]').addEventListener('click', async () => {
+  const meta = $('[data-profile-meta]');
+  const btn = $('[data-profile-save]');
+  btn.textContent = 'Saving...';
+  try {
+    const res = await api('/api/portal/me', {
+      method: 'PATCH',
+      body: JSON.stringify({
+        company_name: $('[data-profile-company]').value,
+        name: $('[data-profile-name]').value,
+        phone: $('[data-profile-phone]').value,
+        address: $('[data-profile-address]').value
+      })
+    });
+    fillProfileForm(res.business);
+    $('[data-business-name-suffix]').textContent = res.business.name ? `, ${res.business.name}` : '';
+    meta.hidden = false;
+    meta.textContent = 'Profile saved.';
+  } catch (error) {
+    meta.hidden = false;
+    meta.textContent = error.message;
+  }
+  btn.textContent = 'Save profile';
+});
+
 async function loadDashboard() {
   const { business } = await api('/api/portal/me');
   $('[data-business-name-suffix]').textContent = business.name ? `, ${business.name}` : '';
+  fillProfileForm(business);
   const pill = $('[data-status-pill]');
   pill.hidden = false;
   pill.className = `status-pill ${business.status}`;

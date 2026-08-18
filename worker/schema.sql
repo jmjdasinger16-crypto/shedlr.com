@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS businesses (
   name TEXT,
   phone TEXT,
   company_name TEXT,
+  address TEXT,
   preferred_category TEXT,
   status TEXT NOT NULL DEFAULT 'active',
   stripe_customer_id TEXT,
