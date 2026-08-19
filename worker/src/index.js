@@ -666,7 +666,7 @@ export default {
           try {
             const insertResult = await env.DB.prepare(`INSERT INTO leads
               (name, email, phone, category, message, source, city, state, status, submitted_at, assigned_to)
-              VALUES (?,?,?,?,?,'manual',?,?,?,'unassigned')`)
+              VALUES (?,?,?,?,?,'manual',?,?,?,?,'unassigned')`)
               .bind(name, email, phone, category, message, city, state, "new", now).run();
             const leadId = insertResult.meta?.last_row_id;
 
