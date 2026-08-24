@@ -138,7 +138,16 @@
     <form method="dialog" class="dialog-card">
       <button class="dialog-close" value="cancel" aria-label="Close" formnovalidate>×</button>
       <h2 data-lead-title>Lead details</h2>
-      <div class="detail-grid" data-lead-details></div>
+      <p class="meta" data-lead-meta></p>
+      <label>Name<input data-lead-name></label>
+      <label>Email<input type="email" data-lead-email></label>
+      <label>Phone number<input data-lead-phone></label>
+      <label>Lead type
+        <select data-lead-category></select>
+      </label>
+      <label>City<input data-lead-city></label>
+      <label>State<input data-lead-state></label>
+      <label>Details<textarea rows="4" data-lead-message style="width:100%;font:inherit;padding:8px;border:1px solid #cfd6da;border-radius:6px;resize:vertical"></textarea></label>
       <label>Status<select data-lead-status><option value="new">New</option><option value="verified">Verified</option><option value="assigned">Assigned</option><option value="delivered">Delivered</option><option value="archived">Archived</option></select></label>
       <label>Assign to business
         <select data-lead-assign-business>
@@ -190,6 +199,7 @@
         </section>
         <section class="business-subsection">
           <h3>Assigned leads</h3>
+          <p style="color:#5a6a7a;font-size:13px;margin:0 0 8px">Click Edit on any lead below to fix the name, type, phone number, or details if it was entered incorrectly.</p>
           <div data-business-leads-list></div>
         </section>
         <section class="business-subsection">

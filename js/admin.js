@@ -74,6 +74,8 @@ function populateCategoryFilters(){
   leadCategoryFilter.innerHTML='<option value="">All categories</option>'+opts;
   const bizCat=$('[data-business-category]');
   if(bizCat)bizCat.innerHTML='<option value="">— None —</option>'+opts;
+  const leadCat=$('[data-lead-category]');
+  if(leadCat)leadCat.innerHTML=opts;
 }
 
 function getFilters(){
@@ -112,12 +114,18 @@ async function loadBusinesses(){
 }
 
 /* ── Lead dialog ── */
-function openLead(id){
-  activeLead=leads.find(l=>String(l.id)===String(id));
-  if(!activeLead)return;
-  $('[data-lead-title]').textContent=activeLead.name;
-  $('[data-lead-details]').innerHTML=[['Email',activeLead.email],['Phone',activeLead.phone],['Category',catLabel(activeLead.category)],['City',activeLead.city],['State',activeLead.state],['Source',activeLead.source],['Message',activeLead.message],['Added',fmt(activeLead.submitted_at)]].map(([label,value])=>`<div><strong>${esc(label)}</strong>${esc(value||'—')}</div>`).join('');
-  $('[data-lead-status]').value=activeLead.status||'new';
+function fillLeadDialog(lead,metaText){
+  activeLead=lead;
+  $('[data-lead-title]').textContent=lead.name||'Lead details';
+  $('[data-lead-meta]').textContent=metaText||'';
+  $('[data-lead-name]').value=lead.name||'';
+  $('[data-lead-email]').value=lead.email||'';
+  $('[data-lead-phone]').value=lead.phone||'';
+  $('[data-lead-category]').value=lead.category||'';
+  $('[data-lead-city]').value=lead.city||'';
+  $('[data-lead-state]').value=lead.state||'';
+  $('[data-lead-message]').value=lead.message||'';
+  $('[data-lead-status]').value=lead.status||'new';
   $('[data-lead-save-message]').hidden=true;
 
   const assignSelect=$('[data-lead-assign-business]');
@@ -136,14 +144,61 @@ function openLead(id){
   leadDialog.showModal();
 }
 
+function openLead(id){
+  const lead=leads.find(l=>String(l.id)===String(id));
+  if(!lead)return;
+  fillLeadDialog(lead,`${catLabel(lead.category)} · Source: ${lead.source||'—'} · Added ${fmt(lead.submitted_at)}`);
+}
+
+function openBusinessAssignedLead(assignment){
+  fillLeadDialog({
+    id:assignment.lead_id,
+    name:assignment.name,
+    email:assignment.email,
+    phone:assignment.phone,
+    category:assignment.category,
+    city:assignment.city,
+    state:assignment.state,
+    message:assignment.message,
+    status:assignment.lead_status,
+    source:assignment.source
+  },`Assigned to ${activeBusiness?(activeBusiness.name||activeBusiness.email):'this business'} on ${fmt(assignment.assigned_at)}`);
+}
+
 leadsTable.addEventListener('click',event=>{const button=event.target.closest('[data-open-lead]');if(!button)return;openLead(button.dataset.openLead);});
+
+async function refreshBusinessLeads(){
+  if(!activeBusiness)return;
+  try{
+    const detail=await api(`/api/admin/businesses/${activeBusiness.id}`);
+    activeBusinessDetail=detail;
+    renderBusinessLeads(detail.assignments||[]);
+  }catch{}
+}
 
 $('[data-lead-save]').addEventListener('click',async()=>{
   if(!activeLead)return;
-  const message=$('[data-lead-save-message]');message.hidden=false;message.textContent='Saving...';
+  const message=$('[data-lead-save-message]');
+  const name=$('[data-lead-name]').value.trim();
+  if(!name){message.hidden=false;message.textContent='Name is required.';return;}
+  message.hidden=false;message.textContent='Saving...';
   try{
-    const updated=await api(`/api/admin/leads/${activeLead.id}`,{method:'PATCH',body:JSON.stringify({status:$('[data-lead-status]').value})});
-    Object.assign(activeLead,updated.lead);renderLeads(leads);message.textContent='Saved.';
+    const updated=await api(`/api/admin/leads/${activeLead.id}`,{method:'PATCH',body:JSON.stringify({
+      name,
+      email:$('[data-lead-email]').value.trim(),
+      phone:$('[data-lead-phone]').value.trim(),
+      category:$('[data-lead-category]').value,
+      city:$('[data-lead-city]').value.trim(),
+      state:$('[data-lead-state]').value.trim(),
+      message:$('[data-lead-message]').value.trim(),
+      status:$('[data-lead-status]').value
+    })});
+    Object.assign(activeLead,updated.lead);
+    const existing=leads.find(l=>String(l.id)===String(updated.lead.id));
+    if(existing)Object.assign(existing,updated.lead);
+    renderLeads(leads);
+    message.textContent='Saved.';
+    await refreshBusinessLeads();
   }catch(error){message.textContent=error.message;}
 });
 
@@ -210,8 +265,15 @@ function renderBusinessOrders(orders){
 
 function renderBusinessLeads(assignments){
   const list=$('[data-business-leads-list]');
-  list.innerHTML=assignments.length?assignments.map(a=>`<div class="note-item"><strong>${esc(a.name)}</strong><div>${esc(a.email||'—')} · ${esc(a.phone||'—')}</div><div>${esc(a.message||'')}</div><div class="meta">${catLabel(a.category)} · Assigned ${fmt(a.assigned_at)}</div></div>`).join(''):'<p class="empty-hint">No leads assigned yet.</p>';
+  list.innerHTML=assignments.length?assignments.map(a=>`<div class="note-item"><strong>${esc(a.name)}</strong><div>${esc(a.email||'—')} · ${esc(a.phone||'—')}</div><div>${esc(a.message||'')}</div><div class="meta">${catLabel(a.category)} · Assigned ${fmt(a.assigned_at)}</div><button type="button" data-edit-business-lead="${a.lead_id}" style="margin-top:6px">Edit lead</button></div>`).join(''):'<p class="empty-hint">No leads assigned yet.</p>';
 }
+
+$('[data-business-leads-list]').addEventListener('click',event=>{
+  const button=event.target.closest('[data-edit-business-lead]');
+  if(!button)return;
+  const assignment=(activeBusinessDetail?.assignments||[]).find(a=>String(a.lead_id)===String(button.dataset.editBusinessLead));
+  if(assignment)openBusinessAssignedLead(assignment);
+});
 
 businessesTable.addEventListener('click',event=>{const button=event.target.closest('[data-open-business]');if(!button)return;openBusiness(button.dataset.openBusiness);});
 
