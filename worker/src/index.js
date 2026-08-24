@@ -102,22 +102,25 @@ async function hmac(secret, value) {
 
 /* ══════════════════════════════ ADMIN AUTH ══════════════════════════════ */
 
-async function createSession(env) {
-  const payload = b64urlText(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS, nonce: uuid() }));
+async function createSession(env, role) {
+  const payload = b64urlText(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS, nonce: uuid(), role }));
   return `${payload}.${await hmac(env.ADMIN_SESSION_SECRET, payload)}`;
 }
 
-async function isAdmin(request, env) {
+// Returns { role: 'admin' | 'staff' } for a valid session, or null. Tokens issued before
+// roles existed have no `role` field and are treated as 'admin' for backward compatibility.
+async function getAdminSession(request, env) {
   const token = parseCookies(request)[SESSION_COOKIE];
-  if (!token || !env.ADMIN_SESSION_SECRET) return false;
+  if (!token || !env.ADMIN_SESSION_SECRET) return null;
   const [payload, signature] = token.split(".");
-  if (!payload || !signature) return false;
-  if (!timingSafeEqual(signature, await hmac(env.ADMIN_SESSION_SECRET, payload))) return false;
+  if (!payload || !signature) return null;
+  if (!timingSafeEqual(signature, await hmac(env.ADMIN_SESSION_SECRET, payload))) return null;
   try {
     const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
     const decoded = JSON.parse(atob(normalized + "=".repeat((4 - normalized.length % 4) % 4)));
-    return decoded.exp > Math.floor(Date.now() / 1000);
-  } catch { return false; }
+    if (!(decoded.exp > Math.floor(Date.now() / 1000))) return null;
+    return { role: decoded.role === "staff" ? "staff" : "admin" };
+  } catch { return null; }
 }
 
 /* ══════════════════════════════ BUSINESS PORTAL AUTH ══════════════════════════════ */
@@ -260,9 +263,13 @@ export default {
     if (request.method === "POST" && url.pathname === "/api/admin/login") {
       let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); }
       if (!env.ADMIN_PASSWORD || !env.ADMIN_SESSION_SECRET) return json({ error: "Admin secrets are not configured." }, 503);
-      if (!timingSafeEqual(clean(data.password,500), env.ADMIN_PASSWORD)) return json({ error: "Incorrect password." }, 401);
-      const token = await createSession(env);
-      return json({ success: true }, 200, { "set-cookie": `${SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${SESSION_TTL_SECONDS}` });
+      const password = clean(data.password, 500);
+      let role = null;
+      if (timingSafeEqual(password, env.ADMIN_PASSWORD)) role = "admin";
+      else if (env.STAFF_PASSWORD && timingSafeEqual(password, env.STAFF_PASSWORD)) role = "staff";
+      if (!role) return json({ error: "Incorrect password." }, 401);
+      const token = await createSession(env, role);
+      return json({ success: true, role }, 200, { "set-cookie": `${SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${SESSION_TTL_SECONDS}` });
     }
 
     if (request.method === "POST" && url.pathname === "/api/admin/logout") {
@@ -475,7 +482,23 @@ export default {
     /* ══════════════ ADMIN ROUTES ══════════════ */
 
     if (url.pathname.startsWith("/api/admin/")) {
-      if (!(await isAdmin(request, env))) return json({ error: "Unauthorized." }, 401);
+      const session = await getAdminSession(request, env);
+      if (!session) return json({ error: "Unauthorized." }, 401);
+
+      // Staff accounts (added for limited-scope helpers, e.g. a VA who only sources/adds leads)
+      // are restricted to a small allow-list of routes. Everything else under /api/admin/*
+      // requires the full admin role.
+      const STAFF_ALLOWED =
+        (request.method === "GET" && url.pathname === "/api/admin/session") ||
+        (request.method === "GET" && url.pathname === "/api/admin/businesses") ||
+        (request.method === "POST" && url.pathname === "/api/admin/leads");
+      if (session.role !== "admin" && !STAFF_ALLOWED) {
+        return json({ error: "Your account does not have permission for this action." }, 403);
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/admin/session") {
+        return json({ role: session.role });
+      }
 
       if (request.method === "GET" && url.pathname === "/api/admin/dashboard") {
         const now = new Date();
@@ -514,10 +537,16 @@ export default {
       }
 
       if (request.method === "GET" && url.pathname === "/api/admin/businesses") {
-        const businesses = await env.DB.prepare(`SELECT id, email, name, phone, company_name, preferred_category, status, created_at, last_login_at,
+        const businesses = await env.DB.prepare(`SELECT id, email, name, phone, company_name, address, preferred_category, status, created_at, last_login_at,
           (SELECT COUNT(*) FROM lead_assignments la WHERE la.business_id = businesses.id) total_leads
           FROM businesses ORDER BY created_at DESC LIMIT 500`).all();
-        return json({ businesses: businesses.results || [] });
+        const rows = businesses.results || [];
+        if (session.role !== "admin") {
+          // Staff view: name, service type, and address (for zip lookup) only — no contact info,
+          // login/status metadata, or lead counts.
+          return json({ businesses: rows.map(b => ({ id: b.id, name: b.name || b.company_name, company_name: b.company_name, preferred_category: b.preferred_category, address: b.address })) });
+        }
+        return json({ businesses: rows });
       }
 
       if (request.method === "POST" && url.pathname === "/api/admin/businesses") {

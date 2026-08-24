@@ -21,3 +21,5 @@
 /* ── Logo image ── */
 .brand-logo{height:36px;width:auto;display:inline-block;vertical-align:middle}
 .admin-tag{font:700 13px 'Inter',sans-serif;color:#8993a0;margin-left:6px;vertical-align:middle}
+
+[data-admin-only][hidden],[data-staff-only][hidden]{display:none!important}
