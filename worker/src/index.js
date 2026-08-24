@@ -547,8 +547,8 @@ export default {
         const business = await findBusinessById(env, id);
         if (!business) return json({ error: "Business not found." }, 404);
         const orders = await env.DB.prepare("SELECT id, category, quantity, unit_price_cents, total_cents, status, paid_at, created_at, fulfilled_leads FROM lead_orders WHERE email=? ORDER BY created_at DESC LIMIT 200").bind(business.email).all();
-        const assignments = await env.DB.prepare(`SELECT la.id, la.lead_id, la.status, la.assigned_at,
-          l.name, l.email, l.phone, l.category, l.message, l.source, l.city, l.state
+        const assignments = await env.DB.prepare(`SELECT la.id, la.lead_id, la.status AS assignment_status, la.assigned_at,
+          l.name, l.email, l.phone, l.category, l.message, l.source, l.city, l.state, l.status AS lead_status
           FROM lead_assignments la JOIN leads l ON l.id = la.lead_id
           WHERE la.business_id=? ORDER BY la.assigned_at DESC LIMIT 200`).bind(id).all();
         const { password_hash, activation_nonce, activation_nonce_expires, ...safeBusiness } = business;
@@ -702,13 +702,28 @@ export default {
       if (request.method === "PATCH" && leadMatch) {
         let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); }
         const id = Number(leadMatch[1]);
+        const existing = await env.DB.prepare("SELECT * FROM leads WHERE id=?").bind(id).first();
+        if (!existing) return json({ error: "Lead not found." }, 404);
+
         const allowedStatuses = ["new", "verified", "assigned", "delivered", "archived"];
-        const status = allowedStatuses.includes(clean(data.status,30)) ? clean(data.status,30) : "new";
-        const assignedTo = data.assigned_to !== undefined ? clean(data.assigned_to, 120) : null;
-        await env.DB.prepare("UPDATE leads SET status=?, assigned_to=?, updated_at=? WHERE id=?")
-          .bind(status, assignedTo, new Date().toISOString(), id).run();
+        const status = data.status !== undefined
+          ? (allowedStatuses.includes(clean(data.status, 30)) ? clean(data.status, 30) : existing.status)
+          : existing.status;
+        const assignedTo = data.assigned_to !== undefined ? clean(data.assigned_to, 120) : existing.assigned_to;
+
+        const name = data.name !== undefined ? clean(data.name, 120) : existing.name;
+        if (!name) return json({ error: "Lead name is required." }, 400);
+        const email = data.email !== undefined ? clean(data.email, 254).toLowerCase() : existing.email;
+        const phone = data.phone !== undefined ? clean(data.phone, 40) : existing.phone;
+        const category = data.category !== undefined ? clean(data.category, 60) : existing.category;
+        if (data.category !== undefined && !CATEGORIES.includes(category)) return json({ error: "Please select a valid lead type." }, 400);
+        const city = data.city !== undefined ? clean(data.city, 120) : existing.city;
+        const state = data.state !== undefined ? clean(data.state, 60) : existing.state;
+        const message = data.message !== undefined ? clean(data.message, 4000) : existing.message;
+
+        await env.DB.prepare("UPDATE leads SET name=?, email=?, phone=?, category=?, city=?, state=?, message=?, status=?, assigned_to=?, updated_at=? WHERE id=?")
+          .bind(name, email, phone, category, city, state, message, status, assignedTo, new Date().toISOString(), id).run();
         const lead = await env.DB.prepare("SELECT * FROM leads WHERE id=?").bind(id).first();
-        if (!lead) return json({ error: "Lead not found." }, 404);
         return json({ success: true, lead });
       }
 
