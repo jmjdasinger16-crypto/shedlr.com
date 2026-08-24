@@ -8,6 +8,10 @@
     {
       "pattern": "shedlr.com/api/*",
       "zone_name": "shedlr.com"
+    },
+    {
+      "pattern": "www.shedlr.com/api/*",
+      "zone_name": "shedlr.com"
     }
   ],
   "d1_databases": [
