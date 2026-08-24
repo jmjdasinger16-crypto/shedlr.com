@@ -33,7 +33,7 @@
         <button class="secondary" type="button" data-admin-logout>Log out</button>
       </header>
 
-      <section class="panel filter-panel">
+      <section class="panel filter-panel" data-admin-only>
         <div class="panel-head">
           <div><h2>Reporting window</h2><p>Choose the date and time range for metrics, orders, and events.</p></div>
         </div>
@@ -50,9 +50,9 @@
         </form>
       </section>
 
-      <section class="metric-grid" data-admin-metrics></section>
+      <section class="metric-grid" data-admin-metrics data-admin-only></section>
 
-      <section class="panel">
+      <section class="panel" data-admin-only>
         <div class="panel-head">
           <div><h2>Page performance</h2><p>Every page path recorded by the site.</p></div>
           <div class="panel-actions"><button type="button" class="panel-toggle" data-panel-toggle aria-expanded="true">Minimize</button></div>
@@ -65,7 +65,7 @@
         </div>
       </section>
 
-      <section class="panel">
+      <section class="panel" data-admin-only>
         <div class="panel-head">
           <div><h2>Orders</h2><p>Lead credit orders submitted through the website.</p></div>
           <div class="panel-actions">
@@ -81,7 +81,7 @@
         </div>
       </section>
 
-      <section class="panel">
+      <section class="panel" data-admin-only>
         <div class="panel-head">
           <div><h2>Leads</h2><p>Manually created and verified leads. Assign leads to businesses from here.</p></div>
           <div class="panel-actions">
@@ -101,7 +101,7 @@
         </div>
       </section>
 
-      <section class="panel">
+      <section class="panel" data-admin-only>
         <div class="panel-head">
           <div><h2>Businesses</h2><p>Business accounts, lead credits, and portal access.</p></div>
           <div class="panel-actions">
@@ -118,7 +118,36 @@
         </div>
       </section>
 
-      <section class="panel">
+      <section class="panel" data-staff-only hidden>
+        <div class="panel-head">
+          <div><h2>Add a lead</h2><p>Enter a new lead you've sourced. An admin will review, verify, and assign it.</p></div>
+        </div>
+        <form class="filter-grid" data-staff-lead-form>
+          <label>Name<input name="name" required></label>
+          <label>Category<select name="category" data-staff-lead-category required><option value="">Select category</option></select></label>
+          <label>Phone<input name="phone" type="tel"></label>
+          <label>Email<input name="email" type="email"></label>
+          <label>City<input name="city"></label>
+          <label>State<input name="state"></label>
+          <label style="grid-column:1/-1">Notes<textarea name="message" rows="3"></textarea></label>
+          <div class="filter-actions"><button type="submit">Add lead</button></div>
+          <p class="filter-status" data-staff-lead-status></p>
+        </form>
+      </section>
+
+      <section class="panel" data-staff-only hidden>
+        <div class="panel-head">
+          <div><h2>Businesses</h2><p>Business name, service type, and address (for zip lookup) — for reference while sourcing leads.</p></div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Name</th><th>Type</th><th>Address</th></tr></thead>
+            <tbody data-staff-businesses-table></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel" data-admin-only>
         <div class="panel-head">
           <div><h2>Events</h2><p>Page views, order submissions, and lead deliveries for the selected range.</p></div>
           <div class="panel-actions"><button type="button" class="panel-toggle" data-panel-toggle aria-expanded="true">Minimize</button></div>

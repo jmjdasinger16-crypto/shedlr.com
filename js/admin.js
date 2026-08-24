@@ -76,6 +76,27 @@ function populateCategoryFilters(){
   if(bizCat)bizCat.innerHTML='<option value="">— None —</option>'+opts;
   const leadCat=$('[data-lead-category]');
   if(leadCat)leadCat.innerHTML=opts;
+  const staffLeadCat=$('[data-staff-lead-category]');
+  if(staffLeadCat)staffLeadCat.innerHTML='<option value="">Select category</option>'+opts;
+}
+
+/* ── Role-based view (admin vs. restricted staff) ── */
+function applyRole(role){
+  const isStaff=role==='staff';
+  document.body.dataset.role=role;
+  document.querySelectorAll('[data-admin-only]').forEach(el=>{el.hidden=isStaff;});
+  document.querySelectorAll('[data-staff-only]').forEach(el=>{el.hidden=!isStaff;});
+}
+
+async function loadStaffBusinesses(){
+  const data=await api('/api/admin/businesses');
+  renderStaffBusinesses(data.businesses||[]);
+}
+
+function renderStaffBusinesses(rows){
+  const tbody=$('[data-staff-businesses-table]');
+  if(!tbody)return;
+  tbody.innerHTML=rows.map(b=>`<tr><td><strong>${esc(b.name||b.company_name||'—')}</strong></td><td>${esc(catLabel(b.preferred_category))}</td><td>${esc(b.address||'—')}</td></tr>`).join('')||'<tr><td colspan="3">No businesses found.</td></tr>';
 }
 
 function getFilters(){
@@ -526,10 +547,41 @@ loginForm.addEventListener('submit',async event=>{
   event.preventDefault();
   loginMessage.hidden=false;loginMessage.textContent='Signing in...';
   try{
-    await api('/api/admin/login',{method:'POST',body:JSON.stringify({password:loginForm.password.value})});
-    loginForm.reset();loginMessage.hidden=true;resetRange();populateCategoryFilters();await loadDashboard();
+    const{role}=await api('/api/admin/login',{method:'POST',body:JSON.stringify({password:loginForm.password.value})});
+    loginForm.reset();loginMessage.hidden=true;
+    await enterDashboard(role);
   }catch(error){loginMessage.textContent=error.message;}
 });
+
+async function enterDashboard(role){
+  applyRole(role);
+  showDashboard();
+  populateCategoryFilters();
+  if(role==='admin'){
+    resetRange();populateBulkCategory();
+    await loadDashboard();
+  }else{
+    await loadStaffBusinesses();
+  }
+}
+
+const staffLeadForm=$('[data-staff-lead-form]');
+if(staffLeadForm){
+  staffLeadForm.addEventListener('submit',async event=>{
+    event.preventDefault();
+    const form=event.target;
+    const statusEl=$('[data-staff-lead-status]');
+    statusEl.hidden=false;statusEl.textContent='Saving...';
+    try{
+      await api('/api/admin/leads',{method:'POST',body:JSON.stringify({
+        name:form.name.value,category:form.category.value,phone:form.phone.value,
+        email:form.email.value,city:form.city.value,state:form.state.value,message:form.message.value
+      })});
+      statusEl.textContent='Lead added. An admin will review and assign it.';
+      form.reset();
+    }catch(error){statusEl.textContent=error.message;}
+  });
+}
 
 $('[data-admin-logout]').addEventListener('click',async()=>{try{await api('/api/admin/logout',{method:'POST',body:'{}'});}finally{showLogin();}});
 
@@ -555,10 +607,14 @@ document.querySelectorAll('[data-panel-toggle]').forEach(button=>{
   });
 });
 
-resetRange();
-populateCategoryFilters();
-populateBulkCategory();
-loadDashboard().catch(()=>showLogin());
+(async()=>{
+  try{
+    const{role}=await api('/api/admin/session');
+    await enterDashboard(role);
+  }catch{
+    showLogin();
+  }
+})();
 
 /* ── Password visibility toggle ── */
 document.querySelectorAll('input[type="password"]').forEach(input=>{
