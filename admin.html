@@ -121,6 +121,7 @@
       <section class="panel" data-staff-only hidden>
         <div class="panel-head">
           <div><h2>Add a lead</h2><p>Enter a new lead you've sourced. An admin will review, verify, and assign it.</p></div>
+          <div class="panel-actions"><button type="button" data-staff-bulk-import-open>Bulk Import</button></div>
         </div>
         <form class="filter-grid" data-staff-lead-form>
           <label>Name<input name="name" required></label>
@@ -137,11 +138,11 @@
 
       <section class="panel" data-staff-only hidden>
         <div class="panel-head">
-          <div><h2>Businesses</h2><p>Business name, service type, and address (for zip lookup) — for reference while sourcing leads.</p></div>
+          <div><h2>Businesses</h2><p>Business name, service type, and address (for zip lookup). Click a business to view or fix its assigned leads.</p></div>
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Name</th><th>Type</th><th>Address</th></tr></thead>
+            <thead><tr><th>Name</th><th>Type</th><th>Address</th><th></th></tr></thead>
             <tbody data-staff-businesses-table></tbody>
           </table>
         </div>
@@ -178,17 +179,19 @@
       <label>State<input data-lead-state></label>
       <label>Details<textarea rows="4" data-lead-message style="width:100%;font:inherit;padding:8px;border:1px solid #cfd6da;border-radius:6px;resize:vertical"></textarea></label>
       <label>Status<select data-lead-status><option value="new">New</option><option value="verified">Verified</option><option value="assigned">Assigned</option><option value="delivered">Delivered</option><option value="archived">Archived</option></select></label>
-      <label>Assign to business
-        <select data-lead-assign-business>
-          <option value="">— Select business —</option>
-        </select>
-      </label>
-      <label>Order (optional)
-        <select data-lead-assign-order>
-          <option value="">— Select order —</option>
-        </select>
-      </label>
-      <button type="button" data-lead-assign>Assign Lead</button>
+      <div data-admin-only>
+        <label>Assign to business
+          <select data-lead-assign-business>
+            <option value="">— Select business —</option>
+          </select>
+        </label>
+        <label>Order (optional)
+          <select data-lead-assign-order>
+            <option value="">— Select order —</option>
+          </select>
+        </label>
+        <button type="button" data-lead-assign>Assign Lead</button>
+      </div>
       <button type="button" data-lead-save style="margin-top:10px">Save Changes</button>
       <p class="form-message" data-lead-save-message hidden></p>
     </form>
@@ -199,30 +202,32 @@
     <form method="dialog" class="dialog-card business-dialog-card">
       <button class="dialog-close" value="cancel" aria-label="Close" formnovalidate>×</button>
       <h2 data-business-title>Business details</h2>
-      <div class="detail-grid" data-business-details></div>
-      <label>Status
-        <select data-business-status>
-          <option value="active">Active</option>
-          <option value="past_due">Past due</option>
-          <option value="canceled">Canceled</option>
-          <option value="suspended">Suspended</option>
-        </select>
-      </label>
-      <label>Name<input data-business-name></label>
-      <label>Phone<input data-business-phone></label>
-      <label>Company name<input data-business-company></label>
-      <label>Address<input data-business-address></label>
-      <label>Preferred category
-        <select data-business-category>
-          <option value="">— None —</option>
-        </select>
-      </label>
-      <button type="button" data-business-save>Save changes</button>
-      <button type="button" class="secondary" data-business-reset-password>Generate activation / reset-password link</button>
-      <p class="form-message" data-business-save-message hidden></p>
+      <div data-admin-only>
+        <div class="detail-grid" data-business-details></div>
+        <label>Status
+          <select data-business-status>
+            <option value="active">Active</option>
+            <option value="past_due">Past due</option>
+            <option value="canceled">Canceled</option>
+            <option value="suspended">Suspended</option>
+          </select>
+        </label>
+        <label>Name<input data-business-name></label>
+        <label>Phone<input data-business-phone></label>
+        <label>Company name<input data-business-company></label>
+        <label>Address<input data-business-address></label>
+        <label>Preferred category
+          <select data-business-category>
+            <option value="">— None —</option>
+          </select>
+        </label>
+        <button type="button" data-business-save>Save changes</button>
+        <button type="button" class="secondary" data-business-reset-password>Generate activation / reset-password link</button>
+        <p class="form-message" data-business-save-message hidden></p>
+      </div>
 
       <div class="business-tabs">
-        <section class="business-subsection">
+        <section class="business-subsection" data-admin-only>
           <h3>Orders</h3>
           <div data-business-orders-list></div>
         </section>
@@ -231,7 +236,7 @@
           <p style="color:#5a6a7a;font-size:13px;margin:0 0 8px">Click Edit on any lead below to fix the name, type, phone number, or details if it was entered incorrectly.</p>
           <div data-business-leads-list></div>
         </section>
-        <section class="business-subsection">
+        <section class="business-subsection" data-admin-only>
           <h3>Business details note</h3>
           <textarea rows="5" placeholder="The client's business details will appear here. You can edit this too." data-admin-business-notes-content style="width:100%;font:inherit;padding:8px;border:1px solid #cfd6da;border-radius:6px;resize:vertical"></textarea>
           <div style="margin-top:8px;display:flex;gap:8px;align-items:center">

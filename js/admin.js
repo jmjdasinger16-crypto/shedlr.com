@@ -90,13 +90,19 @@ function applyRole(role){
 
 async function loadStaffBusinesses(){
   const data=await api('/api/admin/businesses');
-  renderStaffBusinesses(data.businesses||[]);
+  businesses=data.businesses||[];
+  renderStaffBusinesses(businesses);
 }
 
 function renderStaffBusinesses(rows){
   const tbody=$('[data-staff-businesses-table]');
   if(!tbody)return;
-  tbody.innerHTML=rows.map(b=>`<tr><td><strong>${esc(b.name||b.company_name||'—')}</strong></td><td>${esc(catLabel(b.preferred_category))}</td><td>${esc(b.address||'—')}</td></tr>`).join('')||'<tr><td colspan="3">No businesses found.</td></tr>';
+  tbody.innerHTML=rows.map(b=>`<tr><td><strong>${esc(b.name||b.company_name||'—')}</strong></td><td>${esc(catLabel(b.preferred_category))}</td><td>${esc(b.address||'—')}</td><td><button type="button" data-open-business="${b.id}">View / edit leads</button></td></tr>`).join('')||'<tr><td colspan="4">No businesses found.</td></tr>';
+}
+
+const staffBusinessesTable=$('[data-staff-businesses-table]');
+if(staffBusinessesTable){
+  staffBusinessesTable.addEventListener('click',event=>{const button=event.target.closest('[data-open-business]');if(!button)return;openBusiness(button.dataset.openBusiness);});
 }
 
 function getFilters(){
@@ -261,20 +267,23 @@ $('[data-order-save]').addEventListener('click',async()=>{
 function openBusiness(id){
   activeBusiness=businesses.find(b=>String(b.id)===String(id));
   if(!activeBusiness)return;
+  const isStaff=document.body.dataset.role==='staff';
   api(`/api/admin/businesses/${id}`).then(detail=>{
     activeBusinessDetail=detail;
-    $('[data-business-title]').textContent=detail.business.name||detail.business.email;
-    $('[data-business-details]').innerHTML=[['Email',detail.business.email],['Phone',detail.business.phone],['Company',detail.business.company_name],['Category',catLabel(detail.business.preferred_category)],['Status',detail.business.status],['Created',fmt(detail.business.created_at)],['Last login',fmt(detail.business.last_login_at)]].map(([label,value])=>`<div><strong>${esc(label)}</strong>${esc(value||'—')}</div>`).join('');
-    $('[data-business-status]').value=detail.business.status||'active';
-    $('[data-business-name]').value=detail.business.name||'';
-    $('[data-business-phone]').value=detail.business.phone||'';
-    $('[data-business-company]').value=detail.business.company_name||'';
-    $('[data-business-address]').value=detail.business.address||'';
-    $('[data-business-category]').value=detail.business.preferred_category||'';
-    $('[data-business-save-message]').hidden=true;
-    renderBusinessOrders(detail.orders||[]);
+    $('[data-business-title]').textContent=detail.business.name||detail.business.email||detail.business.company_name;
     renderBusinessLeads(detail.assignments||[]);
-    loadAdminBusinessNotes(id);
+    if(!isStaff){
+      $('[data-business-details]').innerHTML=[['Email',detail.business.email],['Phone',detail.business.phone],['Company',detail.business.company_name],['Category',catLabel(detail.business.preferred_category)],['Status',detail.business.status],['Created',fmt(detail.business.created_at)],['Last login',fmt(detail.business.last_login_at)]].map(([label,value])=>`<div><strong>${esc(label)}</strong>${esc(value||'—')}</div>`).join('');
+      $('[data-business-status]').value=detail.business.status||'active';
+      $('[data-business-name]').value=detail.business.name||'';
+      $('[data-business-phone]').value=detail.business.phone||'';
+      $('[data-business-company]').value=detail.business.company_name||'';
+      $('[data-business-address]').value=detail.business.address||'';
+      $('[data-business-category]').value=detail.business.preferred_category||'';
+      $('[data-business-save-message]').hidden=true;
+      renderBusinessOrders(detail.orders||[]);
+      loadAdminBusinessNotes(id);
+    }
     businessDialog.showModal();
   }).catch(error=>{alert(error.message);});
 }
@@ -418,7 +427,7 @@ function renderBulkPreview(leads){
     `</tbody></table>`;
 }
 
-$('[data-bulk-import-open]').addEventListener('click',()=>{
+function openBulkImportDialog(){
   populateBulkCategory();
   populateBulkBusinesses();
   $('[data-bulk-order]').innerHTML='<option value="">— None —</option>';
@@ -428,7 +437,11 @@ $('[data-bulk-import-open]').addEventListener('click',()=>{
   bulkMessage.hidden=true;
   bulkParsedLeads=[];
   bulkDialog.showModal();
-});
+}
+
+$('[data-bulk-import-open]').addEventListener('click',openBulkImportDialog);
+const staffBulkImportOpen=$('[data-staff-bulk-import-open]');
+if(staffBulkImportOpen)staffBulkImportOpen.addEventListener('click',openBulkImportDialog);
 
 bulkFile.addEventListener('change',async()=>{
   const file=bulkFile.files[0];

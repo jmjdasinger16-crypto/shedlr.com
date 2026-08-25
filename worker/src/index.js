@@ -491,7 +491,10 @@ export default {
       const STAFF_ALLOWED =
         (request.method === "GET" && url.pathname === "/api/admin/session") ||
         (request.method === "GET" && url.pathname === "/api/admin/businesses") ||
-        (request.method === "POST" && url.pathname === "/api/admin/leads");
+        (request.method === "GET" && /^\/api\/admin\/businesses\/\d+$/.test(url.pathname)) ||
+        (request.method === "POST" && url.pathname === "/api/admin/leads") ||
+        (request.method === "POST" && url.pathname === "/api/admin/leads/bulk") ||
+        (request.method === "PATCH" && /^\/api\/admin\/leads\/\d+$/.test(url.pathname));
       if (session.role !== "admin" && !STAFF_ALLOWED) {
         return json({ error: "Your account does not have permission for this action." }, 403);
       }
@@ -575,11 +578,22 @@ export default {
         const id = Number(businessDetailMatch[1]);
         const business = await findBusinessById(env, id);
         if (!business) return json({ error: "Business not found." }, 404);
-        const orders = await env.DB.prepare("SELECT id, category, quantity, unit_price_cents, total_cents, status, paid_at, created_at, fulfilled_leads FROM lead_orders WHERE email=? ORDER BY created_at DESC LIMIT 200").bind(business.email).all();
         const assignments = await env.DB.prepare(`SELECT la.id, la.lead_id, la.status AS assignment_status, la.assigned_at,
           l.name, l.email, l.phone, l.category, l.message, l.source, l.city, l.state, l.status AS lead_status
           FROM lead_assignments la JOIN leads l ON l.id = la.lead_id
           WHERE la.business_id=? ORDER BY la.assigned_at DESC LIMIT 200`).bind(id).all();
+
+        if (session.role !== "admin") {
+          // Staff view: just enough to find and fix a lead entry mistake — no contact info,
+          // financial orders, or internal notes.
+          return json({
+            business: { id: business.id, name: business.name, company_name: business.company_name, preferred_category: business.preferred_category, address: business.address },
+            orders: [],
+            assignments: assignments.results || []
+          });
+        }
+
+        const orders = await env.DB.prepare("SELECT id, category, quantity, unit_price_cents, total_cents, status, paid_at, created_at, fulfilled_leads FROM lead_orders WHERE email=? ORDER BY created_at DESC LIMIT 200").bind(business.email).all();
         const { password_hash, activation_nonce, activation_nonce_expires, ...safeBusiness } = business;
         return json({ business: safeBusiness, orders: orders.results || [], assignments: assignments.results || [] });
       }
