@@ -92,6 +92,13 @@ async function loadStaffBusinesses(){
   const data=await api('/api/admin/businesses');
   businesses=data.businesses||[];
   renderStaffBusinesses(businesses);
+  populateStaffLeadBusiness();
+}
+
+function populateStaffLeadBusiness(){
+  const sel=$('[data-staff-lead-business]');
+  if(!sel)return;
+  sel.innerHTML='<option value="">— Leave unassigned —</option>'+businesses.map(b=>`<option value="${b.id}">${esc(b.name||b.company_name)}</option>`).join('');
 }
 
 function renderStaffBusinesses(rows){
@@ -586,11 +593,13 @@ if(staffLeadForm){
     const statusEl=$('[data-staff-lead-status]');
     statusEl.hidden=false;statusEl.textContent='Saving...';
     try{
+      const businessId=form.business_id.value;
       await api('/api/admin/leads',{method:'POST',body:JSON.stringify({
         name:form.name.value,category:form.category.value,phone:form.phone.value,
-        email:form.email.value,city:form.city.value,state:form.state.value,message:form.message.value
+        email:form.email.value,city:form.city.value,state:form.state.value,message:form.message.value,
+        business_id:businessId||undefined
       })});
-      statusEl.textContent='Lead added. An admin will review and assign it.';
+      statusEl.textContent=businessId?'Lead added and assigned.':'Lead added. An admin will review and assign it.';
       form.reset();
     }catch(error){statusEl.textContent=error.message;}
   });

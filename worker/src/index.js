@@ -665,12 +665,27 @@ export default {
         const category = clean(data.category, 60);
         if (!name) return json({ error: "Lead name is required." }, 400);
         if (!CATEGORIES.includes(category)) return json({ error: "Valid category is required." }, 400);
+
+        const businessId = data.business_id ? Number(data.business_id) : null;
+        let business = null;
+        if (businessId) {
+          business = await findBusinessById(env, businessId);
+          if (!business) return json({ error: "Business not found." }, 404);
+        }
+
         const now = new Date().toISOString();
         const result = await env.DB.prepare(`INSERT INTO leads
           (name, email, phone, category, message, source, city, state, status, submitted_at, assigned_to)
-          VALUES (?,?,?,?,?,'manual',?,?,?,?,'unassigned')`)
-          .bind(name, email, phone, category, clean(data.message, 4000), clean(data.city, 120), clean(data.state, 60), "new", now).run();
-        return json({ success: true, lead_id: result.meta?.last_row_id }, 201);
+          VALUES (?,?,?,?,?,'manual',?,?,?,?,?)`)
+          .bind(name, email, phone, category, clean(data.message, 4000), clean(data.city, 120), clean(data.state, 60), business ? "assigned" : "new", now, business ? String(businessId) : "unassigned").run();
+        const leadId = result.meta?.last_row_id;
+
+        if (business) {
+          await env.DB.prepare("INSERT INTO lead_assignments (lead_id, business_id, order_id, status, assigned_at) VALUES (?,?,?,'delivered',?)")
+            .bind(leadId, businessId, null, now).run();
+        }
+
+        return json({ success: true, lead_id: leadId }, 201);
       }
 
       /* ── Bulk lead import ── */
