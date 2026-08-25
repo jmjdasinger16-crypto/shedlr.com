@@ -236,6 +236,19 @@ $('[data-lead-save]').addEventListener('click',async()=>{
   }catch(error){message.textContent=error.message;}
 });
 
+$('[data-lead-delete]').addEventListener('click',async()=>{
+  if(!activeLead)return;
+  if(!confirm(`Delete the lead "${activeLead.name||''}"? This can't be undone.`))return;
+  const message=$('[data-lead-save-message]');message.hidden=false;message.textContent='Deleting...';
+  try{
+    await api(`/api/admin/leads/${activeLead.id}`,{method:'DELETE'});
+    leads=leads.filter(l=>String(l.id)!==String(activeLead.id));
+    renderLeads(leads);
+    leadDialog.close();
+    await refreshBusinessLeads();
+  }catch(error){message.textContent=error.message;}
+});
+
 $('[data-lead-assign]').addEventListener('click',async()=>{
   if(!activeLead)return;
   const message=$('[data-lead-save-message]');message.hidden=false;message.textContent='Assigning...';
