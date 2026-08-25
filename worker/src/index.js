@@ -785,6 +785,22 @@ export default {
         return json({ success: true, lead });
       }
 
+      if (request.method === "DELETE" && leadMatch) {
+        const id = Number(leadMatch[1]);
+        const existing = await env.DB.prepare("SELECT * FROM leads WHERE id=?").bind(id).first();
+        if (!existing) return json({ error: "Lead not found." }, 404);
+
+        const linkedOrders = await env.DB.prepare("SELECT order_id FROM lead_assignments WHERE lead_id=? AND order_id IS NOT NULL").bind(id).all();
+        for (const row of linkedOrders.results || []) {
+          await env.DB.prepare("UPDATE lead_orders SET fulfilled_leads = MAX(fulfilled_leads - 1, 0) WHERE id=?").bind(row.order_id).run();
+        }
+
+        await env.DB.prepare("DELETE FROM lead_notes WHERE lead_id=?").bind(id).run();
+        await env.DB.prepare("DELETE FROM lead_assignments WHERE lead_id=?").bind(id).run();
+        await env.DB.prepare("DELETE FROM leads WHERE id=?").bind(id).run();
+        return json({ success: true });
+      }
+
       /* ── Lead assignment ── */
       const assignMatch = url.pathname.match(/^\/api\/admin\/leads\/(\d+)\/assign$/);
       if (request.method === "POST" && assignMatch) {
