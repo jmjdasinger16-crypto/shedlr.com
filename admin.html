@@ -130,6 +130,11 @@
           <label>Email<input name="email" type="email"></label>
           <label>City<input name="city"></label>
           <label>State<input name="state"></label>
+          <label>Assign to business (optional)
+            <select name="business_id" data-staff-lead-business>
+              <option value="">— Leave unassigned —</option>
+            </select>
+          </label>
           <label style="grid-column:1/-1">Notes<textarea name="message" rows="3"></textarea></label>
           <div class="filter-actions"><button type="submit">Add lead</button></div>
           <p class="filter-status" data-staff-lead-status></p>
