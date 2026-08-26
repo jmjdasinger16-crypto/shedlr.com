@@ -39,7 +39,7 @@ if (activateLoading) {
     const token = params.get('token');
 
     if (!token) {
-      showActivateError('This activation link is missing required information. Please use the link from your email or contact support@liferise.cc.');
+      showActivateError('This activation link is missing required information. Please use the link from your email or contact support@shedlr.com.');
       return;
     }
 
