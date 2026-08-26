@@ -183,7 +183,7 @@ if(orderForm){
       setTimeout(()=>{window.location.href=STRIPE_PAYMENT_LINK;},1500);
     }catch(error){
       track('order_submit_error',{message:error.message||'Unknown error'});
-      message.textContent=error.message||'We could not submit your order. Please call (307) 303-7530 or email support@liferise.cc.';
+      message.textContent=error.message||'We could not submit your order. Please call (307) 303-7530 or email support@shedlr.com.';
       message.classList.add('error');
     }finally{
       button.disabled=false;
