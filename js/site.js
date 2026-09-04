@@ -33,7 +33,7 @@ track('page_view',{title:document.title,referrer:document.referrer||''});
     if(!zip){
       result.hidden=false;
       result.className='zip-result info';
-      result.textContent="No ZIP? No problem \u2014 leave it blank and we'll send leads from any area we service.";
+      result.textContent="No ZIP? No problem — leave it blank and we'll send leads from any area we service.";
       return;
     }
     if(!/^\d{5}$/.test(zip)){
@@ -354,5 +354,14 @@ const getCategoryPrice=(cat)=>{
       if(input.type==='password'){input.type='text';toggle.innerHTML='◍';}else{input.type='password';toggle.innerHTML='◉';}
     });
     wrapper.appendChild(toggle);
+  });
+})();
+
+/* ── Shedlr LLC legal-name footer update ── */
+(function(){
+  const oldText='© 2026 Shedlr. Operated by LifeRise Unlimited Corporation.';
+  const newText='© 2026 Shedlr LLC. Operated by LifeRise Unlimited Corporation.';
+  document.querySelectorAll('.copyright p').forEach(el=>{
+    if(el.textContent.trim()===oldText)el.textContent=newText;
   });
 })();
