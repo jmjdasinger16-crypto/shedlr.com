@@ -365,3 +365,19 @@ const getCategoryPrice=(cat)=>{
     if(el.textContent.trim()===oldText)el.textContent=newText;
   });
 })();
+
+/* ── Homepage Dylan Norwood testimonial ── */
+(function(){
+  const cards=document.querySelectorAll('.testimonial-card');
+  cards.forEach(card=>{
+    const author=card.querySelector('.author-info strong');
+    if(!author||author.textContent.trim()!=='James R.')return;
+    const quote=card.querySelector('.quote');
+    const avatar=card.querySelector('.avatar');
+    const detail=card.querySelector('.author-info small');
+    if(quote)quote.textContent='"The quantity of leads is what makes the difference for us. Having a steady flow of new prospects keeps opportunities coming in and gives our agency more chances to start conversations and write new business."';
+    if(avatar)avatar.textContent='DN';
+    author.textContent='Dylan Norwood';
+    if(detail)detail.textContent='Farmers Insurance Agency Owner';
+  });
+})();
