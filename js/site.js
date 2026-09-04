@@ -136,7 +136,7 @@ track('page_view',{title:document.title,referrer:document.referrer||''});
 })();
 
 /* ── Stripe Payment Link ── */
-const STRIPE_PAYMENT_LINK='https://buy.stripe.com/4gMcN5g4lbmKdUOe2Qak003';
+const STRIPE_PAYMENT_LINK='https://buy.stripe.com/dRm14nfQW9aM7zf9Raa3u00';
 
 /* ── Order form submission ── */
 const orderForm=document.querySelector('[data-order-form]');
