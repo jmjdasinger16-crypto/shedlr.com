@@ -1,0 +1,113 @@
+/* ═══════════════════════════════════════════════════
+   Shedlr — Personal Training page: "From Your CEO" section
+   ═══════════════════════════════════════════════════ */
+
+.pt-ceo{
+  position:relative;padding:120px 0;background:#0b1f33;color:#fff;overflow:hidden;
+}
+.pt-ceo::before{
+  content:"";position:absolute;width:520px;height:520px;
+  border:1px solid #d4af3733;border-radius:50%;
+  right:-180px;top:-220px;z-index:1;
+}
+.pt-ceo::after{
+  content:"";position:absolute;width:320px;height:320px;
+  border:1px solid #d4af3722;border-radius:50%;
+  left:-120px;bottom:-160px;z-index:1;
+}
+.pt-ceo .wrap{position:relative;z-index:2}
+
+.pt-ceo-grid{
+  display:grid;grid-template-columns:1fr 1fr;gap:70px;align-items:center;
+}
+
+/* Photo collage */
+.pt-collage{
+  display:grid;grid-template-columns:repeat(6,1fr);
+  grid-auto-rows:80px;gap:12px;
+}
+.pt-collage figure{
+  margin:0;overflow:hidden;background:#12283f;
+  box-shadow:0 20px 45px #0614215c;
+  position:relative;
+}
+.pt-collage img{
+  width:100%;height:100%;object-fit:cover;display:block;
+  filter:saturate(1.05) contrast(1.05);
+  transition:transform .6s cubic-bezier(.16,1,.3,1), filter .3s ease;
+}
+.pt-collage figure:hover img{transform:scale(1.04);filter:saturate(1.15) contrast(1.1)}
+.pt-collage .pt-photo-1{grid-column:span 4;grid-row:span 5}
+.pt-collage .pt-photo-2{grid-column:span 2;grid-row:span 3}
+.pt-collage .pt-photo-3{grid-column:span 2;grid-row:span 2}
+.pt-collage .pt-photo-4{grid-column:span 3;grid-row:span 3}
+.pt-collage .pt-photo-5{grid-column:span 3;grid-row:span 3}
+
+/* Gold accent overlay on the hero image */
+.pt-collage .pt-photo-1::after{
+  content:"";position:absolute;left:0;right:0;bottom:0;height:40%;
+  background:linear-gradient(180deg, transparent, rgba(11,31,51,.75));
+  pointer-events:none;
+}
+.pt-collage .pt-photo-1 figcaption{
+  position:absolute;left:20px;bottom:18px;z-index:2;
+  color:#d4af37;font-size:11px;font-weight:800;letter-spacing:.18em;
+  text-transform:uppercase;
+}
+
+/* Copy side */
+.pt-ceo-copy .eyebrow{color:#d4af37;margin-bottom:22px}
+.pt-ceo-copy h2{
+  font-family:'Cormorant Garamond',serif;font-weight:600;
+  font-size:58px;line-height:1.02;margin:0 0 24px;letter-spacing:-.035em;
+}
+.pt-ceo-copy h2 em{color:#d4af37;font-style:italic;font-weight:500}
+.pt-ceo-copy .lead{
+  font-size:19px;line-height:1.75;color:#d5dce4;margin:0 0 22px;font-weight:400;
+}
+.pt-ceo-copy .lead strong{color:#fff;font-weight:700}
+
+.pt-signature{
+  margin-top:34px;padding-top:26px;border-top:1px solid #d4af3744;
+  display:flex;align-items:center;gap:16px;
+}
+.pt-signature-avatar{
+  width:64px;height:64px;border-radius:50%;overflow:hidden;
+  border:2px solid #d4af37;flex-shrink:0;background:#12283f;
+}
+.pt-signature-avatar img{width:100%;height:100%;object-fit:cover;object-position:center 20%;display:block}
+.pt-signature-info strong{
+  display:block;font:600 22px 'Cormorant Garamond',serif;color:#fff;line-height:1;
+}
+.pt-signature-info small{
+  display:block;margin-top:6px;font-size:10px;text-transform:uppercase;
+  letter-spacing:.16em;color:#d4af37;font-weight:800;
+}
+.pt-signature-info a{
+  color:#d4af37;border-bottom:1px solid #d4af3744;
+}
+.pt-signature-info a:hover{color:#e6c25a;border-color:#e6c25a}
+
+.pt-ceo-cta{
+  display:inline-block;margin-top:34px;background:#d4af37;color:#0b1f33;
+  padding:18px 30px;font-weight:800;letter-spacing:.04em;font-size:15px;
+  transition:background .2s ease;
+}
+.pt-ceo-cta:hover{background:#e6c25a}
+
+@media(max-width:960px){
+  .pt-ceo{padding:80px 0}
+  .pt-ceo-grid{grid-template-columns:1fr;gap:50px}
+  .pt-ceo-copy h2{font-size:42px}
+  .pt-collage{grid-auto-rows:70px}
+}
+@media(max-width:560px){
+  .pt-ceo-copy h2{font-size:34px}
+  .pt-ceo-copy .lead{font-size:16px}
+  .pt-collage{grid-auto-rows:60px;gap:8px}
+  .pt-collage .pt-photo-1{grid-column:span 6;grid-row:span 4}
+  .pt-collage .pt-photo-2{grid-column:span 3;grid-row:span 2}
+  .pt-collage .pt-photo-3{grid-column:span 3;grid-row:span 2}
+  .pt-collage .pt-photo-4{grid-column:span 3;grid-row:span 2}
+  .pt-collage .pt-photo-5{grid-column:span 3;grid-row:span 2}
+}
