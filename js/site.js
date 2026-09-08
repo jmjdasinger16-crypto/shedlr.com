@@ -5,6 +5,29 @@ const sessionId=getSessionId();
 const track=(eventName,metadata={})=>fetch('/api/events',{method:'POST',headers:{'content-type':'application/json'},keepalive:true,body:JSON.stringify({event_name:eventName,page_path:location.pathname+location.search,session_id:sessionId,referrer:document.referrer||'',metadata})}).catch(()=>{});
 track('page_view',{title:document.title,referrer:document.referrer||''});
 
+/* ── Ensure current lead categories are present everywhere on the public site ── */
+(function(){
+  const select=document.getElementById('category');
+  if(select){
+    let group=Array.from(select.querySelectorAll('optgroup')).find(g=>g.label==='Personal & Lifestyle');
+    if(!group){group=document.createElement('optgroup');group.label='Personal & Lifestyle';select.appendChild(group);}
+    const additions=[['counseling','Counseling',5],['mental-health-clinician','Mental Health Clinician',5]];
+    additions.forEach(([value,label,price])=>{
+      if(!select.querySelector(`option[value="${value}"]`)){
+        const option=document.createElement('option');
+        option.value=value;option.textContent=label;option.dataset.price=String(price);group.appendChild(option);
+      }
+    });
+  }
+  document.querySelectorAll('#faq details').forEach(detail=>{
+    const summary=detail.querySelector('summary');
+    const p=detail.querySelector('p');
+    if(summary&&p&&summary.textContent.trim()==='What types of leads are available?'&&!/counseling/i.test(p.textContent)){
+      p.textContent=p.textContent.replace('personal training, life coaching,','personal training, life coaching, counseling, mental health clinicians,');
+    }
+  });
+})();
+
 /* ── Category & lead type pre-select from URL param ── */
 (function(){
   const params=new URLSearchParams(window.location.search);
@@ -242,6 +265,8 @@ if(orderForm){
 const LEAD_PRICES={
   'Personal Trainer':4,
   'Life Coach':1,
+  'Counseling':5,
+  'Mental Health Clinician':5,
   'Maintenance':5,
   'Dog Walker':2,
   'House Cleaning':6,
@@ -267,6 +292,8 @@ const LEAD_PRICES={
 const LEAD_PRICE_SLUGS={
   'personal-trainer':4,
   'life-coach':1,
+  'counseling':5,
+  'mental-health-clinician':5,
   'maintenance':5,
   'dog-walker':2,
   'house-cleaning':6,
