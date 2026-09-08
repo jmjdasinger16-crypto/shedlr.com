@@ -8,6 +8,8 @@ const LEAD_PRICE_CENTS = 100; // fallback default
 const CATEGORY_PRICES = {
   "personal-trainer": 400,
   "life-coach": 100,
+  "counseling": 500,
+  "mental-health-clinician": 500,
   "maintenance": 500,
   "dog-walker": 200,
   "house-cleaning": 600,
@@ -32,7 +34,7 @@ const CATEGORY_PRICES = {
 const getCategoryPriceCents = (slug) => CATEGORY_PRICES[slug] || 500;
 
 const CATEGORIES = [
-  "personal-trainer", "life-coach", "maintenance", "dog-walker",
+  "personal-trainer", "life-coach", "counseling", "mental-health-clinician", "maintenance", "dog-walker",
   "house-cleaning", "landscaping", "tutoring", "photography",
   "handyman", "moving", "catering", "event-planning",
   "home-insurance", "vehicle-insurance",
@@ -45,6 +47,8 @@ const LEAD_TYPES = ["appointment-booking", "phone-call-scheduling", "raw-leads"]
 const CATEGORY_LABELS = {
   "personal-trainer": "Personal Trainer",
   "life-coach": "Life Coach",
+  "counseling": "Counseling",
+  "mental-health-clinician": "Mental Health Clinician",
   "maintenance": "Maintenance",
   "dog-walker": "Dog Walker",
   "house-cleaning": "House Cleaning",
