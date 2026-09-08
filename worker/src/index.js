@@ -28,6 +28,7 @@ const CATEGORY_PRICES = {
   "hvac": 700,
   "plumbing": 700,
   "garage-door-services": 700,
+  "auto-mechanic": 700,
   "pest-control": 500,
   "solar": 1000,
   "real-estate": 800
@@ -40,7 +41,7 @@ const CATEGORIES = [
   "handyman", "moving", "catering", "event-planning",
   "home-insurance", "vehicle-insurance",
   "roofing", "auto-hail-damage", "home-services", "hvac",
-  "plumbing", "garage-door-services", "pest-control", "solar", "real-estate"
+  "plumbing", "garage-door-services", "auto-mechanic", "pest-control", "solar", "real-estate"
 ];
 
 const LEAD_TYPES = ["appointment-booking", "phone-call-scheduling", "raw-leads"];
@@ -68,6 +69,7 @@ const CATEGORY_LABELS = {
   "hvac": "HVAC",
   "plumbing": "Plumbing",
   "garage-door-services": "Garage Door Services",
+  "auto-mechanic": "Auto Mechanic / Auto Repair",
   "pest-control": "Pest Control",
   "solar": "Solar",
   "real-estate": "Real Estate"
