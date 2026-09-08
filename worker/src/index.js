@@ -27,6 +27,7 @@ const CATEGORY_PRICES = {
   "home-services": 600,
   "hvac": 700,
   "plumbing": 700,
+  "garage-door-services": 700,
   "pest-control": 500,
   "solar": 1000,
   "real-estate": 800
@@ -39,7 +40,7 @@ const CATEGORIES = [
   "handyman", "moving", "catering", "event-planning",
   "home-insurance", "vehicle-insurance",
   "roofing", "auto-hail-damage", "home-services", "hvac",
-  "plumbing", "pest-control", "solar", "real-estate"
+  "plumbing", "garage-door-services", "pest-control", "solar", "real-estate"
 ];
 
 const LEAD_TYPES = ["appointment-booking", "phone-call-scheduling", "raw-leads"];
@@ -66,6 +67,7 @@ const CATEGORY_LABELS = {
   "home-services": "Home Services",
   "hvac": "HVAC",
   "plumbing": "Plumbing",
+  "garage-door-services": "Garage Door Services",
   "pest-control": "Pest Control",
   "solar": "Solar",
   "real-estate": "Real Estate"
@@ -111,8 +113,6 @@ async function createSession(env, role) {
   return `${payload}.${await hmac(env.ADMIN_SESSION_SECRET, payload)}`;
 }
 
-// Returns { role: 'admin' | 'staff' } for a valid session, or null. Tokens issued before
-// roles existed have no `role` field and are treated as 'admin' for backward compatibility.
 async function getAdminSession(request, env) {
   const token = parseCookies(request)[SESSION_COOKIE];
   if (!token || !env.ADMIN_SESSION_SECRET) return null;
@@ -255,7 +255,6 @@ export default {
     const url = new URL(request.url);
     if (request.method === "GET" && url.pathname === "/api/health") return json({ ok: true, service: "shedlr-api" });
 
-    /* ── Event tracking ── */
     if (request.method === "POST" && url.pathname === "/api/events") {
       let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); }
       if (!clean(data.event_name,80)) return json({ error: "Event name is required." }, 400);
@@ -263,7 +262,6 @@ export default {
       return json({ success: true }, 202);
     }
 
-    /* ── Admin auth ── */
     if (request.method === "POST" && url.pathname === "/api/admin/login") {
       let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); }
       if (!env.ADMIN_PASSWORD || !env.ADMIN_SESSION_SECRET) return json({ error: "Admin secrets are not configured." }, 503);
@@ -280,7 +278,6 @@ export default {
       return json({ success: true }, 200, { "set-cookie": `${SESSION_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0` });
     }
 
-    /* ── Stripe webhook ── */
     if (request.method === "POST" && url.pathname === "/api/stripe/webhook") {
       if (!env.STRIPE_WEBHOOK_SECRET) return json({ error: "Stripe webhook is not configured." }, 503);
       const rawBody = await request.text();
@@ -324,7 +321,6 @@ export default {
       return json({ received: true });
     }
 
-    /* ── Public order submission ── */
     if (request.method === "POST" && url.pathname === "/api/orders") {
       let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); }
       const order = {
@@ -346,41 +342,24 @@ export default {
       return json({ success: true, order_id: id, message: "Thank you. Your order has been received. You will get a payment link by email shortly, and once payment is processed, our team will begin verifying leads for you." }, 201);
     }
 
-    /* ══════════════ PUBLIC BUSINESS-PORTAL ROUTES ══════════════ */
-
     if (request.method === "POST" && url.pathname === "/api/portal/activate") {
       let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); }
       const token = clean(data.token, 200);
       if (!token) return json({ error: "Missing activation token." }, 400);
       const business = await env.DB.prepare("SELECT * FROM businesses WHERE activation_nonce=?").bind(token).first();
-      if (!business || !business.activation_nonce_expires || new Date(business.activation_nonce_expires).getTime() < Date.now()) {
-        return json({ error: "This activation link is invalid or has expired. Please contact support@shedlr.com for a new link." }, 400);
-      }
-      return json({
-        activation_token: business.activation_nonce,
-        email: business.email,
-        name: business.name,
-        already_has_password: Boolean(business.password_hash)
-      });
+      if (!business || !business.activation_nonce_expires || new Date(business.activation_nonce_expires).getTime() < Date.now()) return json({ error: "This activation link is invalid or has expired. Please contact support@shedlr.com for a new link." }, 400);
+      return json({ activation_token: business.activation_nonce, email: business.email, name: business.name, already_has_password: Boolean(business.password_hash) });
     }
 
     if (request.method === "POST" && url.pathname === "/api/portal/set-password") {
       let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); }
-      const token = clean(data.token, 200);
-      const password = String(data.password || "");
+      const token = clean(data.token, 200); const password = String(data.password || "");
       if (!token) return json({ error: "Missing activation token." }, 400);
       if (password.length < 8) return json({ error: "Password must be at least 8 characters." }, 400);
-
       const business = await env.DB.prepare("SELECT * FROM businesses WHERE activation_nonce=?").bind(token).first();
-      if (!business || !business.activation_nonce_expires || new Date(business.activation_nonce_expires).getTime() < Date.now()) {
-        return json({ error: "This activation link is invalid or has expired. Please contact support@shedlr.com for a new link." }, 400);
-      }
-
-      const passwordHash = await hashPassword(password);
-      const now = new Date().toISOString();
-      await env.DB.prepare("UPDATE businesses SET password_hash=?, activation_nonce=NULL, activation_nonce_expires=NULL, last_login_at=?, updated_at=? WHERE id=?")
-        .bind(passwordHash, now, now, business.id).run();
-
+      if (!business || !business.activation_nonce_expires || new Date(business.activation_nonce_expires).getTime() < Date.now()) return json({ error: "This activation link is invalid or has expired. Please contact support@shedlr.com for a new link." }, 400);
+      const passwordHash = await hashPassword(password); const now = new Date().toISOString();
+      await env.DB.prepare("UPDATE businesses SET password_hash=?, activation_nonce=NULL, activation_nonce_expires=NULL, last_login_at=?, updated_at=? WHERE id=?").bind(passwordHash, now, now, business.id).run();
       const sessionToken = await createBusinessSessionToken(env, business.id);
       return json({ success: true }, 200, { "set-cookie": businessCookieHeader(sessionToken) });
     }
@@ -388,483 +367,76 @@ export default {
     if (request.method === "POST" && url.pathname === "/api/portal/login") {
       let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); }
       if (!env.BUSINESS_SESSION_SECRET) return json({ error: "Business portal is not configured." }, 503);
-      const email = clean(data.email, 254).toLowerCase();
-      const password = String(data.password || "");
+      const email = clean(data.email, 254).toLowerCase(); const password = String(data.password || "");
       if (!validEmail(email) || !password) return json({ error: "Please provide a valid email and password." }, 400);
-
       const business = await env.DB.prepare("SELECT * FROM businesses WHERE email=?").bind(email).first();
-      if (!business || !business.password_hash || !(await verifyPassword(password, business.password_hash))) {
-        return json({ error: "Incorrect email or password." }, 401);
-      }
+      if (!business || !business.password_hash || !(await verifyPassword(password, business.password_hash))) return json({ error: "Incorrect email or password." }, 401);
       await env.DB.prepare("UPDATE businesses SET last_login_at=? WHERE id=?").bind(new Date().toISOString(), business.id).run();
       const token = await createBusinessSessionToken(env, business.id);
       return json({ success: true }, 200, { "set-cookie": businessCookieHeader(token) });
     }
 
-    if (request.method === "POST" && url.pathname === "/api/portal/logout") {
-      return json({ success: true }, 200, { "set-cookie": businessCookieHeader("", 0) });
-    }
-
-    /* ══════════════ AUTHENTICATED BUSINESS-PORTAL ROUTES ══════════════ */
+    if (request.method === "POST" && url.pathname === "/api/portal/logout") return json({ success: true }, 200, { "set-cookie": businessCookieHeader("", 0) });
 
     if (url.pathname.startsWith("/api/portal/") && !["/api/portal/activate", "/api/portal/set-password", "/api/portal/login", "/api/portal/logout"].includes(url.pathname)) {
       const business = await getAuthedBusiness(request, env);
       if (!business) return json({ error: "Unauthorized." }, 401);
-
-      if (request.method === "GET" && url.pathname === "/api/portal/me") {
-        return json({ business: { id: business.id, email: business.email, name: business.name, phone: business.phone, company_name: business.company_name, address: business.address, preferred_category: business.preferred_category, status: business.status } });
-      }
-
+      if (request.method === "GET" && url.pathname === "/api/portal/me") return json({ business: { id: business.id, email: business.email, name: business.name, phone: business.phone, company_name: business.company_name, address: business.address, preferred_category: business.preferred_category, status: business.status } });
       if (request.method === "PATCH" && url.pathname === "/api/portal/me") {
         let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); }
-        const name = data.name !== undefined ? clean(data.name, 120) : business.name;
-        const phone = data.phone !== undefined ? clean(data.phone, 40) : business.phone;
-        const companyName = data.company_name !== undefined ? clean(data.company_name, 200) : business.company_name;
-        const address = data.address !== undefined ? clean(data.address, 300) : business.address;
-        const now = new Date().toISOString();
-        await env.DB.prepare("UPDATE businesses SET name=?, phone=?, company_name=?, address=?, updated_at=? WHERE id=?")
-          .bind(name, phone, companyName, address, now, business.id).run();
+        const name = data.name !== undefined ? clean(data.name, 120) : business.name; const phone = data.phone !== undefined ? clean(data.phone, 40) : business.phone; const companyName = data.company_name !== undefined ? clean(data.company_name, 200) : business.company_name; const address = data.address !== undefined ? clean(data.address, 300) : business.address; const now = new Date().toISOString();
+        await env.DB.prepare("UPDATE businesses SET name=?, phone=?, company_name=?, address=?, updated_at=? WHERE id=?").bind(name, phone, companyName, address, now, business.id).run();
         return json({ success: true, business: { id: business.id, email: business.email, name, phone, company_name: companyName, address, preferred_category: business.preferred_category, status: business.status } });
       }
-
-      if (request.method === "GET" && url.pathname === "/api/portal/orders") {
-        const orders = await env.DB.prepare("SELECT id, category, quantity, unit_price_cents, total_cents, status, paid_at, created_at, fulfilled_leads FROM lead_orders WHERE email=? ORDER BY created_at DESC LIMIT 200").bind(business.email).all();
-        return json({ orders: orders.results || [] });
-      }
-
-      if (request.method === "GET" && url.pathname === "/api/portal/leads") {
-        const leads = await env.DB.prepare(`SELECT la.id AS assignment_id, la.status AS assignment_status, la.assigned_at,
-          l.id AS lead_id, l.name, l.email, l.phone, l.category, l.message, l.source, l.city, l.state, l.submitted_at
-          FROM lead_assignments la JOIN leads l ON l.id = la.lead_id
-          WHERE la.business_id=? ORDER BY la.assigned_at DESC LIMIT 500`).bind(business.id).all();
-        return json({ leads: leads.results || [] });
-      }
-
+      if (request.method === "GET" && url.pathname === "/api/portal/orders") { const orders = await env.DB.prepare("SELECT id, category, quantity, unit_price_cents, total_cents, status, paid_at, created_at, fulfilled_leads FROM lead_orders WHERE email=? ORDER BY created_at DESC LIMIT 200").bind(business.email).all(); return json({ orders: orders.results || [] }); }
+      if (request.method === "GET" && url.pathname === "/api/portal/leads") { const leads = await env.DB.prepare(`SELECT la.id AS assignment_id, la.status AS assignment_status, la.assigned_at, l.id AS lead_id, l.name, l.email, l.phone, l.category, l.message, l.source, l.city, l.state, l.submitted_at FROM lead_assignments la JOIN leads l ON l.id = la.lead_id WHERE la.business_id=? ORDER BY la.assigned_at DESC LIMIT 500`).bind(business.id).all(); return json({ leads: leads.results || [] }); }
       const leadNotesMatch = url.pathname.match(/^\/api\/portal\/leads\/(\d+)$/);
-      if (request.method === "GET" && leadNotesMatch) {
-        const leadId = Number(leadNotesMatch[1]);
-        const assignment = await env.DB.prepare("SELECT id FROM lead_assignments WHERE business_id=? AND lead_id=?").bind(business.id, leadId).first();
-        if (!assignment) return json({ error: "Lead not found in your account." }, 404);
-        const notes = await env.DB.prepare("SELECT id, author, content, created_at, updated_at FROM lead_notes WHERE assignment_id=? ORDER BY created_at DESC LIMIT 200").bind(assignment.id).all();
-        return json({ notes: notes.results || [] });
-      }
-
+      if (request.method === "GET" && leadNotesMatch) { const leadId = Number(leadNotesMatch[1]); const assignment = await env.DB.prepare("SELECT id FROM lead_assignments WHERE business_id=? AND lead_id=?").bind(business.id, leadId).first(); if (!assignment) return json({ error: "Lead not found in your account." }, 404); const notes = await env.DB.prepare("SELECT id, author, content, created_at, updated_at FROM lead_notes WHERE assignment_id=? ORDER BY created_at DESC LIMIT 200").bind(assignment.id).all(); return json({ notes: notes.results || [] }); }
       const leadNoteAddMatch = url.pathname.match(/^\/api\/portal\/leads\/(\d+)\/notes$/);
-      if (request.method === "POST" && leadNoteAddMatch) {
-        let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); }
-        const leadId = Number(leadNoteAddMatch[1]);
-        const assignment = await env.DB.prepare("SELECT id FROM lead_assignments WHERE business_id=? AND lead_id=?").bind(business.id, leadId).first();
-        if (!assignment) return json({ error: "Lead not found in your account." }, 404);
-        const content = clean(data.content, 5000);
-        if (!content) return json({ error: "Note content is required." }, 400);
-        const now = new Date().toISOString();
-        const result = await env.DB.prepare("INSERT INTO lead_notes (assignment_id, business_id, lead_id, author, content, created_at, updated_at) VALUES (?,?,?,'business',?,?,?)")
-          .bind(assignment.id, business.id, leadId, content, now, now).run();
-        return json({ success: true, note: { id: result.meta?.last_row_id, author: "business", content, created_at: now } }, 201);
-      }
-
-      /* ── Business notes (business-level profile/details) ── */
-      if (request.method === "GET" && url.pathname === "/api/portal/business-notes") {
-        const note = await env.DB.prepare("SELECT id, content, updated_by, created_at, updated_at FROM business_notes WHERE business_id=?").bind(business.id).first();
-        return json({ note: note || { content: "", updated_by: null, created_at: null, updated_at: null } });
-      }
-
-      if (request.method === "PUT" && url.pathname === "/api/portal/business-notes") {
-        let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); }
-        const content = clean(data.content, 10000);
-        const now = new Date().toISOString();
-        await env.DB.prepare(`INSERT INTO business_notes (business_id, content, updated_by, created_at, updated_at)
-          VALUES (?,?, 'business', ?, ?)
-          ON CONFLICT(business_id) DO UPDATE SET content=excluded.content, updated_by='business', updated_at=excluded.updated_at`)
-          .bind(business.id, content, now, now).run();
-        return json({ success: true, note: { content, updated_by: "business", updated_at: now } });
-      }
-
+      if (request.method === "POST" && leadNoteAddMatch) { let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); } const leadId = Number(leadNoteAddMatch[1]); const assignment = await env.DB.prepare("SELECT id FROM lead_assignments WHERE business_id=? AND lead_id=?").bind(business.id, leadId).first(); if (!assignment) return json({ error: "Lead not found in your account." }, 404); const content = clean(data.content, 5000); if (!content) return json({ error: "Note content is required." }, 400); const now = new Date().toISOString(); const result = await env.DB.prepare("INSERT INTO lead_notes (assignment_id, business_id, lead_id, author, content, created_at, updated_at) VALUES (?,?,?,'business',?,?,?)").bind(assignment.id, business.id, leadId, content, now, now).run(); return json({ success: true, note: { id: result.meta?.last_row_id, author: "business", content, created_at: now } }, 201); }
+      if (request.method === "GET" && url.pathname === "/api/portal/business-notes") { const note = await env.DB.prepare("SELECT id, content, updated_by, created_at, updated_at FROM business_notes WHERE business_id=?").bind(business.id).first(); return json({ note: note || { content: "", updated_by: null, created_at: null, updated_at: null } }); }
+      if (request.method === "PUT" && url.pathname === "/api/portal/business-notes") { let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); } const content = clean(data.content, 10000); const now = new Date().toISOString(); await env.DB.prepare(`INSERT INTO business_notes (business_id, content, updated_by, created_at, updated_at) VALUES (?,?, 'business', ?, ?) ON CONFLICT(business_id) DO UPDATE SET content=excluded.content, updated_by='business', updated_at=excluded.updated_at`).bind(business.id, content, now, now).run(); return json({ success: true, note: { content, updated_by: "business", updated_at: now } }); }
       return json({ error: "Not found" }, 404);
     }
-
-    /* ══════════════ ADMIN ROUTES ══════════════ */
 
     if (url.pathname.startsWith("/api/admin/")) {
       const session = await getAdminSession(request, env);
       if (!session) return json({ error: "Unauthorized." }, 401);
-
-      // Staff accounts (added for limited-scope helpers, e.g. a VA who only sources/adds leads)
-      // are restricted to a small allow-list of routes. Everything else under /api/admin/*
-      // requires the full admin role.
-      const STAFF_ALLOWED =
-        (request.method === "GET" && url.pathname === "/api/admin/session") ||
-        (request.method === "GET" && url.pathname === "/api/admin/businesses") ||
-        (request.method === "GET" && /^\/api\/admin\/businesses\/\d+$/.test(url.pathname)) ||
-        (request.method === "POST" && url.pathname === "/api/admin/leads") ||
-        (request.method === "POST" && url.pathname === "/api/admin/leads/bulk") ||
-        (request.method === "PATCH" && /^\/api\/admin\/leads\/\d+$/.test(url.pathname));
-      if (session.role !== "admin" && !STAFF_ALLOWED) {
-        return json({ error: "Your account does not have permission for this action." }, 403);
-      }
-
-      if (request.method === "GET" && url.pathname === "/api/admin/session") {
-        return json({ role: session.role });
-      }
-
+      const STAFF_ALLOWED = (request.method === "GET" && url.pathname === "/api/admin/session") || (request.method === "GET" && url.pathname === "/api/admin/businesses") || (request.method === "GET" && /^\/api\/admin\/businesses\/\d+$/.test(url.pathname)) || (request.method === "POST" && url.pathname === "/api/admin/leads") || (request.method === "POST" && url.pathname === "/api/admin/leads/bulk") || (request.method === "PATCH" && /^\/api\/admin\/leads\/\d+$/.test(url.pathname));
+      if (session.role !== "admin" && !STAFF_ALLOWED) return json({ error: "Your account does not have permission for this action." }, 403);
+      if (request.method === "GET" && url.pathname === "/api/admin/session") return json({ role: session.role });
       if (request.method === "GET" && url.pathname === "/api/admin/dashboard") {
-        const now = new Date();
-        const defaultFrom = new Date(now.getTime() - 30 * 86400000);
-        const fromRaw = url.searchParams.get("from");
-        const toRaw = url.searchParams.get("to");
-        const fromDate = fromRaw ? new Date(fromRaw) : defaultFrom;
-        const toDate = toRaw ? new Date(toRaw) : now;
-        if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) return json({ error: "Invalid date range." }, 400);
-        if (fromDate > toDate) return json({ error: "The start date must be before the end date." }, 400);
-        const from = fromDate.toISOString();
-        const to = toDate.toISOString();
-
-        const metrics = await env.DB.prepare(`SELECT
-          SUM(CASE WHEN event_name='page_view' THEN 1 ELSE 0 END) visits,
-          COUNT(DISTINCT CASE WHEN event_name='page_view' THEN session_id END) unique_visitors,
-          SUM(CASE WHEN event_name='order_submitted' THEN 1 ELSE 0 END) order_submissions,
-          SUM(CASE WHEN event_name='lead_delivered' THEN 1 ELSE 0 END) leads_delivered
-          FROM site_events WHERE occurred_at >= ? AND occurred_at <= ?`).bind(from, to).first();
+        const now = new Date(); const defaultFrom = new Date(now.getTime() - 30 * 86400000); const fromRaw = url.searchParams.get("from"); const toRaw = url.searchParams.get("to"); const fromDate = fromRaw ? new Date(fromRaw) : defaultFrom; const toDate = toRaw ? new Date(toRaw) : now;
+        if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) return json({ error: "Invalid date range." }, 400); if (fromDate > toDate) return json({ error: "The start date must be before the end date." }, 400); const from = fromDate.toISOString(); const to = toDate.toISOString();
+        const metrics = await env.DB.prepare(`SELECT SUM(CASE WHEN event_name='page_view' THEN 1 ELSE 0 END) visits, COUNT(DISTINCT CASE WHEN event_name='page_view' THEN session_id END) unique_visitors, SUM(CASE WHEN event_name='order_submitted' THEN 1 ELSE 0 END) order_submissions, SUM(CASE WHEN event_name='lead_delivered' THEN 1 ELSE 0 END) leads_delivered FROM site_events WHERE occurred_at >= ? AND occurred_at <= ?`).bind(from, to).first();
         const orderCount = await env.DB.prepare("SELECT COUNT(*) total, COALESCE(SUM(total_cents),0) revenue_cents, COALESCE(SUM(CASE WHEN status='paid' THEN total_cents ELSE 0 END),0) paid_cents FROM lead_orders WHERE submitted_at >= ? AND submitted_at <= ?").bind(from, to).first();
         const orders = await env.DB.prepare(`SELECT id, business_name, name, email, phone, category, quantity, unit_price_cents, total_cents, status, message, submitted_at, paid_at, fulfilled_leads, stripe_session_id FROM lead_orders WHERE submitted_at >= ? AND submitted_at <= ? ORDER BY submitted_at DESC LIMIT 250`).bind(from, to).all();
         const events = await env.DB.prepare(`SELECT id, event_name, page_path, session_id, business_id, order_id, metadata, occurred_at, referrer FROM site_events WHERE occurred_at >= ? AND occurred_at <= ? ORDER BY occurred_at DESC LIMIT 500`).bind(from, to).all();
-        const pages = await env.DB.prepare(`SELECT page_path,
-          SUM(CASE WHEN event_name='page_view' THEN 1 ELSE 0 END) views,
-          COUNT(DISTINCT CASE WHEN event_name='page_view' THEN session_id END) unique_visitors,
-          MAX(occurred_at) last_activity
-          FROM site_events WHERE page_path IS NOT NULL AND page_path <> ''
-          GROUP BY page_path ORDER BY views DESC, last_activity DESC`).all();
-        return json({
-          metrics: { ...metrics, orders: orderCount?.total || 0, revenue_cents: orderCount?.revenue_cents || 0, paid_cents: orderCount?.paid_cents || 0 },
-          pages: pages.results || [],
-          orders: orders.results || [],
-          events: events.results || [],
-          range: { from, to }
-        });
+        const pages = await env.DB.prepare(`SELECT page_path, SUM(CASE WHEN event_name='page_view' THEN 1 ELSE 0 END) views, COUNT(DISTINCT CASE WHEN event_name='page_view' THEN session_id END) unique_visitors, MAX(occurred_at) last_activity FROM site_events WHERE page_path IS NOT NULL AND page_path <> '' GROUP BY page_path ORDER BY views DESC, last_activity DESC`).all();
+        return json({ metrics: { ...metrics, orders: orderCount?.total || 0, revenue_cents: orderCount?.revenue_cents || 0, paid_cents: orderCount?.paid_cents || 0 }, pages: pages.results || [], orders: orders.results || [], events: events.results || [], range: { from, to } });
       }
-
-      if (request.method === "GET" && url.pathname === "/api/admin/businesses") {
-        const businesses = await env.DB.prepare(`SELECT id, email, name, phone, company_name, address, preferred_category, status, created_at, last_login_at,
-          (SELECT COUNT(*) FROM lead_assignments la WHERE la.business_id = businesses.id) total_leads
-          FROM businesses ORDER BY created_at DESC LIMIT 500`).all();
-        const rows = businesses.results || [];
-        if (session.role !== "admin") {
-          // Staff view: name, service type, and address (for zip lookup) only — no contact info,
-          // login/status metadata, or lead counts.
-          return json({ businesses: rows.map(b => ({ id: b.id, name: b.name || b.company_name, company_name: b.company_name, preferred_category: b.preferred_category, address: b.address })) });
-        }
-        return json({ businesses: rows });
-      }
-
-      if (request.method === "POST" && url.pathname === "/api/admin/businesses") {
-        let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); }
-        const email = clean(data.email, 254).toLowerCase();
-        if (!validEmail(email)) return json({ error: "A valid email is required." }, 400);
-        const existing = await env.DB.prepare("SELECT id FROM businesses WHERE email=?").bind(email).first();
-        if (existing) return json({ error: "A business with this email already exists." }, 409);
-        const name = clean(data.name, 120) || null;
-        const phone = clean(data.phone, 40) || null;
-        const companyName = clean(data.company_name, 200) || null;
-        const preferredCategory = data.preferred_category && CATEGORIES.includes(clean(data.preferred_category, 60)) ? clean(data.preferred_category, 60) : null;
-        const now = new Date().toISOString();
-        const result = await env.DB.prepare(`INSERT INTO businesses
-          (email, name, phone, company_name, preferred_category, status, created_at, updated_at)
-          VALUES (?,?,?,?,?,'active',?,?)`)
-          .bind(email, name, phone, companyName, preferredCategory, now, now).run();
-        const businessId = result.meta?.last_row_id;
-        if (!businessId) return json({ error: "Failed to create business." }, 500);
-        const token = await issueActivationToken(env, businessId);
-        return json({ success: true, business: await findBusinessById(env, businessId), activation_url: `https://shedlr.com/portal/activate.html?token=${token}` }, 201);
-      }
-
+      if (request.method === "GET" && url.pathname === "/api/admin/businesses") { const businesses = await env.DB.prepare(`SELECT id, email, name, phone, company_name, address, preferred_category, status, created_at, last_login_at, (SELECT COUNT(*) FROM lead_assignments la WHERE la.business_id = businesses.id) total_leads FROM businesses ORDER BY created_at DESC LIMIT 500`).all(); const rows = businesses.results || []; if (session.role !== "admin") return json({ businesses: rows.map(b => ({ id: b.id, name: b.name || b.company_name, company_name: b.company_name, preferred_category: b.preferred_category, address: b.address })) }); return json({ businesses: rows }); }
+      if (request.method === "POST" && url.pathname === "/api/admin/businesses") { let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); } const email = clean(data.email, 254).toLowerCase(); if (!validEmail(email)) return json({ error: "A valid email is required." }, 400); const existing = await env.DB.prepare("SELECT id FROM businesses WHERE email=?").bind(email).first(); if (existing) return json({ error: "A business with this email already exists." }, 409); const name = clean(data.name, 120) || null; const phone = clean(data.phone, 40) || null; const companyName = clean(data.company_name, 200) || null; const preferredCategory = data.preferred_category && CATEGORIES.includes(clean(data.preferred_category, 60)) ? clean(data.preferred_category, 60) : null; const now = new Date().toISOString(); const result = await env.DB.prepare(`INSERT INTO businesses (email, name, phone, company_name, preferred_category, status, created_at, updated_at) VALUES (?,?,?,?,?,'active',?,?)`).bind(email, name, phone, companyName, preferredCategory, now, now).run(); const businessId = result.meta?.last_row_id; if (!businessId) return json({ error: "Failed to create business." }, 500); const token = await issueActivationToken(env, businessId); return json({ success: true, business: await findBusinessById(env, businessId), activation_url: `https://shedlr.com/portal/activate.html?token=${token}` }, 201); }
       const businessDetailMatch = url.pathname.match(/^\/api\/admin\/businesses\/(\d+)$/);
-      if (request.method === "GET" && businessDetailMatch) {
-        const id = Number(businessDetailMatch[1]);
-        const business = await findBusinessById(env, id);
-        if (!business) return json({ error: "Business not found." }, 404);
-        const assignments = await env.DB.prepare(`SELECT la.id, la.lead_id, la.status AS assignment_status, la.assigned_at,
-          l.name, l.email, l.phone, l.category, l.message, l.source, l.city, l.state, l.status AS lead_status
-          FROM lead_assignments la JOIN leads l ON l.id = la.lead_id
-          WHERE la.business_id=? ORDER BY la.assigned_at DESC LIMIT 200`).bind(id).all();
-
-        if (session.role !== "admin") {
-          // Staff view: just enough to find and fix a lead entry mistake — no contact info,
-          // financial orders, or internal notes.
-          return json({
-            business: { id: business.id, name: business.name, company_name: business.company_name, preferred_category: business.preferred_category, address: business.address },
-            orders: [],
-            assignments: assignments.results || []
-          });
-        }
-
-        const orders = await env.DB.prepare("SELECT id, category, quantity, unit_price_cents, total_cents, status, paid_at, created_at, fulfilled_leads FROM lead_orders WHERE email=? ORDER BY created_at DESC LIMIT 200").bind(business.email).all();
-        const { password_hash, activation_nonce, activation_nonce_expires, ...safeBusiness } = business;
-        return json({ business: safeBusiness, orders: orders.results || [], assignments: assignments.results || [] });
-      }
-
-      if (request.method === "PATCH" && businessDetailMatch) {
-        let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); }
-        const id = Number(businessDetailMatch[1]);
-        const business = await findBusinessById(env, id);
-        if (!business) return json({ error: "Business not found." }, 404);
-        const allowedStatuses = ["active", "past_due", "canceled", "suspended"];
-        const status = allowedStatuses.includes(clean(data.status, 30)) ? clean(data.status, 30) : business.status;
-        const name = data.name !== undefined ? clean(data.name, 120) : business.name;
-        const phone = data.phone !== undefined ? clean(data.phone, 40) : business.phone;
-        const companyName = data.company_name !== undefined ? clean(data.company_name, 200) : business.company_name;
-        const address = data.address !== undefined ? clean(data.address, 300) : business.address;
-        const preferredCategory = data.preferred_category !== undefined && CATEGORIES.includes(clean(data.preferred_category, 60)) ? clean(data.preferred_category, 60) : business.preferred_category;
-        await env.DB.prepare("UPDATE businesses SET status=?, name=?, phone=?, company_name=?, address=?, preferred_category=?, updated_at=? WHERE id=?")
-          .bind(status, name, phone, companyName, address, preferredCategory, new Date().toISOString(), id).run();
-        return json({ success: true, business: await findBusinessById(env, id) });
-      }
-
+      if (request.method === "GET" && businessDetailMatch) { const id = Number(businessDetailMatch[1]); const business = await findBusinessById(env, id); if (!business) return json({ error: "Business not found." }, 404); const assignments = await env.DB.prepare(`SELECT la.id, la.lead_id, la.status AS assignment_status, la.assigned_at, l.name, l.email, l.phone, l.category, l.message, l.source, l.city, l.state, l.status AS lead_status FROM lead_assignments la JOIN leads l ON l.id = la.lead_id WHERE la.business_id=? ORDER BY la.assigned_at DESC LIMIT 200`).bind(id).all(); if (session.role !== "admin") return json({ business: { id: business.id, name: business.name, company_name: business.company_name, preferred_category: business.preferred_category, address: business.address }, orders: [], assignments: assignments.results || [] }); const orders = await env.DB.prepare("SELECT id, category, quantity, unit_price_cents, total_cents, status, paid_at, created_at, fulfilled_leads FROM lead_orders WHERE email=? ORDER BY created_at DESC LIMIT 200").bind(business.email).all(); const { password_hash, activation_nonce, activation_nonce_expires, ...safeBusiness } = business; return json({ business: safeBusiness, orders: orders.results || [], assignments: assignments.results || [] }); }
+      if (request.method === "PATCH" && businessDetailMatch) { let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); } const id = Number(businessDetailMatch[1]); const business = await findBusinessById(env, id); if (!business) return json({ error: "Business not found." }, 404); const allowedStatuses = ["active", "past_due", "canceled", "suspended"]; const status = allowedStatuses.includes(clean(data.status, 30)) ? clean(data.status, 30) : business.status; const name = data.name !== undefined ? clean(data.name, 120) : business.name; const phone = data.phone !== undefined ? clean(data.phone, 40) : business.phone; const companyName = data.company_name !== undefined ? clean(data.company_name, 200) : business.company_name; const address = data.address !== undefined ? clean(data.address, 300) : business.address; const preferredCategory = data.preferred_category !== undefined && CATEGORIES.includes(clean(data.preferred_category, 60)) ? clean(data.preferred_category, 60) : business.preferred_category; await env.DB.prepare("UPDATE businesses SET status=?, name=?, phone=?, company_name=?, address=?, preferred_category=?, updated_at=? WHERE id=?").bind(status, name, phone, companyName, address, preferredCategory, new Date().toISOString(), id).run(); return json({ success: true, business: await findBusinessById(env, id) }); }
       const resetPasswordMatch = url.pathname.match(/^\/api\/admin\/businesses\/(\d+)\/reset-password$/);
-      if (request.method === "POST" && resetPasswordMatch) {
-        const id = Number(resetPasswordMatch[1]);
-        const business = await findBusinessById(env, id);
-        if (!business) return json({ error: "Business not found." }, 404);
-        const token = await issueActivationToken(env, id);
-        return json({ success: true, activation_url: `https://shedlr.com/portal/activate.html?token=${token}` });
-      }
-
-      /* ── Business notes (admin view/edit) ── */
+      if (request.method === "POST" && resetPasswordMatch) { const id = Number(resetPasswordMatch[1]); const business = await findBusinessById(env, id); if (!business) return json({ error: "Business not found." }, 404); const token = await issueActivationToken(env, id); return json({ success: true, activation_url: `https://shedlr.com/portal/activate.html?token=${token}` }); }
       const businessNotesAdminMatch = url.pathname.match(/^\/api\/admin\/businesses\/(\d+)\/notes$/);
-      if (businessNotesAdminMatch) {
-        const bizId = Number(businessNotesAdminMatch[1]);
-        const business = await findBusinessById(env, bizId);
-        if (!business) return json({ error: "Business not found." }, 404);
-
-        if (request.method === "GET") {
-          const note = await env.DB.prepare("SELECT id, content, updated_by, created_at, updated_at FROM business_notes WHERE business_id=?").bind(bizId).first();
-          return json({ note: note || { content: "", updated_by: null, created_at: null, updated_at: null } });
-        }
-
-        if (request.method === "PUT") {
-          let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); }
-          const content = clean(data.content, 10000);
-          const now = new Date().toISOString();
-          await env.DB.prepare(`INSERT INTO business_notes (business_id, content, updated_by, created_at, updated_at)
-            VALUES (?,?, 'admin', ?, ?)
-            ON CONFLICT(business_id) DO UPDATE SET content=excluded.content, updated_by='admin', updated_at=excluded.updated_at`)
-            .bind(bizId, content, now, now).run();
-          return json({ success: true, note: { content, updated_by: "admin", updated_at: now } });
-        }
-      }
-
-      /* ── Lead management ── */
-      if (request.method === "GET" && url.pathname === "/api/admin/leads") {
-        const category = clean(url.searchParams.get("category"), 60);
-        const clause = category ? " WHERE category = ?" : "";
-        const bindings = category ? [category] : [];
-        const leads = await env.DB.prepare(`SELECT id, name, email, phone, category, message, source, city, state, status, submitted_at, assigned_to FROM leads${clause} ORDER BY submitted_at DESC LIMIT 500`).bind(...bindings).all();
-        return json({ leads: leads.results || [] });
-      }
-
-      if (request.method === "POST" && url.pathname === "/api/admin/leads") {
-        let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); }
-        const name = clean(data.name, 120);
-        const email = clean(data.email, 254).toLowerCase();
-        const phone = clean(data.phone, 40);
-        const category = clean(data.category, 60);
-        if (!name) return json({ error: "Lead name is required." }, 400);
-        if (!CATEGORIES.includes(category)) return json({ error: "Valid category is required." }, 400);
-
-        const businessId = data.business_id ? Number(data.business_id) : null;
-        let business = null;
-        if (businessId) {
-          business = await findBusinessById(env, businessId);
-          if (!business) return json({ error: "Business not found." }, 404);
-        }
-
-        const now = new Date().toISOString();
-        const result = await env.DB.prepare(`INSERT INTO leads
-          (name, email, phone, category, message, source, city, state, status, submitted_at, assigned_to)
-          VALUES (?,?,?,?,?,'manual',?,?,?,?,?)`)
-          .bind(name, email, phone, category, clean(data.message, 4000), clean(data.city, 120), clean(data.state, 60), business ? "assigned" : "new", now, business ? String(businessId) : "unassigned").run();
-        const leadId = result.meta?.last_row_id;
-
-        if (business) {
-          await env.DB.prepare("INSERT INTO lead_assignments (lead_id, business_id, order_id, status, assigned_at) VALUES (?,?,?,'delivered',?)")
-            .bind(leadId, businessId, null, now).run();
-        }
-
-        return json({ success: true, lead_id: leadId }, 201);
-      }
-
-      /* ── Bulk lead import ── */
-      if (request.method === "POST" && url.pathname === "/api/admin/leads/bulk") {
-        let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); }
-        const rawLeads = Array.isArray(data.leads) ? data.leads : [];
-        if (!rawLeads.length) return json({ error: "No leads provided. Paste or upload CSV data first." }, 400);
-        const defaultCategory = clean(data.default_category, 60);
-        if (!CATEGORIES.includes(defaultCategory)) return json({ error: "A valid default category is required." }, 400);
-        const businessId = data.business_id ? Number(data.business_id) : null;
-        const orderId = data.order_id ? Number(data.order_id) : null;
-        if (businessId) {
-          const biz = await findBusinessById(env, businessId);
-          if (!biz) return json({ error: "Business not found." }, 404);
-        }
-        if (orderId && businessId) {
-          const order = await env.DB.prepare("SELECT * FROM lead_orders WHERE id=? AND email=(SELECT email FROM businesses WHERE id=?)").bind(orderId, businessId).first();
-          if (!order) return json({ error: "Order not found for this business." }, 404);
-        }
-
-        const now = new Date().toISOString();
-        const results = [];
-        let assignedCount = 0;
-
-        for (let i = 0; i < rawLeads.length; i++) {
-          const row = rawLeads[i];
-          const name = clean(row.name, 120);
-          const category = clean(row.category, 60) || defaultCategory;
-          if (!name) { results.push({ row: i + 1, success: false, error: "Name is required." }); continue; }
-          if (!CATEGORIES.includes(category)) { results.push({ row: i + 1, success: false, error: `Invalid category: ${category}` }); continue; }
-          const email = clean(row.email, 254).toLowerCase();
-          const phone = clean(row.phone, 40);
-          const city = clean(row.city, 120);
-          const state = clean(row.state, 60);
-          const message = clean(row.message, 4000);
-          try {
-            const insertResult = await env.DB.prepare(`INSERT INTO leads
-              (name, email, phone, category, message, source, city, state, status, submitted_at, assigned_to)
-              VALUES (?,?,?,?,?,'manual',?,?,?,?,'unassigned')`)
-              .bind(name, email, phone, category, message, city, state, "new", now).run();
-            const leadId = insertResult.meta?.last_row_id;
-
-            if (businessId) {
-              const existingAsg = await env.DB.prepare("SELECT id FROM lead_assignments WHERE lead_id=? AND business_id=?").bind(leadId, businessId).first();
-              if (!existingAsg) {
-                const asgResult = await env.DB.prepare("INSERT INTO lead_assignments (lead_id, business_id, order_id, status, assigned_at) VALUES (?,?,?,'delivered',?)")
-                  .bind(leadId, businessId, orderId, now).run();
-                await env.DB.prepare("UPDATE leads SET status='assigned', assigned_to=?, updated_at=? WHERE id=?").bind(String(businessId), now, leadId).run();
-                if (orderId) assignedCount++;
-                results.push({ row: i + 1, success: true, lead_id: leadId, assignment_id: asgResult.meta?.last_row_id });
-              } else {
-                results.push({ row: i + 1, success: true, lead_id: leadId, error: "Already assigned to this business." });
-              }
-            } else {
-              results.push({ row: i + 1, success: true, lead_id: leadId });
-            }
-          } catch (err) {
-            results.push({ row: i + 1, success: false, error: err.message || "Database error." });
-          }
-        }
-
-        if (orderId && assignedCount > 0) {
-          await env.DB.prepare("UPDATE lead_orders SET fulfilled_leads = fulfilled_leads + ? WHERE id=?").bind(assignedCount, orderId).run();
-        }
-
-        const succeeded = results.filter(r => r.success).length;
-        const failed = results.length - succeeded;
-        return json({ success: true, total: rawLeads.length, succeeded, failed, assigned: assignedCount, results }, 201);
-      }
-
+      if (businessNotesAdminMatch) { const bizId = Number(businessNotesAdminMatch[1]); const business = await findBusinessById(env, bizId); if (!business) return json({ error: "Business not found." }, 404); if (request.method === "GET") { const note = await env.DB.prepare("SELECT id, content, updated_by, created_at, updated_at FROM business_notes WHERE business_id=?").bind(bizId).first(); return json({ note: note || { content: "", updated_by: null, created_at: null, updated_at: null } }); } if (request.method === "PUT") { let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); } const content = clean(data.content, 10000); const now = new Date().toISOString(); await env.DB.prepare(`INSERT INTO business_notes (business_id, content, updated_by, created_at, updated_at) VALUES (?,?, 'admin', ?, ?) ON CONFLICT(business_id) DO UPDATE SET content=excluded.content, updated_by='admin', updated_at=excluded.updated_at`).bind(bizId, content, now, now).run(); return json({ success: true, note: { content, updated_by: "admin", updated_at: now } }); } }
+      if (request.method === "GET" && url.pathname === "/api/admin/leads") { const category = clean(url.searchParams.get("category"), 60); const clause = category ? " WHERE category = ?" : ""; const bindings = category ? [category] : []; const leads = await env.DB.prepare(`SELECT id, name, email, phone, category, message, source, city, state, status, submitted_at, assigned_to FROM leads${clause} ORDER BY submitted_at DESC LIMIT 500`).bind(...bindings).all(); return json({ leads: leads.results || [] }); }
+      if (request.method === "POST" && url.pathname === "/api/admin/leads") { let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); } const name = clean(data.name, 120); const email = clean(data.email, 254).toLowerCase(); const phone = clean(data.phone, 40); const category = clean(data.category, 60); if (!name) return json({ error: "Lead name is required." }, 400); if (!CATEGORIES.includes(category)) return json({ error: "Valid category is required." }, 400); const businessId = data.business_id ? Number(data.business_id) : null; let business = null; if (businessId) { business = await findBusinessById(env, businessId); if (!business) return json({ error: "Business not found." }, 404); } const now = new Date().toISOString(); const result = await env.DB.prepare(`INSERT INTO leads (name, email, phone, category, message, source, city, state, status, submitted_at, assigned_to) VALUES (?,?,?,?,?,'manual',?,?,?,?,?)`).bind(name, email, phone, category, clean(data.message, 4000), clean(data.city, 120), clean(data.state, 60), business ? "assigned" : "new", now, business ? String(businessId) : "unassigned").run(); const leadId = result.meta?.last_row_id; if (business) await env.DB.prepare("INSERT INTO lead_assignments (lead_id, business_id, order_id, status, assigned_at) VALUES (?,?,?,'delivered',?)").bind(leadId, businessId, null, now).run(); return json({ success: true, lead_id: leadId }, 201); }
+      if (request.method === "POST" && url.pathname === "/api/admin/leads/bulk") { let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); } const rawLeads = Array.isArray(data.leads) ? data.leads : []; if (!rawLeads.length) return json({ error: "No leads provided. Paste or upload CSV data first." }, 400); const defaultCategory = clean(data.default_category, 60); if (!CATEGORIES.includes(defaultCategory)) return json({ error: "A valid default category is required." }, 400); const businessId = data.business_id ? Number(data.business_id) : null; const orderId = data.order_id ? Number(data.order_id) : null; if (businessId) { const biz = await findBusinessById(env, businessId); if (!biz) return json({ error: "Business not found." }, 404); } if (orderId && businessId) { const order = await env.DB.prepare("SELECT * FROM lead_orders WHERE id=? AND email=(SELECT email FROM businesses WHERE id=?)").bind(orderId, businessId).first(); if (!order) return json({ error: "Order not found for this business." }, 404); } const now = new Date().toISOString(); const results = []; let assignedCount = 0; for (let i = 0; i < rawLeads.length; i++) { const row = rawLeads[i]; const name = clean(row.name, 120); const category = clean(row.category, 60) || defaultCategory; if (!name) { results.push({ row: i + 1, success: false, error: "Name is required." }); continue; } if (!CATEGORIES.includes(category)) { results.push({ row: i + 1, success: false, error: `Invalid category: ${category}` }); continue; } const email = clean(row.email, 254).toLowerCase(); const phone = clean(row.phone, 40); const city = clean(row.city, 120); const state = clean(row.state, 60); const message = clean(row.message, 4000); try { const insertResult = await env.DB.prepare(`INSERT INTO leads (name, email, phone, category, message, source, city, state, status, submitted_at, assigned_to) VALUES (?,?,?,?,?,'manual',?,?,?,?,'unassigned')`).bind(name, email, phone, category, message, city, state, "new", now).run(); const leadId = insertResult.meta?.last_row_id; if (businessId) { const existingAsg = await env.DB.prepare("SELECT id FROM lead_assignments WHERE lead_id=? AND business_id=?").bind(leadId, businessId).first(); if (!existingAsg) { const asgResult = await env.DB.prepare("INSERT INTO lead_assignments (lead_id, business_id, order_id, status, assigned_at) VALUES (?,?,?,'delivered',?)").bind(leadId, businessId, orderId, now).run(); await env.DB.prepare("UPDATE leads SET status='assigned', assigned_to=?, updated_at=? WHERE id=?").bind(String(businessId), now, leadId).run(); if (orderId) assignedCount++; results.push({ row: i + 1, success: true, lead_id: leadId, assignment_id: asgResult.meta?.last_row_id }); } else results.push({ row: i + 1, success: true, lead_id: leadId, error: "Already assigned to this business." }); } else results.push({ row: i + 1, success: true, lead_id: leadId }); } catch (err) { results.push({ row: i + 1, success: false, error: err.message || "Database error." }); } } if (orderId && assignedCount > 0) await env.DB.prepare("UPDATE lead_orders SET fulfilled_leads = fulfilled_leads + ? WHERE id=?").bind(assignedCount, orderId).run(); const succeeded = results.filter(r => r.success).length; const failed = results.length - succeeded; return json({ success: true, total: rawLeads.length, succeeded, failed, assigned: assignedCount, results }, 201); }
       const leadMatch = url.pathname.match(/^\/api\/admin\/leads\/(\d+)$/);
-      if (request.method === "PATCH" && leadMatch) {
-        let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); }
-        const id = Number(leadMatch[1]);
-        const existing = await env.DB.prepare("SELECT * FROM leads WHERE id=?").bind(id).first();
-        if (!existing) return json({ error: "Lead not found." }, 404);
-
-        const allowedStatuses = ["new", "verified", "assigned", "delivered", "archived"];
-        const status = data.status !== undefined
-          ? (allowedStatuses.includes(clean(data.status, 30)) ? clean(data.status, 30) : existing.status)
-          : existing.status;
-        const assignedTo = data.assigned_to !== undefined ? clean(data.assigned_to, 120) : existing.assigned_to;
-
-        const name = data.name !== undefined ? clean(data.name, 120) : existing.name;
-        if (!name) return json({ error: "Lead name is required." }, 400);
-        const email = data.email !== undefined ? clean(data.email, 254).toLowerCase() : existing.email;
-        const phone = data.phone !== undefined ? clean(data.phone, 40) : existing.phone;
-        const category = data.category !== undefined ? clean(data.category, 60) : existing.category;
-        if (data.category !== undefined && !CATEGORIES.includes(category)) return json({ error: "Please select a valid lead type." }, 400);
-        const city = data.city !== undefined ? clean(data.city, 120) : existing.city;
-        const state = data.state !== undefined ? clean(data.state, 60) : existing.state;
-        const message = data.message !== undefined ? clean(data.message, 4000) : existing.message;
-
-        await env.DB.prepare("UPDATE leads SET name=?, email=?, phone=?, category=?, city=?, state=?, message=?, status=?, assigned_to=?, updated_at=? WHERE id=?")
-          .bind(name, email, phone, category, city, state, message, status, assignedTo, new Date().toISOString(), id).run();
-        const lead = await env.DB.prepare("SELECT * FROM leads WHERE id=?").bind(id).first();
-        return json({ success: true, lead });
-      }
-
-      if (request.method === "DELETE" && leadMatch) {
-        const id = Number(leadMatch[1]);
-        const existing = await env.DB.prepare("SELECT * FROM leads WHERE id=?").bind(id).first();
-        if (!existing) return json({ error: "Lead not found." }, 404);
-
-        const linkedOrders = await env.DB.prepare("SELECT order_id FROM lead_assignments WHERE lead_id=? AND order_id IS NOT NULL").bind(id).all();
-        for (const row of linkedOrders.results || []) {
-          await env.DB.prepare("UPDATE lead_orders SET fulfilled_leads = MAX(fulfilled_leads - 1, 0) WHERE id=?").bind(row.order_id).run();
-        }
-
-        await env.DB.prepare("DELETE FROM lead_notes WHERE lead_id=?").bind(id).run();
-        await env.DB.prepare("DELETE FROM lead_assignments WHERE lead_id=?").bind(id).run();
-        await env.DB.prepare("DELETE FROM leads WHERE id=?").bind(id).run();
-        return json({ success: true });
-      }
-
-      /* ── Lead assignment ── */
+      if (request.method === "PATCH" && leadMatch) { let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); } const id = Number(leadMatch[1]); const existing = await env.DB.prepare("SELECT * FROM leads WHERE id=?").bind(id).first(); if (!existing) return json({ error: "Lead not found." }, 404); const allowedStatuses = ["new", "verified", "assigned", "delivered", "archived"]; const status = data.status !== undefined ? (allowedStatuses.includes(clean(data.status, 30)) ? clean(data.status, 30) : existing.status) : existing.status; const assignedTo = data.assigned_to !== undefined ? clean(data.assigned_to, 120) : existing.assigned_to; const name = data.name !== undefined ? clean(data.name, 120) : existing.name; if (!name) return json({ error: "Lead name is required." }, 400); const email = data.email !== undefined ? clean(data.email, 254).toLowerCase() : existing.email; const phone = data.phone !== undefined ? clean(data.phone, 40) : existing.phone; const category = data.category !== undefined ? clean(data.category, 60) : existing.category; if (data.category !== undefined && !CATEGORIES.includes(category)) return json({ error: "Please select a valid lead type." }, 400); const city = data.city !== undefined ? clean(data.city, 120) : existing.city; const state = data.state !== undefined ? clean(data.state, 60) : existing.state; const message = data.message !== undefined ? clean(data.message, 4000) : existing.message; await env.DB.prepare("UPDATE leads SET name=?, email=?, phone=?, category=?, city=?, state=?, message=?, status=?, assigned_to=?, updated_at=? WHERE id=?").bind(name, email, phone, category, city, state, message, status, assignedTo, new Date().toISOString(), id).run(); const lead = await env.DB.prepare("SELECT * FROM leads WHERE id=?").bind(id).first(); return json({ success: true, lead }); }
+      if (request.method === "DELETE" && leadMatch) { const id = Number(leadMatch[1]); const existing = await env.DB.prepare("SELECT * FROM leads WHERE id=?").bind(id).first(); if (!existing) return json({ error: "Lead not found." }, 404); const linkedOrders = await env.DB.prepare("SELECT order_id FROM lead_assignments WHERE lead_id=? AND order_id IS NOT NULL").bind(id).all(); for (const row of linkedOrders.results || []) await env.DB.prepare("UPDATE lead_orders SET fulfilled_leads = MAX(fulfilled_leads - 1, 0) WHERE id=?").bind(row.order_id).run(); await env.DB.prepare("DELETE FROM lead_notes WHERE lead_id=?").bind(id).run(); await env.DB.prepare("DELETE FROM lead_assignments WHERE lead_id=?").bind(id).run(); await env.DB.prepare("DELETE FROM leads WHERE id=?").bind(id).run(); return json({ success: true }); }
       const assignMatch = url.pathname.match(/^\/api\/admin\/leads\/(\d+)\/assign$/);
-      if (request.method === "POST" && assignMatch) {
-        let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); }
-        const leadId = Number(assignMatch[1]);
-        const businessId = Number(data.business_id);
-        const orderId = data.order_id ? Number(data.order_id) : null;
-        if (!businessId) return json({ error: "Business ID is required." }, 400);
-
-        const lead = await env.DB.prepare("SELECT * FROM leads WHERE id=?").bind(leadId).first();
-        if (!lead) return json({ error: "Lead not found." }, 404);
-        const business = await findBusinessById(env, businessId);
-        if (!business) return json({ error: "Business not found." }, 404);
-
-        const existing = await env.DB.prepare("SELECT id FROM lead_assignments WHERE lead_id=? AND business_id=?").bind(leadId, businessId).first();
-        if (existing) return json({ error: "This lead is already assigned to this business." }, 409);
-
-        const now = new Date().toISOString();
-        const result = await env.DB.prepare("INSERT INTO lead_assignments (lead_id, business_id, order_id, status, assigned_at) VALUES (?,?,?,'delivered',?)")
-          .bind(leadId, businessId, orderId, now).run();
-        await env.DB.prepare("UPDATE leads SET status='assigned', assigned_to=?, updated_at=? WHERE id=?").bind(String(businessId), now, leadId).run();
-
-        if (orderId) {
-          await env.DB.prepare("UPDATE lead_orders SET fulfilled_leads = fulfilled_leads + 1 WHERE id=?").bind(orderId).run();
-        }
-
-        ctx.waitUntil(saveEvent(env, request, { event_name: "lead_delivered", session_id: "", business_id: businessId, order_id: orderId, metadata: { lead_id: leadId, category: lead.category } }));
-
-        return json({ success: true, assignment_id: result.meta?.last_row_id }, 201);
-      }
-
-      /* ── Orders management ── */
-      if (request.method === "GET" && url.pathname === "/api/admin/orders") {
-        const status = clean(url.searchParams.get("status"), 30);
-        const clause = status ? " WHERE status = ?" : "";
-        const bindings = status ? [status] : [];
-        const orders = await env.DB.prepare(`SELECT * FROM lead_orders${clause} ORDER BY submitted_at DESC LIMIT 500`).bind(...bindings).all();
-        return json({ orders: orders.results || [] });
-      }
-
+      if (request.method === "POST" && assignMatch) { let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); } const leadId = Number(assignMatch[1]); const businessId = Number(data.business_id); const orderId = data.order_id ? Number(data.order_id) : null; if (!businessId) return json({ error: "Business ID is required." }, 400); const lead = await env.DB.prepare("SELECT * FROM leads WHERE id=?").bind(leadId).first(); if (!lead) return json({ error: "Lead not found." }, 404); const business = await findBusinessById(env, businessId); if (!business) return json({ error: "Business not found." }, 404); const existing = await env.DB.prepare("SELECT id FROM lead_assignments WHERE lead_id=? AND business_id=?").bind(leadId, businessId).first(); if (existing) return json({ error: "This lead is already assigned to this business." }, 409); const now = new Date().toISOString(); const result = await env.DB.prepare("INSERT INTO lead_assignments (lead_id, business_id, order_id, status, assigned_at) VALUES (?,?,?,'delivered',?)").bind(leadId, businessId, orderId, now).run(); await env.DB.prepare("UPDATE leads SET status='assigned', assigned_to=?, updated_at=? WHERE id=?").bind(String(businessId), now, leadId).run(); if (orderId) await env.DB.prepare("UPDATE lead_orders SET fulfilled_leads = fulfilled_leads + 1 WHERE id=?").bind(orderId).run(); ctx.waitUntil(saveEvent(env, request, { event_name: "lead_delivered", session_id: "", business_id: businessId, order_id: orderId, metadata: { lead_id: leadId, category: lead.category } })); return json({ success: true, assignment_id: result.meta?.last_row_id }, 201); }
+      if (request.method === "GET" && url.pathname === "/api/admin/orders") { const status = clean(url.searchParams.get("status"), 30); const clause = status ? " WHERE status = ?" : ""; const bindings = status ? [status] : []; const orders = await env.DB.prepare(`SELECT * FROM lead_orders${clause} ORDER BY submitted_at DESC LIMIT 500`).bind(...bindings).all(); return json({ orders: orders.results || [] }); }
       const orderMatch = url.pathname.match(/^\/api\/admin\/orders\/(\d+)$/);
-      if (request.method === "PATCH" && orderMatch) {
-        let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); }
-        const id = Number(orderMatch[1]);
-        const allowedStatuses = ["pending_payment", "paid", "fulfilling", "completed", "canceled", "refunded"];
-        const status = allowedStatuses.includes(clean(data.status,30)) ? clean(data.status,30) : "pending_payment";
-        await env.DB.prepare("UPDATE lead_orders SET status=?, updated_at=? WHERE id=?").bind(status, new Date().toISOString(), id).run();
-        return json({ success: true });
-      }
-
-      /* ── Lead notes (admin view) ── */
+      if (request.method === "PATCH" && orderMatch) { let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); } const id = Number(orderMatch[1]); const allowedStatuses = ["pending_payment", "paid", "fulfilling", "completed", "canceled", "refunded"]; const status = allowedStatuses.includes(clean(data.status,30)) ? clean(data.status,30) : "pending_payment"; await env.DB.prepare("UPDATE lead_orders SET status=?, updated_at=? WHERE id=?").bind(status, new Date().toISOString(), id).run(); return json({ success: true }); }
       const leadNotesAdminMatch = url.pathname.match(/^\/api\/admin\/leads\/(\d+)\/notes$/);
-      if (request.method === "GET" && leadNotesAdminMatch) {
-        const leadId = Number(leadNotesAdminMatch[1]);
-        const notes = await env.DB.prepare(`SELECT ln.id, ln.author, ln.content, ln.created_at, ln.updated_at, b.company_name, b.name AS business_name
-          FROM lead_notes ln LEFT JOIN businesses b ON b.id = ln.business_id
-          WHERE ln.lead_id=? ORDER BY ln.created_at DESC LIMIT 200`).bind(leadId).all();
-        return json({ notes: notes.results || [] });
-      }
-
+      if (request.method === "GET" && leadNotesAdminMatch) { const leadId = Number(leadNotesAdminMatch[1]); const notes = await env.DB.prepare(`SELECT ln.id, ln.author, ln.content, ln.created_at, ln.updated_at, b.company_name, b.name AS business_name FROM lead_notes ln LEFT JOIN businesses b ON b.id = ln.business_id WHERE ln.lead_id=? ORDER BY ln.created_at DESC LIMIT 200`).bind(leadId).all(); return json({ notes: notes.results || [] }); }
       return json({ error: "Not found" }, 404);
     }
 
