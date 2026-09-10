@@ -6,6 +6,12 @@ const ACTIVATION_TTL_MS = 30 * 60 * 1000;
 const LEAD_PRICE_CENTS = 100; // fallback default
 
 const CATEGORY_PRICES = {
+  "car-sales": 1000,
+  "cell-phone-sales": 400,
+  "internet-cable-sales": 500,
+  "tax-prep": 600,
+  "gym-sales": 300,
+  "home-remodeling": 900,
   "personal-trainer": 400,
   "life-coach": 100,
   "counseling": 500,
@@ -36,12 +42,38 @@ const CATEGORY_PRICES = {
 const getCategoryPriceCents = (slug) => CATEGORY_PRICES[slug] || 500;
 
 const CATEGORIES = [
-  "personal-trainer", "life-coach", "counseling", "mental-health-clinician", "maintenance", "dog-walker",
-  "house-cleaning", "landscaping", "tutoring", "photography",
-  "handyman", "moving", "catering", "event-planning",
-  "home-insurance", "vehicle-insurance",
-  "roofing", "auto-hail-damage", "home-services", "hvac",
-  "plumbing", "garage-door-services", "auto-mechanic", "pest-control", "solar", "real-estate"
+  "personal-trainer",
+  "life-coach",
+  "counseling",
+  "mental-health-clinician",
+  "maintenance",
+  "dog-walker",
+  "house-cleaning",
+  "landscaping",
+  "tutoring",
+  "photography",
+  "handyman",
+  "moving",
+  "catering",
+  "event-planning",
+  "home-insurance",
+  "vehicle-insurance",
+  "roofing",
+  "auto-hail-damage",
+  "home-services",
+  "hvac",
+  "plumbing",
+  "garage-door-services",
+  "auto-mechanic",
+  "pest-control",
+  "solar",
+  "real-estate",
+  "car-sales",
+  "cell-phone-sales",
+  "internet-cable-sales",
+  "tax-prep",
+  "gym-sales",
+  "home-remodeling"
 ];
 
 const LEAD_TYPES = ["appointment-booking", "phone-call-scheduling", "raw-leads"];
@@ -72,7 +104,13 @@ const CATEGORY_LABELS = {
   "auto-mechanic": "Auto Mechanic / Auto Repair",
   "pest-control": "Pest Control",
   "solar": "Solar",
-  "real-estate": "Real Estate"
+  "real-estate": "Real Estate",
+  "car-sales": "Car Sales",
+  "cell-phone-sales": "Cell Phone Sales",
+  "internet-cable-sales": "Internet & Cable Sales",
+  "tax-prep": "Tax Preparation",
+  "gym-sales": "Gym Membership Sales",
+  "home-remodeling": "Home Remodeling"
 };
 
 const json = (body, status = 200, extraHeaders = {}) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", ...extraHeaders } });
