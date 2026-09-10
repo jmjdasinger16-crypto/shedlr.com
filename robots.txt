@@ -2,6 +2,5 @@ User-agent: *
 Allow: /
 Disallow: /admin.html
 Disallow: /portal/
-Allow: /portal/index.html
 
 Sitemap: https://shedlr.com/sitemap.xml
