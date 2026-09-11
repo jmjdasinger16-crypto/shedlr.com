@@ -90,8 +90,9 @@ function applyRole(role){
 
 async function loadStaffBusinesses(){
   const data=await api('/api/admin/businesses');
-  businesses=data.businesses||[];
-  renderStaffBusinesses(businesses);
+  const filteredBusinesses=(data.businesses||[]).filter(business=>String(business.status||'').trim().toLowerCase()!=='cancelled');
+  businesses=filteredBusinesses;
+  renderStaffBusinesses(filteredBusinesses);
   populateStaffLeadBusiness();
 }
 
