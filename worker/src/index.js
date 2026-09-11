@@ -6,6 +6,7 @@ const ACTIVATION_TTL_MS = 30 * 60 * 1000;
 const LEAD_PRICE_CENTS = 100; // fallback default
 
 const CATEGORY_PRICES = {
+  "nail-lash-stylist": 300,
   "car-sales": 1000,
   "cell-phone-sales": 400,
   "internet-cable-sales": 500,
@@ -73,8 +74,8 @@ const CATEGORIES = [
   "internet-cable-sales",
   "tax-prep",
   "gym-sales",
-  "home-remodeling"
-];
+  "home-remodeling",
+  "nail-lash-stylist"];
 
 const LEAD_TYPES = ["appointment-booking", "phone-call-scheduling", "raw-leads"];
 
@@ -110,7 +111,8 @@ const CATEGORY_LABELS = {
   "internet-cable-sales": "Internet & Cable Sales",
   "tax-prep": "Tax Preparation",
   "gym-sales": "Gym Membership Sales",
-  "home-remodeling": "Home Remodeling"
+  "home-remodeling": "Home Remodeling",
+  "nail-lash-stylist": "Nail & Lash Stylists"
 };
 
 const json = (body, status = 200, extraHeaders = {}) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", ...extraHeaders } });
