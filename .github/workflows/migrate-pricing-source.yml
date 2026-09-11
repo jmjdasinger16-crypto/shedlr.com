@@ -26,7 +26,6 @@ jobs:
           changed = []
 
           def migrate(text):
-              # Collapse the old two-stage offer before changing individual numbers.
               patterns = [
                   (r'\$19\.99 your first month,?\s*then \$39\.99 per month', '$199 per month'),
                   (r'\$19\.99 first month,?\s*then \$39\.99 per month', '$199 per month'),
@@ -38,28 +37,23 @@ jobs:
               for pattern, replacement in patterns:
                   text = re.sub(pattern, replacement, text, flags=re.I)
 
-              # Program-at-a-glance pricing rows used by the industry landing pages.
               text = re.sub(
-                  r'<dt>First month</dt>\s*<dd>\$19\.99</dd>\s*<dt>Then</dt>\s*<dd>\$39\.99\s*/\s*month</dd>',
-                  '<dt>Monthly plan</dt><dd>$199 / month</dd>',
+                  r'<div class="row"><dt>First month</dt><dd>\$19\.99</dd></div>\s*<div class="row"><dt>Then</dt><dd>\$39\.99\s*/\s*month</dd></div>',
+                  '<div class="row"><dt>Monthly plan</dt><dd>$199 / month</dd></div>',
                   text,
                   flags=re.I,
               )
-
-              # Common feature-card wording.
               text = re.sub(
-                  r'<h3>\$19\.99 first month</h3>\s*<p>Then \$39\.99 per month\.',
+                  r'<h3(?: style="[^"]*")?>\$19\.99 first month</h3>\s*<p>Then \$39\.99 per month\.',
                   '<h3>$199 per month</h3><p>Flat monthly pricing.',
                   text,
                   flags=re.I,
               )
 
-              # Replace any remaining legacy dollar displays and numeric plan values.
               text = text.replace('$19.99', '$199').replace('$39.99', '$199')
               text = re.sub(r'(?<![\d.])19\.99(?![\d.])', '199', text)
               text = re.sub(r'(?<![\d.])39\.99(?![\d.])', '199', text)
 
-              # Normalize wording after the numeric replacement.
               cleanups = [
                   (r'\$199 your first month,?\s*then \$199 per month', '$199 per month'),
                   (r'\$199 first month,?\s*then \$199 per month', '$199 per month'),
@@ -81,7 +75,22 @@ jobs:
               for pattern, replacement in cleanups:
                   text = re.sub(pattern, replacement, text, flags=re.I)
 
-              # Normalize structured Offer prices.
+              # Clean artifacts created by the first migration pass on landing pages.
+              text = re.sub(
+                  r'<div class="row"><dt>Per month</dt><dd>\$199</dd></div>\s*<div class="row"><dt>Then</dt><dd>\$199\s*/\s*month</dd></div>',
+                  '<div class="row"><dt>Monthly plan</dt><dd>$199 / month</dd></div>',
+                  text,
+                  flags=re.I,
+              )
+              text = re.sub(
+                  r'<div class="row"><dt>Monthly plan</dt><dd>\$199</dd></div>\s*<div class="row"><dt>Then</dt><dd>\$199\s*/\s*month</dd></div>',
+                  '<div class="row"><dt>Monthly plan</dt><dd>$199 / month</dd></div>',
+                  text,
+                  flags=re.I,
+              )
+              text = text.replace('Flat monthly pricing. Flat pricing,', 'Flat monthly pricing,')
+              text = text.replace('Flat monthly pricing. Flat monthly pricing,', 'Flat monthly pricing,')
+              text = text.replace('Flat monthly pricing. Flat pricing.', 'Flat monthly pricing.')
               text = re.sub(r'("price"\s*:\s*")199("\s*,)', r'\g<1>199.00\2', text)
               return text
 
@@ -96,7 +105,6 @@ jobs:
                   path.write_text(updated, encoding='utf-8')
                   changed.append(str(path))
 
-          # Refuse to commit if either legacy price survives in source.
           leftovers = []
           for path in Path('.').rglob('*'):
               if not path.is_file() or path.suffix.lower() not in allowed:
@@ -123,5 +131,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit -m "Replace legacy pricing with flat $199 monthly plan"
+          git commit -m 'Clean $199 monthly pricing copy across source files'
           git push
