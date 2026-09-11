@@ -1,67 +1,7 @@
 /* Shedlr public site — 2026 refresh
-   Subscription model: $199/month. No introductory pricing or per-lead billing. */
+   Subscription model: $199/month. No per-lead pricing. */
 
 const STRIPE_PAYMENT_LINK = 'https://buy.stripe.com/dRm14nfQW9aM7zf9Raa3u00';
-
-/* ── Pricing migration guard ──
-   The legacy site repeated $19.99/$39.99 introductory pricing across many static
-   industry pages. Normalize all rendered pricing copy and metadata to the current
-   $199/month plan so every public page remains consistent while source pages are
-   being migrated. */
-(function migrateLegacyPricing() {
-  const replacements = [
-    [/\$19\.99\s+(?:your\s+)?first month,?\s*then\s*\$39\.99\s*(?:per month|\/mo(?:nth)?)/gi, '$199 per month'],
-    [/\$19\.99\s+first month,?\s*then\s*\$39\.99\s*(?:per month|\/mo(?:nth)?)/gi, '$199 per month'],
-    [/\$19\.99\s+for your first month,?\s*then\s*\$39\.99\s+per month/gi, '$199 per month'],
-    [/\$19\.99\s+for the first month,?\s*then\s*\$39\.99\s+per month/gi, '$199 per month'],
-    [/\$19\.99\s+first month/gi, '$199/month'],
-    [/Then\s*\$39\.99\s*\/\s*month/gi, '$199 / month'],
-    [/Then\s*\$39\.99\s+per month/gi, '$199 per month'],
-    [/Start for\s*\$19\.99/gi, 'Start for $199/month'],
-    [/Activate the Growth Plan at\s*\$19\.99\s+for the first month\./gi, 'Activate the Growth Plan at $199 per month.'],
-    [/secure checkout for the\s*\$19\.99\s+first month/gi, 'secure checkout for the $199 monthly plan'],
-    [/Continue to secure checkout\s*[—-]\s*\$19\.99/gi, 'Continue to secure checkout — $199/month'],
-    [/Renews at\s*\$39\.99\/month after the first month\./gi, 'Renews at $199/month.'],
-    [/\$19\.99/g, '$199'],
-    [/\$39\.99/g, '$199']
-  ];
-
-  const normalize = value => {
-    let text = String(value || '');
-    replacements.forEach(([pattern, replacement]) => { text = text.replace(pattern, replacement); });
-    text = text
-      .replace(/First month/gi, 'Monthly plan')
-      .replace(/<dt>Then<\/dt>/gi, '<dt>Monthly price</dt>')
-      .replace(/first month/gi, 'month')
-      .replace(/then\s+\$199\s*(?:per month|\/\s*month)/gi, '$199 per month');
-    return text;
-  };
-
-  document.title = normalize(document.title);
-  document.querySelectorAll('meta[content]').forEach(meta => {
-    const next = normalize(meta.getAttribute('content'));
-    if (next !== meta.getAttribute('content')) meta.setAttribute('content', next);
-  });
-
-  document.querySelectorAll('script[type="application/ld+json"]').forEach(script => {
-    let next = normalize(script.textContent);
-    next = next.replace(/"price"\s*:\s*"19\.99"/g, '"price":"199"').replace(/"price"\s*:\s*"39\.99"/g, '"price":"199"');
-    script.textContent = next;
-  });
-
-  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-  const nodes = [];
-  while (walker.nextNode()) nodes.push(walker.currentNode);
-  nodes.forEach(node => {
-    const next = normalize(node.nodeValue);
-    if (next !== node.nodeValue) node.nodeValue = next;
-  });
-
-  document.querySelectorAll('dt').forEach(dt => {
-    if (/^Then$/i.test(dt.textContent.trim())) dt.textContent = 'Monthly price';
-    if (/^First month$/i.test(dt.textContent.trim())) dt.textContent = 'Monthly plan';
-  });
-})();
 
 /* ── Smooth anchor scrolling ── */
 document.querySelectorAll('a[href^="#"]').forEach(link => {
@@ -172,6 +112,7 @@ track('page_view', { title: document.title, referrer: document.referrer || '' })
   form.addEventListener('submit', async event => {
     event.preventDefault();
 
+    /* Fold selected add-on services into the message field */
     const addons = Array.from(form.querySelectorAll('input[name="scaling_service"]:checked')).map(i => i.value);
     const messageField = form.querySelector('#message');
     if (addons.length && messageField && !messageField.value.includes('Add-on services:')) {
