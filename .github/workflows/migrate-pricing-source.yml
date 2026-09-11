@@ -1,0 +1,127 @@
+name: Migrate Shedlr pricing source
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  migrate-pricing:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Rewrite legacy pricing in source files
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          allowed = {'.html', '.js', '.json', '.md', '.txt', '.xml'}
+          skip_parts = {'.git', 'node_modules', '.github'}
+          changed = []
+
+          def migrate(text):
+              # Collapse the old two-stage offer before changing individual numbers.
+              patterns = [
+                  (r'\$19\.99 your first month,?\s*then \$39\.99 per month', '$199 per month'),
+                  (r'\$19\.99 first month,?\s*then \$39\.99 per month', '$199 per month'),
+                  (r'\$19\.99 first month,?\s*then \$39\.99/month', '$199/month'),
+                  (r'\$19\.99 first month,?\s*then \$39\.99/mo\.?', '$199/month'),
+                  (r'\$19\.99 first month\s*then \$39\.99 per month', '$199 per month'),
+                  (r'\$19\.99 for the first month,?\s*then \$39\.99 per month', '$199 per month'),
+              ]
+              for pattern, replacement in patterns:
+                  text = re.sub(pattern, replacement, text, flags=re.I)
+
+              # Program-at-a-glance pricing rows used by the industry landing pages.
+              text = re.sub(
+                  r'<dt>First month</dt>\s*<dd>\$19\.99</dd>\s*<dt>Then</dt>\s*<dd>\$39\.99\s*/\s*month</dd>',
+                  '<dt>Monthly plan</dt><dd>$199 / month</dd>',
+                  text,
+                  flags=re.I,
+              )
+
+              # Common feature-card wording.
+              text = re.sub(
+                  r'<h3>\$19\.99 first month</h3>\s*<p>Then \$39\.99 per month\.',
+                  '<h3>$199 per month</h3><p>Flat monthly pricing.',
+                  text,
+                  flags=re.I,
+              )
+
+              # Replace any remaining legacy dollar displays and numeric plan values.
+              text = text.replace('$19.99', '$199').replace('$39.99', '$199')
+              text = re.sub(r'(?<![\d.])19\.99(?![\d.])', '199', text)
+              text = re.sub(r'(?<![\d.])39\.99(?![\d.])', '199', text)
+
+              # Normalize wording after the numeric replacement.
+              cleanups = [
+                  (r'\$199 your first month,?\s*then \$199 per month', '$199 per month'),
+                  (r'\$199 first month,?\s*then \$199 per month', '$199 per month'),
+                  (r'\$199 first month,?\s*then \$199/month', '$199/month'),
+                  (r'\$199 first month,?\s*then \$199/mo\.?', '$199/month'),
+                  (r'\$199 first month\s*then \$199 per month', '$199 per month'),
+                  (r'Activate the Growth Plan at \$199 for the first month\.', 'Activate the Growth Plan for $199 per month.'),
+                  (r'Start for \$199(?![\w/])', 'Start for $199/month'),
+                  (r'\$199 first month', '$199 per month'),
+                  (r'\$199 for the first month', '$199 per month'),
+                  (r'Then \$199 per month\.', 'Flat monthly pricing.'),
+                  (r'first-month price', 'monthly price'),
+                  (r'first month price', 'monthly price'),
+                  (r'introductory price', 'monthly price'),
+                  (r'introductory month', 'monthly plan'),
+                  (r'renewal price', 'monthly price'),
+                  (r'>First month<', '>Per month<'),
+              ]
+              for pattern, replacement in cleanups:
+                  text = re.sub(pattern, replacement, text, flags=re.I)
+
+              # Normalize structured Offer prices.
+              text = re.sub(r'("price"\s*:\s*")199("\s*,)', r'\g<1>199.00\2', text)
+              return text
+
+          for path in Path('.').rglob('*'):
+              if not path.is_file() or path.suffix.lower() not in allowed:
+                  continue
+              if any(part in skip_parts for part in path.parts):
+                  continue
+              original = path.read_text(encoding='utf-8')
+              updated = migrate(original)
+              if updated != original:
+                  path.write_text(updated, encoding='utf-8')
+                  changed.append(str(path))
+
+          # Refuse to commit if either legacy price survives in source.
+          leftovers = []
+          for path in Path('.').rglob('*'):
+              if not path.is_file() or path.suffix.lower() not in allowed:
+                  continue
+              if any(part in skip_parts for part in path.parts):
+                  continue
+              text = path.read_text(encoding='utf-8')
+              if '19.99' in text or '39.99' in text:
+                  leftovers.append(str(path))
+
+          print('Changed files:')
+          for item in changed:
+              print(' -', item)
+
+          if leftovers:
+              raise SystemExit('Legacy pricing remains in: ' + ', '.join(leftovers))
+
+      - name: Commit migrated source
+        run: |
+          if git diff --quiet; then
+            echo "No pricing migration changes needed."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Replace legacy pricing with flat $199 monthly plan"
+          git push
