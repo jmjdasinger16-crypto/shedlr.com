@@ -42,6 +42,16 @@ async function api(path, options = {}) {
 
 const statusLabels = { active: 'Active', past_due: 'Past due', canceled: 'Canceled', suspended: 'Suspended' };
 
+/**
+ * Check if a business is cancelled.
+ * Normalizes status by trimming whitespace and converting to lowercase.
+ * @param {object} business - The business object with a status property
+ * @returns {boolean} True if the business is cancelled
+ */
+function isBusinessCancelled(business) {
+  return String(business.status || '').trim().toLowerCase() === 'cancelled';
+}
+
 function renderLeads(leads) {
   const list = $('[data-leads-list]');
   if (!leads.length) { list.innerHTML = '<p class="empty-state">No leads have been delivered to your account yet. Once your order is paid and our team verifies leads, they will appear here.</p>'; return; }
@@ -197,6 +207,14 @@ $('[data-profile-save]').addEventListener('click', async () => {
 
 async function loadDashboard() {
   const { business } = await api('/api/portal/me');
+  
+  // Hide cancelled businesses from VA portal
+  if (isBusinessCancelled(business)) {
+    $('[data-leads-list]').innerHTML = '<p class="empty-state">This business account is no longer active.</p>';
+    $('[data-orders-list]').innerHTML = '<p class="empty-state">This business account is no longer active.</p>';
+    return;
+  }
+  
   $('[data-business-name-suffix]').textContent = business.name ? `, ${business.name}` : '';
   fillProfileForm(business);
   const pill = $('[data-status-pill]');
