@@ -54,7 +54,7 @@ jobs:
                   (r'Start a plan for \$199(?![\w/])', 'Start a plan for $199/month'),
                   (r'\$199 first month', '$199 per month'),
                   (r'\$199 for the first month', '$199 per month'),
-                  (r'Renews at \$199/month after the first month\.', 'Billed monthly at $199. Cancel anytime from your client portal.'),
+                  (r'Renews at \$199/month after the first month\.', 'Billed monthly at $199.'),
                   (r'after the first month', 'each month'),
                   (r'Then \$199 per month\.', 'Flat monthly pricing.'),
                   (r'first-month price', 'monthly price'),
@@ -67,7 +67,6 @@ jobs:
               for pattern, replacement in cleanups:
                   text = re.sub(pattern, replacement, text, flags=re.I)
 
-              # Collapse redundant two-stage pricing UI left from the old offer.
               text = re.sub(
                   r'<div class="row"><dt>(?:Per month|Monthly plan)</dt><dd>\$199</dd></div>\s*<div class="row"><dt>Then</dt><dd>\$199\s*/\s*month</dd></div>',
                   '<div class="row"><dt>Monthly plan</dt><dd>$199 / month</dd></div>',
@@ -85,6 +84,7 @@ jobs:
               text = text.replace('Flat monthly pricing. Flat pricing.', 'Flat monthly pricing.')
               text = text.replace('$199 for your first month, Flat monthly pricing.', '$199 per month.')
               text = text.replace('$199 for the first month, Flat monthly pricing.', '$199 per month.')
+              text = text.replace('Billed monthly at $199. Cancel anytime from your client portal. No contract. Cancel anytime from your client portal.', 'Billed monthly at $199. No contract. Cancel anytime from your client portal.')
               text = re.sub(r'("price"\s*:\s*")199("\s*,)', r'\g<1>199.00\2', text)
               return text
 
@@ -125,5 +125,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit -m 'Finalize flat $199 monthly pricing copy'
+          git commit -m 'Finish Shedlr pricing source cleanup'
           git push
