@@ -1,4 +1,4 @@
-name: Position $399 standard pricing with $199 exclusive offer
+name: Replace all Shedlr pricing with $399
 
 on:
   push:
@@ -14,7 +14,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Update pricing positioning
+      - name: Replace all $199 pricing references
         shell: python
         run: |
           from pathlib import Path
@@ -25,36 +25,52 @@ jobs:
           changed=[]
 
           def update(text):
-              # SEO/structured offer: standard price becomes $399/month.
+              # Replace displayed/public pricing.
+              text = text.replace('$199.00', '$399.00')
+              text = text.replace('$199', '$399')
+
+              # Replace structured plan/offer numeric values while avoiding unrelated numbers.
               text = re.sub(r'("price"\s*:\s*")199(?:\.00)?("\s*,)', r'\g<1>399.00\2', text)
-              text = text.replace('$199 per month. Verified exclusive leads', '$399 per month standard rate. Verified exclusive leads')
-              text = text.replace('$199/month · flat monthly pricing', '$399/month standard · exclusive $199 offer available')
+              text = re.sub(r'("plan_monthly"\s*:\s*)199(?:\.0+)?\b', r'\g<1>399', text)
+              text = re.sub(r'("plan_price"\s*:\s*)199(?:\.0+)?\b', r'\g<1>399', text)
+              text = re.sub(r'("monthly_price"\s*:\s*)199(?:\.0+)?\b', r'\g<1>399', text)
+              text = re.sub(r'("price_monthly"\s*:\s*)199(?:\.0+)?\b', r'\g<1>399', text)
 
-              # Common landing-page program cards: establish $399 standard while keeping $199 as the exclusive offer.
-              text = text.replace('<div class="row"><dt>Monthly plan</dt><dd>$199 / month</dd></div>', '<div class="row"><dt>Standard rate</dt><dd>$399 / month</dd></div>\n        <div class="row"><dt>Exclusive offer</dt><dd>$199 / month</dd></div>')
-              text = re.sub(r'<h3(?: style="[^"]*")?>\$199 per month</h3><p>Flat monthly pricing,', '<h3>$399 standard · $199 exclusive offer</h3><p>Lock in the exclusive $199 monthly rate,', text, flags=re.I)
+              # Remove any now-nonsensical promotional/exclusive language left from the prior positioning pass.
+              replacements = [
+                  ('Claim the $399/month offer', 'Start for $399/month'),
+                  ('Claim the $399/month exclusive rate', 'Start for $399/month'),
+                  ('Claim the $399/month rate', 'Start for $399/month'),
+                  ('Claim exclusive rate &mdash; $399/month', 'Continue to secure checkout &mdash; $399'),
+                  ('exclusive $399/month rate', '$399/month rate'),
+                  ('exclusive $399/month offer', '$399/month plan'),
+                  ('exclusive promotional rate of $399 per month', 'rate of $399 per month'),
+                  ('eligible customers may receive an exclusive promotional rate of $399 per month', 'the monthly subscription rate is $399 per month'),
+                  ('Standard rate: $399/month. Exclusive offer: $399/month.', '$399 per month.'),
+                  ('standard rate $399/month', '$399/month'),
+                  ('Standard rate $399 / month', '$399 / month'),
+                  ('normally $399/month', '$399/month'),
+                  ('with an exclusive $399/month offer available', ''),
+                  ('Exclusive rate billed monthly at $399 ($399/month).', 'Billed monthly at $399.'),
+                  ('Exclusive rate billed monthly at $399 (standard rate $399/month).', 'Billed monthly at $399.'),
+                  ('<span>exclusive monthly rate</span>', '<span>per month</span>'),
+                  ('<dt>Standard rate</dt><dd>$399 / month</dd>\n        <div class="row"><dt>Exclusive offer</dt><dd>$399 / month</dd></div>', '<dt>Monthly plan</dt><dd>$399 / month</dd>'),
+                  ('$399 standard · $399 exclusive offer', '$399 per month'),
+                  ('Lock in the exclusive $399 monthly rate,', 'Flat monthly pricing,'),
+                  ('$399/month standard · exclusive $399 offer available', '$399/month · flat monthly pricing'),
+              ]
+              for old,new in replacements:
+                  text = text.replace(old,new)
 
-              # CTAs should sell the exclusive $199 rate rather than presenting it as normal pricing.
-              text = text.replace('Start for $199/month', 'Claim the $199/month offer')
-              text = text.replace('Start a plan for $199/month', 'Claim the $199/month offer')
-              text = text.replace('Start for <em>$199</em> — no sales call required.', 'Claim the <em>$199/month exclusive rate</em> — no sales call required.')
-
-              # Contact/checkout: clearly show standard value and the exclusive checkout price.
-              text = text.replace('$199 per month. Month-to-month, cancel anytime from your portal.', 'Standard rate: $399/month. Exclusive offer: $199/month. Month-to-month, cancel anytime from your portal.')
-              text = text.replace('you will be taken to secure checkout for the $199 per month.', 'you will be taken to secure checkout for the exclusive $199/month rate (standard rate $399/month).')
-              text = text.replace('Continue to secure checkout &mdash; $199', 'Claim exclusive rate &mdash; $199/month')
-              text = text.replace('Billed monthly at $199. No contract.', 'Exclusive rate billed monthly at $199 (standard rate $399/month). No contract.')
-              text = text.replace('<div class="price-amount"><b>$199</b><span>per month</span></div>', '<div class="price-amount"><b>$199</b><span>exclusive monthly rate</span></div>\n        <div class="price-then">Standard rate <b>$399 / month</b></div>')
-
-              # Homepage/common prose: $399 is the public standard; $199 is framed as the special rate.
-              text = re.sub(r'\$199 per month(?=\. No contract)', '$399 per month standard rate, with an exclusive $199/month offer available', text)
-              text = text.replace('Activate the Growth Plan for $199 per month.', 'Activate the Growth Plan at the exclusive $199/month rate, normally $399/month.')
-              text = text.replace('<b>$199</b><span>Per month</span>', '<b>$399</b><span>Standard monthly rate</span>')
-              text = text.replace('<b>$199</b><span>per month</span>', '<b>$399</b><span>Standard monthly rate</span>')
-
-              # Terms: standard rate + disclosed promotional/exclusive rate, without implying a one-month teaser.
-              text = re.sub(r'(?i)the (?:monthly )?(?:subscription|plan|service) (?:fee|price|rate) is \$199(?:\.00)?(?: per month|/month)?', 'the standard monthly subscription rate is $399 per month; eligible customers may receive an exclusive promotional rate of $199 per month', text)
-              text = re.sub(r'(?i)\$199 per month', lambda m: m.group(0), text)
+              # General cleanup for duplicated wording after replacement.
+              text = text.replace('$399 per month standard rate', '$399 per month')
+              text = text.replace('$399/month standard', '$399/month')
+              text = text.replace('exclusive $399', '$399')
+              text = text.replace('Exclusive $399', '$399')
+              text = text.replace('standard $399', '$399')
+              text = text.replace('Standard $399', '$399')
+              text = text.replace('$399 / month\n        <div class="price-then">$399 / month</div>', '$399 / month')
+              text = re.sub(r'\s{2,}', ' ', text) if False else text
               return text
 
           for p in Path('.').rglob('*'):
@@ -66,8 +82,18 @@ jobs:
                   p.write_text(new,encoding='utf-8')
                   changed.append(str(p))
 
+          leftovers=[]
+          for p in Path('.').rglob('*'):
+              if not p.is_file() or p.suffix.lower() not in allowed or any(part in skip for part in p.parts):
+                  continue
+              txt=p.read_text(encoding='utf-8')
+              if '$199' in txt or re.search(r'("(?:price|plan_monthly|plan_price|monthly_price|price_monthly)"\s*:\s*"?)199(?:\.00)?\b', txt):
+                  leftovers.append(str(p))
+
           print('Changed files:')
           for p in changed: print(' -',p)
+          if leftovers:
+              raise SystemExit('Remaining $199 pricing references: ' + ', '.join(leftovers))
 
       - name: Commit changes
         run: |
@@ -78,5 +104,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit -m 'Position $399 standard price with exclusive $199 offer'
+          git commit -m 'Replace all $199 pricing with $399'
           git push
