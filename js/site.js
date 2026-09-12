@@ -1,5 +1,5 @@
 /* Shedlr public site — 2026 refresh
-   Subscription model: $199/month. No per-lead pricing. */
+   Subscription model: $399/month. No per-lead pricing. */
 
 const STRIPE_PAYMENT_LINK = 'https://buy.stripe.com/dRm14nfQW9aM7zf9Raa3u00';
 
