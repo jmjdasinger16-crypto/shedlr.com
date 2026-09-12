@@ -88,12 +88,18 @@ function applyRole(role){
   document.querySelectorAll('[data-staff-only]').forEach(el=>{el.hidden=!isStaff;});
 }
 
+/* Canonical status from the worker is "canceled"; accept the double-l spelling too. */
+const CANCELED_STATUSES=['canceled','cancelled'];
+function isCanceledBusiness(business){
+  return CANCELED_STATUSES.includes(String(business&&business.status||'').trim().toLowerCase());
+}
+
 async function loadStaffBusinesses(){
   const data=await api('/api/admin/businesses');
   const allBusinesses=data.businesses||[];
-  /* Owner/admin keeps the full list (incl. cancelled); VA/staff never see cancelled accounts. */
+  /* Owner/admin keeps the full list (incl. canceled); VA/staff never see canceled accounts. */
   const isStaffView=document.body.dataset.role!=='admin';
-  const visibleBusinesses=isStaffView?allBusinesses.filter(business=>String(business.status||'').trim().toLowerCase()!=='cancelled'):allBusinesses;
+  const visibleBusinesses=isStaffView?allBusinesses.filter(business=>!isCanceledBusiness(business)):allBusinesses;
   businesses=visibleBusinesses;
   renderStaffBusinesses(visibleBusinesses);
   populateStaffLeadBusiness();
