@@ -90,9 +90,12 @@ function applyRole(role){
 
 async function loadStaffBusinesses(){
   const data=await api('/api/admin/businesses');
-  const filteredBusinesses=(data.businesses||[]).filter(business=>String(business.status||'').trim().toLowerCase()!=='cancelled');
-  businesses=filteredBusinesses;
-  renderStaffBusinesses(filteredBusinesses);
+  const allBusinesses=data.businesses||[];
+  /* Owner/admin keeps the full list (incl. cancelled); VA/staff never see cancelled accounts. */
+  const isStaffView=document.body.dataset.role!=='admin';
+  const visibleBusinesses=isStaffView?allBusinesses.filter(business=>String(business.status||'').trim().toLowerCase()!=='cancelled'):allBusinesses;
+  businesses=visibleBusinesses;
+  renderStaffBusinesses(visibleBusinesses);
   populateStaffLeadBusiness();
 }
 
