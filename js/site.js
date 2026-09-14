@@ -154,7 +154,7 @@ track('page_view', { title: document.title, referrer: document.referrer || '' })
       setTimeout(() => { window.location.href = STRIPE_PAYMENT_LINK; }, 1400);
     } catch (error) {
       track('order_submit_error', { message: error.message || 'Unknown error' });
-      say(error.message || 'We could not submit your activation. Please call (806) 460-9488 or email support@shedlr.com.', true);
+      say(error.message || 'We could not submit your activation. Please call (307) 303-7530 or email support@shedlr.com.', true);
     } finally {
       if (button) { button.disabled = false; button.textContent = originalLabel; }
     }
