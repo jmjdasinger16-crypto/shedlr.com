@@ -378,8 +378,8 @@ export default {
         lead_type: clean(data.lead_type, 40), zip: clean(data.zip, 10).replace(/\D/g, "").slice(0, 5),
         quantity: Number(data.quantity) || 0, message: clean(data.message, 4000)
       };
-      if (!order.name || !validEmail(order.email) || !validPhone(order.phone)) return json({ error: "Please provide a valid name, email, and phone number." }, 400);
-      if (!order.category || !CATEGORIES.includes(order.category)) return json({ error: "Please select a valid lead category." }, 400);
+      if (!validEmail(order.email) || !validPhone(order.phone)) return json({ error: "Please provide a valid email address and phone number." }, 400);
+      if (order.category && !CATEGORIES.includes(order.category)) return json({ error: "Please select a valid lead category." }, 400);
       if (order.lead_type && !LEAD_TYPES.includes(order.lead_type)) return json({ error: "Please select a valid lead type." }, 400);
 
       const id = await saveOrderLead(env, request, order);
