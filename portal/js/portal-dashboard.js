@@ -28,7 +28,12 @@ const CATEGORY_LABELS = {
   "solar": "Solar",
   "gym-sales": "Gym Membership Sales",
   "home-remodeling": "Home Remodeling",
-  "nail-lash-stylist": "Nail & Lash Stylists"
+  "nail-lash-stylist": "Nail & Lash Stylists",
+  "junk-removal": "Junk Removal",
+  "auto-detailing": "Auto Detailing",
+  "auto-commercial-detailing": "Fleet & Commercial Detailing",
+  "insurance": "Insurance (general)",
+  "meal-prep": "Meal Prep"
 };
 const catLabel = (c) => CATEGORY_LABELS[c] || c || '—';
 

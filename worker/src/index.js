@@ -38,7 +38,12 @@ const CATEGORY_PRICES = {
   "auto-mechanic": 700,
   "pest-control": 500,
   "solar": 1000,
-  "real-estate": 800
+  "real-estate": 800,
+  "junk-removal": 600,
+  "auto-detailing": 400,
+  "auto-commercial-detailing": 800,
+  "insurance": 100,
+  "meal-prep": 400
 };
 const getCategoryPriceCents = (slug) => CATEGORY_PRICES[slug] || 500;
 
@@ -75,7 +80,12 @@ const CATEGORIES = [
   "tax-prep",
   "gym-sales",
   "home-remodeling",
-  "nail-lash-stylist"];
+  "nail-lash-stylist",
+  "junk-removal",
+  "auto-detailing",
+  "auto-commercial-detailing",
+  "insurance",
+  "meal-prep"];
 
 const LEAD_TYPES = ["appointment-booking", "phone-call-scheduling", "raw-leads"];
 
@@ -112,7 +122,12 @@ const CATEGORY_LABELS = {
   "tax-prep": "Tax Preparation",
   "gym-sales": "Gym Membership Sales",
   "home-remodeling": "Home Remodeling",
-  "nail-lash-stylist": "Nail & Lash Stylists"
+  "nail-lash-stylist": "Nail & Lash Stylists",
+  "junk-removal": "Junk Removal",
+  "auto-detailing": "Auto Detailing",
+  "auto-commercial-detailing": "Fleet & Commercial Detailing",
+  "insurance": "Insurance (general)",
+  "meal-prep": "Meal Prep"
 };
 
 const json = (body, status = 200, extraHeaders = {}) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", ...extraHeaders } });
