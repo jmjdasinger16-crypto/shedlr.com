@@ -130,9 +130,9 @@ if(staffBusinessesTable){
 }
 
 /* ── Retention manager view: read-only, every account in every status ── */
-function retentionFilteredRows(){
-  const q=($('[data-retention-search]')?.value||'').trim().toLowerCase();
-  const status=($('[data-retention-status-filter]')?.value||'').trim().toLowerCase();
+function filterBusinessRows(q,status){
+  q=String(q||'').trim().toLowerCase();
+  status=String(status||'').trim().toLowerCase();
   return businesses.filter(b=>{
     const statusValue=String(b.status||'').trim().toLowerCase();
     const statusMatch=!status?true:(status==='canceled'?CANCELED_STATUSES.includes(statusValue):statusValue===status);
@@ -140,6 +140,14 @@ function retentionFilteredRows(){
     if(!q)return true;
     return [b.name,b.email,b.phone,b.company_name,b.address,b.status,b.preferred_category].some(v=>String(v||'').toLowerCase().includes(q));
   });
+}
+
+function retentionFilteredRows(){
+  return filterBusinessRows($('[data-retention-search]')?.value,$('[data-retention-status-filter]')?.value);
+}
+
+function adminFilteredRows(){
+  return filterBusinessRows(businessSearch?.value,$('[data-business-status-filter]')?.value);
 }
 
 function renderRetentionBusinesses(rows){
@@ -161,15 +169,14 @@ if(retentionTable){
 $('[data-retention-search]')?.addEventListener('input',()=>renderRetentionBusinesses(retentionFilteredRows()));
 $('[data-retention-status-filter]')?.addEventListener('change',()=>renderRetentionBusinesses(retentionFilteredRows()));
 
-/* ── Retention report: printable roster of accounts, built from the rows already
-      loaded for the table so it honours the active search and status filter and needs
-      no extra endpoint (retention stays strictly read-only). ── */
-const retentionReportStatus=$('[data-retention-report-status]');
-
-function retentionFilterLabel(){
-  const q=($('[data-retention-search]')?.value||'').trim();
-  const status=($('[data-retention-status-filter]')?.value||'').trim();
-  const statusText=status?(status==='past_due'?'Past due':status.charAt(0).toUpperCase()+status.slice(1)):'All statuses';
+/* ── Account report: printable roster of business accounts, shared by the admin and
+      retention panels. Built from the rows already loaded for the table, so it honours
+      each panel's active search and status filter and needs no extra endpoint (the
+      retention role stays strictly read-only). ── */
+function filterLabelFor(searchSel,statusSel){
+  const q=($(searchSel)?.value||'').trim();
+  const status=($(statusSel)?.value||'').trim();
+  const statusText=status?statusLabel(status):'All statuses';
   return q?`${statusText} · matching “${q}”`:statusText;
 }
 
@@ -182,7 +189,7 @@ function countBy(rows,pick){
   return [...map.entries()].sort((a,b)=>b[1]-a[1]||String(a[0]).localeCompare(String(b[0])));
 }
 
-function buildRetentionReportHtml(rows){
+function buildAccountReportHtml(rows,filterLabel){
   const generated=new Date().toISOString();
   const activated=rows.filter(b=>b.last_login_at).length;
   const totalLeads=rows.reduce((sum,b)=>sum+Number(b.total_leads||0),0);
@@ -244,43 +251,54 @@ footer{margin-top:26px;padding-top:10px;border-top:1px solid #d8e0e5;font-size:1
 @media print{.report-actions{display:none}body{padding:0}@page{size:landscape}table.report-table{page-break-inside:auto}tr{page-break-inside:avoid}}
 </style></head><body>
 <div class="report-actions"><button type="button" onclick="window.print()">Print this report</button></div>
-<header><h1>Shedlr retention report</h1><p><strong>Filter:</strong> ${esc(retentionFilterLabel())}</p><p><strong>Accounts:</strong> ${rows.length.toLocaleString()}</p><p><strong>Generated:</strong> ${esc(fmt(generated))}</p></header>
+<header><h1>Shedlr account report</h1><p><strong>Filter:</strong> ${esc(filterLabel)}</p><p><strong>Accounts:</strong> ${rows.length.toLocaleString()}</p><p><strong>Generated:</strong> ${esc(fmt(generated))}</p></header>
 ${sections.join('')}
-<footer>Shedlr retention · shedlr.com · Confidential internal report</footer>
+<footer>Shedlr · shedlr.com · Confidential internal report</footer>
 </body></html>`;
 }
 
-function openRetentionReport(){
-  if(!retentionReportStatus)return;
-  const rows=retentionFilteredRows();
-  if(!rows.length){retentionReportStatus.textContent='No accounts match the current filter, so there is nothing to report.';return;}
-  retentionReportStatus.textContent='Building report…';
+function openAccountReport(cfg){
+  const out=$(cfg.statusOut);
+  if(!out)return;
+  const rows=cfg.rows();
+  if(!rows.length){out.textContent='No accounts match the current filter, so there is nothing to report.';return;}
+  const label=filterLabelFor(cfg.search,cfg.status);
+  out.textContent='Building report…';
   const win=window.open('','_blank');
-  if(!win){retentionReportStatus.textContent='Your browser blocked the report window. Allow pop-ups for shedlr.com and try again.';return;}
-  win.document.write(buildRetentionReportHtml(rows));
+  if(!win){out.textContent='Your browser blocked the report window. Allow pop-ups for shedlr.com and try again.';return;}
+  win.document.write(buildAccountReportHtml(rows,label));
   win.document.close();
-  retentionReportStatus.textContent=`Report ready for ${rows.length} account${rows.length===1?'':'s'} (${retentionFilterLabel()}).`;
+  out.textContent=`Report ready for ${rows.length} account${rows.length===1?'':'s'} (${label}).`;
 }
 
-function downloadRetentionCsv(){
-  if(!retentionReportStatus)return;
-  const rows=retentionFilteredRows();
-  if(!rows.length){retentionReportStatus.textContent='No accounts match the current filter, so there is nothing to export.';return;}
-  const lines=[['Shedlr retention report'],['Filter',retentionFilterLabel()],['Generated',new Date().toISOString()],['Accounts',rows.length],[]];
+function downloadAccountCsv(cfg){
+  const out=$(cfg.statusOut);
+  if(!out)return;
+  const rows=cfg.rows();
+  if(!rows.length){out.textContent='No accounts match the current filter, so there is nothing to export.';return;}
+  const lines=[['Shedlr account report'],['Filter',filterLabelFor(cfg.search,cfg.status)],['Generated',new Date().toISOString()],['Accounts',rows.length],[]];
   lines.push(['Business ID','Contact name','Company','Business type','Status','Email','Phone','Address','Leads delivered','Portal activated','Created','Last login']);
   rows.forEach(b=>lines.push([b.id,b.name||'',b.company_name||'',b.preferred_category||'',b.status||'',b.email||'',b.phone||'',b.address||'',Number(b.total_leads||0),b.last_login_at?'Yes':'No',b.created_at||'',b.last_login_at||'']));
   const csv=lines.map(row=>row.map(csvCell).join(',')).join('\r\n');
   const blob=new Blob([`\ufeff${csv}`],{type:'text/csv;charset=utf-8'});
   const link=document.createElement('a');
   link.href=URL.createObjectURL(blob);
-  link.download=`shedlr-retention-report-${dateOnly(new Date())}.csv`;
+  link.download=`shedlr-account-report-${dateOnly(new Date())}.csv`;
   document.body.appendChild(link);link.click();link.remove();
   setTimeout(()=>URL.revokeObjectURL(link.href),2000);
-  retentionReportStatus.textContent=`CSV downloaded for ${rows.length} account${rows.length===1?'':'s'}.`;
+  out.textContent=`CSV downloaded for ${rows.length} account${rows.length===1?'':'s'}.`;
 }
 
-$('[data-retention-report]')?.addEventListener('click',openRetentionReport);
-$('[data-retention-report-csv]')?.addEventListener('click',downloadRetentionCsv);
+function wireAccountReport(cfg){
+  $(cfg.button)?.addEventListener('click',()=>openAccountReport(cfg));
+  $(cfg.csvButton)?.addEventListener('click',()=>downloadAccountCsv(cfg));
+}
+
+wireAccountReport({rows:retentionFilteredRows,search:'[data-retention-search]',status:'[data-retention-status-filter]',
+  button:'[data-retention-report]',csvButton:'[data-retention-report-csv]',statusOut:'[data-retention-report-status]'});
+
+wireAccountReport({rows:adminFilteredRows,search:'[data-business-search]',status:'[data-business-status-filter]',
+  button:'[data-business-report]',csvButton:'[data-business-report-csv]',statusOut:'[data-business-report-status]'});
 
 function renderRetentionBusinessDetail(detail){
   const b=detail.business||{};
@@ -340,7 +358,7 @@ async function loadLeads(){
 async function loadBusinesses(){
   const data=await api('/api/admin/businesses');
   businesses=data.businesses||[];
-  renderBusinesses(businesses);
+  renderBusinesses(adminFilteredRows());
 }
 
 /* ── Lead dialog ── */
@@ -766,10 +784,8 @@ search.addEventListener('input',()=>{
 
 leadCategoryFilter.addEventListener('change',()=>loadLeads().catch(()=>{}));
 
-businessSearch.addEventListener('input',()=>{
-  const q=businessSearch.value.trim().toLowerCase();
-  renderBusinesses(!q?businesses:businesses.filter(b=>[b.name,b.email,b.phone,b.company_name,b.status].some(v=>String(v||'').toLowerCase().includes(q))));
-});
+businessSearch.addEventListener('input',()=>renderBusinesses(adminFilteredRows()));
+$('[data-business-status-filter]')?.addEventListener('change',()=>renderBusinesses(adminFilteredRows()));
 
 /* ── Quick ranges ── */
 function setRange(hours){const now=new Date();filterTo.value=toLocalInput(now);filterFrom.value=toLocalInput(new Date(now.getTime()-hours*60*60*1000));}
