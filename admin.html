@@ -133,10 +133,20 @@
           <div><h2>Businesses</h2><p>Business accounts, lead credits, and portal access.</p></div>
           <div class="panel-actions">
             <input type="search" placeholder="Search name, email, company..." data-business-search>
+            <select data-business-status-filter>
+              <option value="">All statuses</option>
+              <option value="active">Active</option>
+              <option value="past_due">Past due</option>
+              <option value="canceled">Canceled</option>
+              <option value="suspended">Suspended</option>
+            </select>
             <button type="button" data-open-create-business>Create Business</button>
+            <button type="button" data-business-report>Account report</button>
+            <button type="button" data-business-report-csv>Download CSV</button>
             <button type="button" class="panel-toggle" data-panel-toggle aria-expanded="true">Minimize</button>
           </div>
         </div>
+        <p class="filter-status" data-business-report-status></p>
         <div class="table-wrap">
           <table>
             <thead><tr><th>Name</th><th>Contact</th><th>Company</th><th>Category</th><th>Status</th><th>Leads</th><th>Last login</th><th></th></tr></thead>
@@ -414,6 +424,6 @@
     </form>
   </dialog>
 
-  <script src="js/admin.js?v=8"></script>
+  <script src="js/admin.js?v=9"></script>
 </body>
 </html>
