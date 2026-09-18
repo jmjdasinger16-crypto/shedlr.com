@@ -117,12 +117,14 @@
               <option value="">All categories</option>
             </select>
             <button type="button" data-bulk-import-open>Bulk Import</button>
+            <button type="button" class="danger" data-leads-delete-selected hidden>Delete selected</button>
             <button type="button" class="panel-toggle" data-panel-toggle aria-expanded="true">Minimize</button>
           </div>
         </div>
+        <p class="filter-status" data-leads-selection-status></p>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Name</th><th>Contact</th><th>Category</th><th>City</th><th>Status</th><th>Assigned to</th><th>Added</th><th></th></tr></thead>
+            <thead><tr><th class="select-col"><input type="checkbox" data-leads-select-all title="Select all leads shown" aria-label="Select all leads shown"></th><th>Name</th><th>Contact</th><th>Category</th><th>City</th><th>Status</th><th>Assigned to</th><th>Added</th><th></th></tr></thead>
             <tbody data-leads-table></tbody>
           </table>
         </div>
@@ -424,6 +426,6 @@
     </form>
   </dialog>
 
-  <script src="js/admin.js?v=9"></script>
+  <script src="js/admin.js?v=10"></script>
 </body>
 </html>
