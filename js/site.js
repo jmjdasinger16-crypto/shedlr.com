@@ -151,7 +151,13 @@ track('page_view', { title: document.title, referrer: document.referrer || '' })
       track('order_submitted', { category: payload.category, plan: payload.plan });
       say('Activation received. Redirecting to secure checkout…', false);
       form.reset();
-      setTimeout(() => { window.location.href = STRIPE_PAYMENT_LINK; }, 1400);
+      /* client_reference_id comes back to us in the Stripe webhook, which is how the
+         payment gets matched to this order instead of leaving it stuck on pending. */
+      let checkoutUrl = STRIPE_PAYMENT_LINK;
+      if (result.order_id) {
+        checkoutUrl += (checkoutUrl.indexOf('?') === -1 ? '?' : '&') + 'client_reference_id=order_' + encodeURIComponent(result.order_id);
+      }
+      setTimeout(() => { window.location.href = checkoutUrl; }, 1400);
     } catch (error) {
       track('order_submit_error', { message: error.message || 'Unknown error' });
       say(error.message || 'We could not submit your activation. Please call (307) 303-7530 or email support@shedlr.com.', true);
