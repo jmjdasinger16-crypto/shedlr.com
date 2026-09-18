@@ -16,7 +16,9 @@ This worker powers the Shedlr API: admin authentication, business portal auth, l
    ```
 
 3. **Set environment variables** (Cloudflare dashboard → Workers → shedlr-api → Settings → Variables):
-   - `ADMIN_PASSWORD` — admin dashboard password
+   - `ADMIN_PASSWORD` — admin dashboard password (full access)
+   - `STAFF_PASSWORD` — optional VA password (view active accounts, add leads only)
+   - `RETENTION_PASSWORD` — optional retention manager password (read-only view of every business account in any status, including contact info and notes)
    - `ADMIN_SESSION_SECRET` — random string for signing admin sessions
    - `BUSINESS_SESSION_SECRET` — random string for signing business sessions
    - `STRIPE_SECRET_KEY` — Stripe API key (optional, for payment processing)
@@ -38,6 +40,7 @@ This worker powers the Shedlr API: admin authentication, business portal auth, l
 - `POST /api/admin/login` — authenticate
 - `POST /api/admin/logout` — sign out
 - `GET  /api/admin/dashboard` — metrics, orders, events, pages
+- `GET  /api/admin/report?from=&to=` — backend report for a date range (admin only; printable/CSV source for the dashboard)
 - `GET  /api/admin/businesses` — list businesses
 - `GET  /api/admin/businesses/:id` — business detail with orders and assignments
 - `PATCH /api/admin/businesses/:id` — update business

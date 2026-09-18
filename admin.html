@@ -8,14 +8,14 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=5">
+  <link rel="stylesheet" href="css/admin.css?v=6">
 </head>
 <body class="auth-shell">
   <main class="admin-shell">
     <section class="login-card" data-admin-login>
       <div class="admin-brand"><img src="assets/shedlr-logo.png" alt="Shedlr" class="brand-logo"><strong class="admin-tag">Admin</strong></div>
       <h1>Secure dashboard</h1>
-      <p>Enter your admin password to view analytics, orders, leads, and business accounts.</p>
+      <p>Enter your password to sign in. Access depends on your role: owner, VA, or retention manager.</p>
       <form data-admin-login-form>
         <label for="adminPassword">Password</label>
         <input id="adminPassword" name="password" type="password" autocomplete="current-password" required>
@@ -47,6 +47,33 @@
             <button class="secondary" type="button" data-filter-reset>Last 30 days</button>
           </div>
           <p class="filter-status" data-filter-status></p>
+        </form>
+      </section>
+
+      <section class="panel filter-panel" data-admin-only>
+        <div class="panel-head">
+          <div><h2>Backend reports</h2><p>Build a printable backend report for any date range — traffic, orders, revenue, leads, and new accounts.</p></div>
+          <div class="panel-actions"><button type="button" class="panel-toggle" data-panel-toggle aria-expanded="true">Minimize</button></div>
+        </div>
+        <form class="filter-grid" data-report-form>
+          <label>Report start date<input type="date" data-report-from required></label>
+          <label>Report end date<input type="date" data-report-to required></label>
+          <label>Detail level
+            <select data-report-detail>
+              <option value="full">Summary plus order and account detail</option>
+              <option value="summary">Summary totals only</option>
+            </select>
+          </label>
+          <div class="filter-actions">
+            <button type="submit">Print report</button>
+            <button class="secondary" type="button" data-report-preview>Preview report</button>
+            <button class="secondary" type="button" data-report-csv>Download CSV</button>
+            <button class="secondary" type="button" data-report-range="this-month">This month</button>
+            <button class="secondary" type="button" data-report-range="last-month">Last month</button>
+            <button class="secondary" type="button" data-report-range="last-7">Last 7 days</button>
+            <button class="secondary" type="button" data-report-range="ytd">Year to date</button>
+          </div>
+          <p class="filter-status" data-report-status></p>
         </form>
       </section>
 
@@ -153,6 +180,28 @@
         </div>
       </section>
 
+      <section class="panel" data-retention-only hidden>
+        <div class="panel-head">
+          <div><h2>Business accounts</h2><p>Every business account in any status, with full contact details, business info, orders, assigned leads, and notes. Read-only.</p></div>
+          <div class="panel-actions">
+            <input type="search" placeholder="Search name, email, company..." data-retention-search>
+            <select data-retention-status-filter style="padding:8px;border:1px solid #cfd6da;font:inherit">
+              <option value="">All statuses</option>
+              <option value="active">Active</option>
+              <option value="past_due">Past due</option>
+              <option value="canceled">Canceled</option>
+              <option value="suspended">Suspended</option>
+            </select>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Name</th><th>Contact</th><th>Company</th><th>Category</th><th>Status</th><th>Leads</th><th>Created</th><th>Last login</th><th></th></tr></thead>
+            <tbody data-retention-businesses-table></tbody>
+          </table>
+        </div>
+      </section>
+
       <section class="panel" data-admin-only>
         <div class="panel-head">
           <div><h2>Events</h2><p>Page views, order submissions, and lead deliveries for the selected range.</p></div>
@@ -232,14 +281,26 @@
         <p class="form-message" data-business-save-message hidden></p>
       </div>
 
+      <div data-retention-only hidden>
+        <div class="detail-grid" data-retention-business-details></div>
+      </div>
+
       <div class="business-tabs">
+        <section class="business-subsection" data-retention-only hidden>
+          <h3>Orders</h3>
+          <div data-retention-orders-list></div>
+        </section>
+        <section class="business-subsection" data-retention-only hidden>
+          <h3>Business notes</h3>
+          <div data-retention-notes></div>
+        </section>
         <section class="business-subsection" data-admin-only>
           <h3>Orders</h3>
           <div data-business-orders-list></div>
         </section>
         <section class="business-subsection">
           <h3>Assigned leads</h3>
-          <p style="color:#5a6a7a;font-size:13px;margin:0 0 8px">Click Edit on any lead below to fix the name, type, phone number, or details if it was entered incorrectly.</p>
+          <p style="color:#5a6a7a;font-size:13px;margin:0 0 8px" data-retention-hide>Click Edit on any lead below to fix the name, type, phone number, or details if it was entered incorrectly.</p>
           <div data-business-leads-list></div>
         </section>
         <section class="business-subsection" data-admin-only>
@@ -350,6 +411,6 @@
     </form>
   </dialog>
 
-  <script src="js/admin.js?v=5"></script>
+  <script src="js/admin.js?v=6"></script>
 </body>
 </html>
