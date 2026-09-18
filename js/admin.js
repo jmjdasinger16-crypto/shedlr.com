@@ -29,7 +29,7 @@ const catLabel=(c)=>CATEGORY_LABELS[c]||c||'—';
 
 const esc=(value)=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 const fmt=(value)=>value?new Date(value).toLocaleString():'—';
-const fmtMoney=(cents)=>`$${(Number(cents||0)/100).toFixed(2)}`;
+const fmtMoney=(cents)=>`$${(Number(cents||0)/100).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}`;
 const toLocalInput=(date)=>{const offset=date.getTimezoneOffset();return new Date(date.getTime()-offset*60000).toISOString().slice(0,16);};
 
 async function api(path,options={}){
@@ -80,12 +80,19 @@ function populateCategoryFilters(){
   if(staffLeadCat)staffLeadCat.innerHTML='<option value="">Select category</option>'+opts;
 }
 
-/* ── Role-based view (admin vs. restricted staff) ── */
+/* ── Role-based view (admin / VA staff / retention manager) ── */
 function applyRole(role){
+  const isAdmin=role==='admin';
   const isStaff=role==='staff';
+  const isRetention=role==='retention';
   document.body.dataset.role=role;
-  document.querySelectorAll('[data-admin-only]').forEach(el=>{el.hidden=isStaff;});
+  document.querySelectorAll('[data-admin-only]').forEach(el=>{el.hidden=!isAdmin;});
   document.querySelectorAll('[data-staff-only]').forEach(el=>{el.hidden=!isStaff;});
+  document.querySelectorAll('[data-retention-only]').forEach(el=>{el.hidden=!isRetention;});
+  document.querySelectorAll('[data-retention-hide]').forEach(el=>{el.hidden=isRetention;});
+  const tag=document.querySelectorAll('.admin-tag');
+  const label=isAdmin?'Admin':isStaff?'VA':'Retention';
+  tag.forEach(el=>{el.textContent=label;});
 }
 
 /* Canonical status from the worker is "canceled"; accept the double-l spelling too. */
@@ -98,7 +105,7 @@ async function loadStaffBusinesses(){
   const data=await api('/api/admin/businesses');
   const allBusinesses=data.businesses||[];
   /* Owner/admin keeps the full list (incl. canceled); VA/staff never see canceled accounts. */
-  const isStaffView=document.body.dataset.role!=='admin';
+  const isStaffView=document.body.dataset.role==='staff';
   const visibleBusinesses=isStaffView?allBusinesses.filter(business=>!isCanceledBusiness(business)):allBusinesses;
   businesses=visibleBusinesses;
   renderStaffBusinesses(visibleBusinesses);
@@ -120,6 +127,64 @@ function renderStaffBusinesses(rows){
 const staffBusinessesTable=$('[data-staff-businesses-table]');
 if(staffBusinessesTable){
   staffBusinessesTable.addEventListener('click',event=>{const button=event.target.closest('[data-open-business]');if(!button)return;openBusiness(button.dataset.openBusiness);});
+}
+
+/* ── Retention manager view: read-only, every account in every status ── */
+function retentionFilteredRows(){
+  const q=($('[data-retention-search]')?.value||'').trim().toLowerCase();
+  const status=($('[data-retention-status-filter]')?.value||'').trim().toLowerCase();
+  return businesses.filter(b=>{
+    const statusValue=String(b.status||'').trim().toLowerCase();
+    const statusMatch=!status?true:(status==='canceled'?CANCELED_STATUSES.includes(statusValue):statusValue===status);
+    if(!statusMatch)return false;
+    if(!q)return true;
+    return [b.name,b.email,b.phone,b.company_name,b.address,b.status,b.preferred_category].some(v=>String(v||'').toLowerCase().includes(q));
+  });
+}
+
+function renderRetentionBusinesses(rows){
+  const tbody=$('[data-retention-businesses-table]');
+  if(!tbody)return;
+  tbody.innerHTML=rows.map(b=>`<tr><td><strong>${esc(b.name||b.company_name||'—')}</strong></td><td>${esc(b.email||'—')}<br>${esc(b.phone||'—')}</td><td>${esc(b.company_name||'—')}</td><td>${esc(catLabel(b.preferred_category))}</td><td><span class="status">${esc(b.status||'—')}</span></td><td>${b.total_leads||0}</td><td>${fmt(b.created_at)}</td><td>${fmt(b.last_login_at)}</td><td><button type="button" data-open-business="${b.id}">View details</button></td></tr>`).join('')||'<tr><td colspan="9">No business accounts found.</td></tr>';
+}
+
+async function loadRetentionBusinesses(){
+  const data=await api('/api/admin/businesses');
+  businesses=data.businesses||[];
+  renderRetentionBusinesses(retentionFilteredRows());
+}
+
+const retentionTable=$('[data-retention-businesses-table]');
+if(retentionTable){
+  retentionTable.addEventListener('click',event=>{const button=event.target.closest('[data-open-business]');if(!button)return;openBusiness(button.dataset.openBusiness);});
+}
+$('[data-retention-search]')?.addEventListener('input',()=>renderRetentionBusinesses(retentionFilteredRows()));
+$('[data-retention-status-filter]')?.addEventListener('change',()=>renderRetentionBusinesses(retentionFilteredRows()));
+
+function renderRetentionBusinessDetail(detail){
+  const b=detail.business||{};
+  const grid=$('[data-retention-business-details]');
+  if(grid){
+    grid.innerHTML=[['Contact name',b.name],['Email',b.email],['Phone',b.phone],['Company',b.company_name],['Address',b.address],['Preferred category',catLabel(b.preferred_category)],['Status',b.status],['Stripe customer',b.stripe_customer_id],['Portal access',b.last_login_at?'Activated':'Not yet activated'],['Created',fmt(b.created_at)],['Last updated',fmt(b.updated_at)],['Last login',fmt(b.last_login_at)],['Total leads delivered',(detail.assignments||[]).length]].map(([label,value])=>`<div><strong>${esc(label)}</strong>${esc(value===0?'0':(value||'—'))}</div>`).join('');
+  }
+  const orderList=$('[data-retention-orders-list]');
+  if(orderList){
+    const orders=detail.orders||[];
+    orderList.innerHTML=orders.length?orders.map(o=>`<div class="note-item"><strong>${catLabel(o.category)} — ${o.quantity} leads</strong><div>${fmtMoney(o.total_cents)} · Status: ${esc(o.status)} · Fulfilled: ${o.fulfilled_leads||0}/${o.quantity}</div><div class="meta">Submitted ${fmt(o.created_at)}${o.paid_at?` · Paid ${fmt(o.paid_at)}`:''}</div></div>`).join(''):'<p class="empty-hint">No orders yet.</p>';
+  }
+}
+
+async function loadRetentionNotes(bizId){
+  const box=$('[data-retention-notes]');
+  if(!box)return;
+  box.innerHTML='<p class="empty-hint">Loading notes…</p>';
+  try{
+    const res=await api(`/api/admin/businesses/${bizId}/notes`);
+    const content=res.note?.content||'';
+    if(!content){box.innerHTML='<p class="empty-hint">No notes recorded for this account.</p>';return;}
+    const author=res.note?.updated_by==='admin'?'Admin':'Business';
+    box.innerHTML=`<div class="note-item"><div style="white-space:pre-wrap">${esc(content)}</div><div class="meta">Last updated by ${esc(author)}${res.note?.updated_at?` on ${fmt(res.note.updated_at)}`:''}</div></div>`;
+  }catch(error){box.innerHTML=`<p class="empty-hint">${esc(error.message)}</p>`;}
 }
 
 function getFilters(){
@@ -297,12 +362,16 @@ $('[data-order-save]').addEventListener('click',async()=>{
 function openBusiness(id){
   activeBusiness=businesses.find(b=>String(b.id)===String(id));
   if(!activeBusiness)return;
-  const isStaff=document.body.dataset.role==='staff';
+  const role=document.body.dataset.role;
   api(`/api/admin/businesses/${id}`).then(detail=>{
     activeBusinessDetail=detail;
     $('[data-business-title]').textContent=detail.business.name||detail.business.email||detail.business.company_name;
     renderBusinessLeads(detail.assignments||[]);
-    if(!isStaff){
+    if(role==='retention'){
+      renderRetentionBusinessDetail(detail);
+      loadRetentionNotes(id);
+    }
+    if(role==='admin'){
       $('[data-business-details]').innerHTML=[['Email',detail.business.email],['Phone',detail.business.phone],['Company',detail.business.company_name],['Category',catLabel(detail.business.preferred_category)],['Status',detail.business.status],['Created',fmt(detail.business.created_at)],['Last login',fmt(detail.business.last_login_at)]].map(([label,value])=>`<div><strong>${esc(label)}</strong>${esc(value||'—')}</div>`).join('');
       $('[data-business-status]').value=detail.business.status||'active';
       $('[data-business-name]').value=detail.business.name||'';
@@ -325,7 +394,8 @@ function renderBusinessOrders(orders){
 
 function renderBusinessLeads(assignments){
   const list=$('[data-business-leads-list]');
-  list.innerHTML=assignments.length?assignments.map(a=>`<div class="note-item"><strong>${esc(a.name)}</strong><div>${esc(a.email||'—')} · ${esc(a.phone||'—')}</div><div>${esc(a.message||'')}</div><div class="meta">${catLabel(a.category)} · Assigned ${fmt(a.assigned_at)}</div><button type="button" data-edit-business-lead="${a.lead_id}" style="margin-top:6px">Edit lead</button></div>`).join(''):'<p class="empty-hint">No leads assigned yet.</p>';
+  const readOnly=document.body.dataset.role==='retention';
+  list.innerHTML=assignments.length?assignments.map(a=>`<div class="note-item"><strong>${esc(a.name)}</strong><div>${esc(a.email||'—')} · ${esc(a.phone||'—')}</div><div>${esc(a.message||'')}</div><div class="meta">${catLabel(a.category)} · ${esc(a.city||'—')}${a.state?', '+esc(a.state):''} · Status: ${esc(a.lead_status||a.assignment_status||'—')} · Assigned ${fmt(a.assigned_at)}</div>${readOnly?'':`<button type="button" data-edit-business-lead="${a.lead_id}" style="margin-top:6px">Edit lead</button>`}</div>`).join(''):'<p class="empty-hint">No leads assigned yet.</p>';
 }
 
 $('[data-business-leads-list]').addEventListener('click',event=>{
@@ -585,6 +655,163 @@ function setRange(hours){const now=new Date();filterTo.value=toLocalInput(now);f
 function resetRange(){setRange(30*24);}
 async function applyQuickRange(hours){setRange(hours);await loadDashboard().catch(error=>{filterStatus.textContent=error.message;});}
 
+/* ── Printable backend reports (admin only) ── */
+const reportForm=$('[data-report-form]');
+const reportFrom=$('[data-report-from]');
+const reportTo=$('[data-report-to]');
+const reportDetail=$('[data-report-detail]');
+const reportStatus=$('[data-report-status]');
+const dateOnly=(date)=>{const offset=date.getTimezoneOffset();return new Date(date.getTime()-offset*60000).toISOString().slice(0,10);};
+const fmtDay=(value)=>value?new Date(`${value}T12:00:00`).toLocaleDateString():'—';
+const fmtLocalDay=(value)=>{if(!value)return '—';const d=new Date(value);return Number.isNaN(d.getTime())?'—':d.toLocaleDateString();};
+const pct=(part,whole)=>whole?`${((Number(part||0)/Number(whole))*100).toFixed(1)}%`:'—';
+
+function resetReportRange(){
+  const now=new Date();
+  reportTo.value=dateOnly(now);
+  reportFrom.value=dateOnly(new Date(now.getFullYear(),now.getMonth(),1));
+}
+
+function setReportRange(key){
+  const now=new Date();
+  if(key==='this-month'){reportFrom.value=dateOnly(new Date(now.getFullYear(),now.getMonth(),1));reportTo.value=dateOnly(now);}
+  else if(key==='last-month'){reportFrom.value=dateOnly(new Date(now.getFullYear(),now.getMonth()-1,1));reportTo.value=dateOnly(new Date(now.getFullYear(),now.getMonth(),0));}
+  else if(key==='last-7'){reportFrom.value=dateOnly(new Date(now.getTime()-6*86400000));reportTo.value=dateOnly(now);}
+  else if(key==='ytd'){reportFrom.value=dateOnly(new Date(now.getFullYear(),0,1));reportTo.value=dateOnly(now);}
+}
+
+async function fetchReport(){
+  if(!reportFrom.value||!reportTo.value)throw new Error('Please choose a start and end date.');
+  if(reportFrom.value>reportTo.value)throw new Error('The start date must be on or before the end date.');
+  const params=new URLSearchParams({from:new Date(`${reportFrom.value}T00:00:00`).toISOString(),to:new Date(`${reportTo.value}T23:59:59.999`).toISOString()});
+  return api(`/api/admin/report?${params}`);
+}
+
+function reportTable(headers,rows,emptyText){
+  if(!rows.length)return `<p class="report-empty">${esc(emptyText)}</p>`;
+  return `<table class="report-table"><thead><tr>${headers.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(cells=>`<tr>${cells.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+}
+
+function buildReportHtml(data,detailLevel){
+  const t=data.traffic||{};const o=data.order_totals||{};const l=data.lead_totals||{};
+  const rangeLabel=`${fmtLocalDay(data.range?.from)} – ${fmtLocalDay(data.range?.to)}`;
+  const cards=[
+    ['Visits',Number(t.visits||0).toLocaleString()],
+    ['Unique visitors',Number(t.unique_visitors||0).toLocaleString()],
+    ['Orders submitted',Number(o.total_orders||0).toLocaleString()],
+    ['Gross order value',fmtMoney(o.revenue_cents)],
+    ['Paid revenue',fmtMoney(o.paid_cents)],
+    ['Awaiting payment',fmtMoney(o.pending_cents)],
+    ['Refunded',fmtMoney(o.refunded_cents)],
+    ['Leads ordered',Number(o.leads_ordered||0).toLocaleString()],
+    ['Leads fulfilled',Number(o.leads_fulfilled||0).toLocaleString()],
+    ['Fulfillment rate',pct(o.leads_fulfilled,o.leads_ordered)],
+    ['Leads added to database',Number(l.total_leads||0).toLocaleString()],
+    ['Leads delivered to clients',Number(l.delivered||0).toLocaleString()],
+    ['New business accounts',Number((data.new_businesses||[]).length).toLocaleString()],
+    ['Visit-to-order rate',pct(o.total_orders,t.visits)]
+  ];
+
+  const sections=[];
+  sections.push(`<h2>Summary</h2><div class="report-cards">${cards.map(([label,value])=>`<div class="report-card"><span>${esc(label)}</span><strong>${esc(value)}</strong></div>`).join('')}</div>`);
+
+  sections.push(`<h2>Revenue by order status</h2>${reportTable(['Status','Orders','Value'],(data.orders_by_status||[]).map(r=>[esc(r.status||'—'),Number(r.orders||0).toLocaleString(),fmtMoney(r.revenue_cents)]),'No orders in this date range.')}`);
+  sections.push(`<h2>Revenue by category</h2>${reportTable(['Category','Orders','Leads ordered','Value'],(data.orders_by_category||[]).map(r=>[esc(catLabel(r.category)),Number(r.orders||0).toLocaleString(),Number(r.leads_ordered||0).toLocaleString(),fmtMoney(r.revenue_cents)]),'No orders in this date range.')}`);
+  sections.push(`<h2>Leads added by category</h2>${reportTable(['Category','Leads'],(data.leads_by_category||[]).map(r=>[esc(catLabel(r.category)),Number(r.leads||0).toLocaleString()]),'No leads added in this date range.')}`);
+  sections.push(`<h2>Leads by status</h2>${reportTable(['Status','Leads'],(data.leads_by_status||[]).map(r=>[esc(r.status||'—'),Number(r.leads||0).toLocaleString()]),'No leads added in this date range.')}`);
+  sections.push(`<h2>Daily activity</h2>${reportTable(['Day','Views','Unique visitors','Orders','Leads delivered'],(data.daily||[]).map(r=>[fmtDay(r.day),Number(r.views||0).toLocaleString(),Number(r.unique_visitors||0).toLocaleString(),Number(r.orders||0).toLocaleString(),Number(r.leads_delivered||0).toLocaleString()]),'No site activity in this date range.')}`);
+  sections.push(`<h2>Top pages</h2>${reportTable(['Page','Views','Unique visitors'],(data.pages||[]).map(r=>[esc(r.page_path||'—'),Number(r.views||0).toLocaleString(),Number(r.unique_visitors||0).toLocaleString()]),'No page views in this date range.')}`);
+  sections.push(`<h2>Traffic sources</h2>${reportTable(['Referrer','Page views'],(data.referrers||[]).map(r=>[esc(r.referrer||'Direct / none'),Number(r.hits||0).toLocaleString()]),'No referrer data in this date range.')}`);
+  sections.push(`<h2>Account status (all time)</h2>${reportTable(['Status','Accounts'],(data.business_statuses||[]).map(r=>[esc(r.status||'—'),Number(r.businesses||0).toLocaleString()]),'No business accounts yet.')}`);
+
+  if(detailLevel==='full'){
+    sections.push(`<h2>Orders in range</h2>${reportTable(['Submitted','Business','Contact','Category','Qty','Total','Status','Fulfilled'],(data.orders||[]).map(r=>[fmt(r.submitted_at),esc(r.business_name||r.name||'—'),`${esc(r.email||'—')}<br>${esc(r.phone||'—')}`,esc(catLabel(r.category)),Number(r.quantity||0).toLocaleString(),fmtMoney(r.total_cents),esc(r.status||'—'),`${r.fulfilled_leads||0}/${r.quantity||0}`]),'No orders in this date range.')}`);
+    sections.push(`<h2>New business accounts in range</h2>${reportTable(['Created','Name','Company','Contact','Category','Status'],(data.new_businesses||[]).map(r=>[fmt(r.created_at),esc(r.name||'—'),esc(r.company_name||'—'),`${esc(r.email||'—')}<br>${esc(r.phone||'—')}`,esc(catLabel(r.preferred_category)),esc(r.status||'—')]),'No new accounts in this date range.')}`);
+  }
+
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Shedlr backend report ${esc(rangeLabel)}</title>
+<style>
+*{box-sizing:border-box}
+body{font-family:Inter,-apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#16232e;margin:0;padding:28px 32px;background:#fff}
+header{border-bottom:2px solid #16232e;padding-bottom:12px;margin-bottom:18px}
+h1{font-size:22px;margin:0 0 4px}
+header p{margin:2px 0;color:#5a6a7a;font-size:13px}
+h2{font-size:15px;margin:22px 0 8px;padding-bottom:4px;border-bottom:1px solid #d8e0e5;page-break-after:avoid}
+.report-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px}
+.report-card{border:1px solid #d8e0e5;border-radius:6px;padding:8px 10px}
+.report-card span{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#5a6a7a}
+.report-card strong{display:block;font-size:17px;margin-top:2px}
+table.report-table{width:100%;border-collapse:collapse;font-size:12px}
+table.report-table th{text-align:left;background:#f4f7f8;border:1px solid #d8e0e5;padding:5px 7px}
+table.report-table td{border:1px solid #e3e9ec;padding:5px 7px;vertical-align:top}
+.report-empty{font-size:12px;color:#5a6a7a;margin:4px 0 0}
+.report-actions{margin-bottom:16px}
+.report-actions button{font:inherit;font-size:13px;padding:8px 14px;border:1px solid #16232e;background:#16232e;color:#fff;border-radius:6px;cursor:pointer}
+footer{margin-top:24px;border-top:1px solid #d8e0e5;padding-top:8px;font-size:11px;color:#5a6a7a}
+@media print{.report-actions{display:none}body{padding:0}table.report-table{page-break-inside:auto}tr{page-break-inside:avoid}}
+</style></head><body>
+<div class="report-actions"><button type="button" onclick="window.print()">Print this report</button></div>
+<header><h1>Shedlr backend report</h1><p><strong>Date range:</strong> ${esc(rangeLabel)}</p><p><strong>Generated:</strong> ${esc(fmt(data.generated_at))}</p><p><strong>Detail level:</strong> ${detailLevel==='full'?'Summary plus order and account detail':'Summary totals only'}</p></header>
+${sections.join('\n')}
+<footer>Shedlr admin · shedlr.com · Confidential internal report</footer>
+</body></html>`;
+}
+
+async function openReport(autoPrint){
+  reportStatus.textContent='Building report…';
+  try{
+    const data=await fetchReport();
+    const html=buildReportHtml(data,reportDetail.value);
+    const win=window.open('','shedlrReport');
+    if(!win){reportStatus.textContent='Your browser blocked the report window. Allow pop-ups for shedlr.com and try again.';return;}
+    win.document.open();win.document.write(html);win.document.close();
+    win.focus();
+    if(autoPrint)setTimeout(()=>{try{win.print();}catch{}},600);
+    reportStatus.textContent=`Report ready for ${fmtDay(reportFrom.value)} through ${fmtDay(reportTo.value)}.`;
+  }catch(error){reportStatus.textContent=error.message;}
+}
+
+function csvCell(value){const str=String(value??'');return /[",\n]/.test(str)?`"${str.replace(/"/g,'""')}"`:str;}
+
+async function downloadReportCsv(){
+  reportStatus.textContent='Building CSV…';
+  try{
+    const data=await fetchReport();
+    const t=data.traffic||{};const o=data.order_totals||{};const l=data.lead_totals||{};
+    const lines=[];
+    lines.push(['Shedlr backend report']);
+    lines.push(['Range from',data.range?.from,'Range to',data.range?.to]);
+    lines.push([]);
+    lines.push(['Summary metric','Value']);
+    [['Visits',t.visits||0],['Unique visitors',t.unique_visitors||0],['Orders submitted',o.total_orders||0],['Gross order value',(Number(o.revenue_cents||0)/100).toFixed(2)],['Paid revenue',(Number(o.paid_cents||0)/100).toFixed(2)],['Awaiting payment',(Number(o.pending_cents||0)/100).toFixed(2)],['Refunded',(Number(o.refunded_cents||0)/100).toFixed(2)],['Leads ordered',o.leads_ordered||0],['Leads fulfilled',o.leads_fulfilled||0],['Leads added',l.total_leads||0],['Leads delivered',l.delivered||0],['New accounts',(data.new_businesses||[]).length]].forEach(row=>lines.push(row));
+    lines.push([]);
+    lines.push(['Orders in range']);
+    lines.push(['Order ID','Submitted','Business','Contact name','Email','Phone','Category','Quantity','Total','Status','Fulfilled','Paid at']);
+    (data.orders||[]).forEach(r=>lines.push([r.id,r.submitted_at,r.business_name||'',r.name||'',r.email||'',r.phone||'',r.category||'',r.quantity||0,(Number(r.total_cents||0)/100).toFixed(2),r.status||'',r.fulfilled_leads||0,r.paid_at||'']));
+    lines.push([]);
+    lines.push(['New business accounts in range']);
+    lines.push(['Business ID','Created','Name','Company','Email','Phone','Category','Status']);
+    (data.new_businesses||[]).forEach(r=>lines.push([r.id,r.created_at,r.name||'',r.company_name||'',r.email||'',r.phone||'',r.preferred_category||'',r.status||'']));
+    const csv=lines.map(row=>row.map(csvCell).join(',')).join('\r\n');
+    const blob=new Blob([`\ufeff${csv}`],{type:'text/csv;charset=utf-8'});
+    const link=document.createElement('a');
+    link.href=URL.createObjectURL(blob);
+    link.download=`shedlr-report-${reportFrom.value}-to-${reportTo.value}.csv`;
+    document.body.appendChild(link);link.click();link.remove();
+    setTimeout(()=>URL.revokeObjectURL(link.href),2000);
+    reportStatus.textContent='CSV downloaded.';
+  }catch(error){reportStatus.textContent=error.message;}
+}
+
+if(reportForm){
+  reportForm.addEventListener('submit',event=>{event.preventDefault();openReport(true);});
+  $('[data-report-preview]').addEventListener('click',()=>openReport(false));
+  $('[data-report-csv]').addEventListener('click',downloadReportCsv);
+  document.querySelectorAll('[data-report-range]').forEach(button=>{
+    button.addEventListener('click',()=>{setReportRange(button.dataset.reportRange);reportStatus.textContent=`Range set to ${fmtDay(reportFrom.value)} through ${fmtDay(reportTo.value)}. Choose Print report or Preview report.`;});
+  });
+}
+
 /* ── Init ── */
 loginForm.addEventListener('submit',async event=>{
   event.preventDefault();
@@ -601,8 +828,10 @@ async function enterDashboard(role){
   showDashboard();
   populateCategoryFilters();
   if(role==='admin'){
-    resetRange();populateBulkCategory();
+    resetRange();resetReportRange();populateBulkCategory();
     await loadDashboard();
+  }else if(role==='retention'){
+    await loadRetentionBusinesses();
   }else{
     await loadStaffBusinesses();
   }

@@ -165,7 +165,9 @@ async function getAdminSession(request, env) {
     const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
     const decoded = JSON.parse(atob(normalized + "=".repeat((4 - normalized.length % 4) % 4)));
     if (!(decoded.exp > Math.floor(Date.now() / 1000))) return null;
-    return { role: decoded.role === "staff" ? "staff" : "admin" };
+    if (decoded.role === "staff") return { role: "staff" };
+    if (decoded.role === "retention") return { role: "retention" };
+    return { role: "admin" };
   } catch { return null; }
 }
 
@@ -318,6 +320,7 @@ export default {
       let role = null;
       if (timingSafeEqual(password, env.ADMIN_PASSWORD)) role = "admin";
       else if (env.STAFF_PASSWORD && timingSafeEqual(password, env.STAFF_PASSWORD)) role = "staff";
+      else if (env.RETENTION_PASSWORD && timingSafeEqual(password, env.RETENTION_PASSWORD)) role = "retention";
       if (!role) return json({ error: "Incorrect password." }, 401);
       const token = await createSession(env, role);
       return json({ success: true, role }, 200, { "set-cookie": `${SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${SESSION_TTL_SECONDS}` });
@@ -452,7 +455,13 @@ export default {
       const session = await getAdminSession(request, env);
       if (!session) return json({ error: "Unauthorized." }, 401);
       const STAFF_ALLOWED = (request.method === "GET" && url.pathname === "/api/admin/session") || (request.method === "GET" && url.pathname === "/api/admin/businesses") || (request.method === "GET" && /^\/api\/admin\/businesses\/\d+$/.test(url.pathname)) || (request.method === "POST" && url.pathname === "/api/admin/leads") || (request.method === "POST" && url.pathname === "/api/admin/leads/bulk") || (request.method === "PATCH" && /^\/api\/admin\/leads\/\d+$/.test(url.pathname));
-      if (session.role !== "admin" && !STAFF_ALLOWED) return json({ error: "Your account does not have permission for this action." }, 403);
+      /* Retention manager: read-only. Sees every business account in any status, with full
+         contact details, business info, orders, assigned leads, and business notes.
+         Cannot create or edit leads, businesses, orders, or notes. */
+      const RETENTION_ALLOWED = (request.method === "GET" && url.pathname === "/api/admin/session") || (request.method === "GET" && url.pathname === "/api/admin/businesses") || (request.method === "GET" && /^\/api\/admin\/businesses\/\d+$/.test(url.pathname)) || (request.method === "GET" && /^\/api\/admin\/businesses\/\d+\/notes$/.test(url.pathname)) || (request.method === "GET" && /^\/api\/admin\/leads\/\d+\/notes$/.test(url.pathname));
+      if (session.role === "staff" && !STAFF_ALLOWED) return json({ error: "Your account does not have permission for this action." }, 403);
+      if (session.role === "retention" && !RETENTION_ALLOWED) return json({ error: "Your account does not have permission for this action." }, 403);
+      if (session.role !== "admin" && session.role !== "staff" && session.role !== "retention") return json({ error: "Your account does not have permission for this action." }, 403);
       if (request.method === "GET" && url.pathname === "/api/admin/session") return json({ role: session.role });
       if (request.method === "GET" && url.pathname === "/api/admin/dashboard") {
         const now = new Date(); const defaultFrom = new Date(now.getTime() - 30 * 86400000); const fromRaw = url.searchParams.get("from"); const toRaw = url.searchParams.get("to"); const fromDate = fromRaw ? new Date(fromRaw) : defaultFrom; const toDate = toRaw ? new Date(toRaw) : now;
@@ -464,10 +473,57 @@ export default {
         const pages = await env.DB.prepare(`SELECT page_path, SUM(CASE WHEN event_name='page_view' THEN 1 ELSE 0 END) views, COUNT(DISTINCT CASE WHEN event_name='page_view' THEN session_id END) unique_visitors, MAX(occurred_at) last_activity FROM site_events WHERE page_path IS NOT NULL AND page_path <> '' GROUP BY page_path ORDER BY views DESC, last_activity DESC`).all();
         return json({ metrics: { ...metrics, orders: orderCount?.total || 0, revenue_cents: orderCount?.revenue_cents || 0, paid_cents: orderCount?.paid_cents || 0 }, pages: pages.results || [], orders: orders.results || [], events: events.results || [], range: { from, to } });
       }
-      if (request.method === "GET" && url.pathname === "/api/admin/businesses") { const businesses = await env.DB.prepare(`SELECT id, email, name, phone, company_name, address, preferred_category, status, created_at, last_login_at, (SELECT COUNT(*) FROM lead_assignments la WHERE la.business_id = businesses.id) total_leads FROM businesses ORDER BY created_at DESC LIMIT 500`).all(); const rows = businesses.results || []; if (session.role !== "admin") return json({ businesses: rows.filter(b => !isCanceledBusiness(b)).map(b => ({ id: b.id, name: b.name || b.company_name, company_name: b.company_name, preferred_category: b.preferred_category, address: b.address })) }); return json({ businesses: rows }); }
+      /* Printable backend report for a date range (admin only). */
+      if (request.method === "GET" && url.pathname === "/api/admin/report") {
+        const now = new Date();
+        const parseBound = (raw, fallback, endOfDay) => {
+          if (!raw) return fallback;
+          if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return new Date(`${raw}T${endOfDay ? "23:59:59.999" : "00:00:00.000"}Z`);
+          return new Date(raw);
+        };
+        const fromDate = parseBound(url.searchParams.get("from"), new Date(now.getTime() - 30 * 86400000), false);
+        const toDate = parseBound(url.searchParams.get("to"), now, true);
+        if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) return json({ error: "Invalid date range." }, 400);
+        if (fromDate > toDate) return json({ error: "The start date must be before the end date." }, 400);
+        const from = fromDate.toISOString(); const to = toDate.toISOString();
+
+        const traffic = await env.DB.prepare(`SELECT SUM(CASE WHEN event_name='page_view' THEN 1 ELSE 0 END) visits, COUNT(DISTINCT CASE WHEN event_name='page_view' THEN session_id END) unique_visitors, SUM(CASE WHEN event_name='order_submitted' THEN 1 ELSE 0 END) order_submissions, SUM(CASE WHEN event_name='lead_delivered' THEN 1 ELSE 0 END) leads_delivered FROM site_events WHERE occurred_at >= ? AND occurred_at <= ?`).bind(from, to).first();
+        const orderTotals = await env.DB.prepare(`SELECT COUNT(*) total_orders, COALESCE(SUM(quantity),0) leads_ordered, COALESCE(SUM(fulfilled_leads),0) leads_fulfilled, COALESCE(SUM(total_cents),0) revenue_cents, COALESCE(SUM(CASE WHEN status='paid' OR status='fulfilling' OR status='completed' THEN total_cents ELSE 0 END),0) paid_cents, COALESCE(SUM(CASE WHEN status='pending_payment' THEN total_cents ELSE 0 END),0) pending_cents, COALESCE(SUM(CASE WHEN status='refunded' THEN total_cents ELSE 0 END),0) refunded_cents FROM lead_orders WHERE submitted_at >= ? AND submitted_at <= ?`).bind(from, to).first();
+        const ordersByStatus = await env.DB.prepare(`SELECT status, COUNT(*) orders, COALESCE(SUM(total_cents),0) revenue_cents FROM lead_orders WHERE submitted_at >= ? AND submitted_at <= ? GROUP BY status ORDER BY revenue_cents DESC`).bind(from, to).all();
+        const ordersByCategory = await env.DB.prepare(`SELECT category, COUNT(*) orders, COALESCE(SUM(quantity),0) leads_ordered, COALESCE(SUM(total_cents),0) revenue_cents FROM lead_orders WHERE submitted_at >= ? AND submitted_at <= ? GROUP BY category ORDER BY revenue_cents DESC`).bind(from, to).all();
+        const orders = await env.DB.prepare(`SELECT id, business_name, name, email, phone, category, quantity, unit_price_cents, total_cents, status, fulfilled_leads, submitted_at, paid_at FROM lead_orders WHERE submitted_at >= ? AND submitted_at <= ? ORDER BY submitted_at DESC LIMIT 1000`).bind(from, to).all();
+        const leadTotals = await env.DB.prepare(`SELECT COUNT(*) total_leads FROM leads WHERE submitted_at >= ? AND submitted_at <= ?`).bind(from, to).first();
+        const leadsByCategory = await env.DB.prepare(`SELECT category, COUNT(*) leads FROM leads WHERE submitted_at >= ? AND submitted_at <= ? GROUP BY category ORDER BY leads DESC`).bind(from, to).all();
+        const leadsByStatus = await env.DB.prepare(`SELECT status, COUNT(*) leads FROM leads WHERE submitted_at >= ? AND submitted_at <= ? GROUP BY status ORDER BY leads DESC`).bind(from, to).all();
+        const assignments = await env.DB.prepare(`SELECT COUNT(*) delivered FROM lead_assignments WHERE assigned_at >= ? AND assigned_at <= ?`).bind(from, to).first();
+        const newBusinesses = await env.DB.prepare(`SELECT id, email, name, company_name, phone, preferred_category, status, created_at FROM businesses WHERE created_at >= ? AND created_at <= ? ORDER BY created_at DESC LIMIT 500`).bind(from, to).all();
+        const businessStatuses = await env.DB.prepare(`SELECT status, COUNT(*) businesses FROM businesses GROUP BY status ORDER BY businesses DESC`).all();
+        const pages = await env.DB.prepare(`SELECT page_path, SUM(CASE WHEN event_name='page_view' THEN 1 ELSE 0 END) views, COUNT(DISTINCT CASE WHEN event_name='page_view' THEN session_id END) unique_visitors FROM site_events WHERE occurred_at >= ? AND occurred_at <= ? AND page_path IS NOT NULL AND page_path <> '' GROUP BY page_path ORDER BY views DESC LIMIT 100`).bind(from, to).all();
+        const referrers = await env.DB.prepare(`SELECT COALESCE(NULLIF(referrer,''),'Direct / none') referrer, COUNT(*) hits FROM site_events WHERE occurred_at >= ? AND occurred_at <= ? AND event_name='page_view' GROUP BY referrer ORDER BY hits DESC LIMIT 50`).bind(from, to).all();
+        const daily = await env.DB.prepare(`SELECT substr(occurred_at,1,10) day, SUM(CASE WHEN event_name='page_view' THEN 1 ELSE 0 END) views, COUNT(DISTINCT CASE WHEN event_name='page_view' THEN session_id END) unique_visitors, SUM(CASE WHEN event_name='order_submitted' THEN 1 ELSE 0 END) orders, SUM(CASE WHEN event_name='lead_delivered' THEN 1 ELSE 0 END) leads_delivered FROM site_events WHERE occurred_at >= ? AND occurred_at <= ? GROUP BY day ORDER BY day DESC LIMIT 400`).bind(from, to).all();
+
+        return json({
+          range: { from, to },
+          generated_at: new Date().toISOString(),
+          traffic: traffic || {},
+          order_totals: orderTotals || {},
+          orders_by_status: ordersByStatus.results || [],
+          orders_by_category: ordersByCategory.results || [],
+          orders: orders.results || [],
+          lead_totals: { ...(leadTotals || {}), delivered: assignments?.delivered || 0 },
+          leads_by_category: leadsByCategory.results || [],
+          leads_by_status: leadsByStatus.results || [],
+          new_businesses: newBusinesses.results || [],
+          business_statuses: businessStatuses.results || [],
+          pages: pages.results || [],
+          referrers: referrers.results || [],
+          daily: daily.results || []
+        });
+      }
+      if (request.method === "GET" && url.pathname === "/api/admin/businesses") { const businesses = await env.DB.prepare(`SELECT id, email, name, phone, company_name, address, preferred_category, status, created_at, last_login_at, (SELECT COUNT(*) FROM lead_assignments la WHERE la.business_id = businesses.id) total_leads FROM businesses ORDER BY created_at DESC LIMIT 500`).all(); const rows = businesses.results || []; if (session.role === "staff") return json({ businesses: rows.filter(b => !isCanceledBusiness(b)).map(b => ({ id: b.id, name: b.name || b.company_name, company_name: b.company_name, preferred_category: b.preferred_category, address: b.address })) }); return json({ businesses: rows }); }
       if (request.method === "POST" && url.pathname === "/api/admin/businesses") { let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); } const email = clean(data.email, 254).toLowerCase(); if (!validEmail(email)) return json({ error: "A valid email is required." }, 400); const existing = await env.DB.prepare("SELECT id FROM businesses WHERE email=?").bind(email).first(); if (existing) return json({ error: "A business with this email already exists." }, 409); const name = clean(data.name, 120) || null; const phone = clean(data.phone, 40) || null; const companyName = clean(data.company_name, 200) || null; const preferredCategory = data.preferred_category && CATEGORIES.includes(clean(data.preferred_category, 60)) ? clean(data.preferred_category, 60) : null; const now = new Date().toISOString(); const result = await env.DB.prepare(`INSERT INTO businesses (email, name, phone, company_name, preferred_category, status, created_at, updated_at) VALUES (?,?,?,?,?,'active',?,?)`).bind(email, name, phone, companyName, preferredCategory, now, now).run(); const businessId = result.meta?.last_row_id; if (!businessId) return json({ error: "Failed to create business." }, 500); const token = await issueActivationToken(env, businessId); return json({ success: true, business: await findBusinessById(env, businessId), activation_url: `https://shedlr.com/portal/activate.html?token=${token}` }, 201); }
       const businessDetailMatch = url.pathname.match(/^\/api\/admin\/businesses\/(\d+)$/);
-      if (request.method === "GET" && businessDetailMatch) { const id = Number(businessDetailMatch[1]); const business = await findBusinessById(env, id); if (!business) return json({ error: "Business not found." }, 404); const assignments = await env.DB.prepare(`SELECT la.id, la.lead_id, la.status AS assignment_status, la.assigned_at, l.name, l.email, l.phone, l.category, l.message, l.source, l.city, l.state, l.status AS lead_status FROM lead_assignments la JOIN leads l ON l.id = la.lead_id WHERE la.business_id=? ORDER BY la.assigned_at DESC LIMIT 200`).bind(id).all(); if (session.role !== "admin") { if (isCanceledBusiness(business)) return json({ error: "Business not found." }, 404); return json({ business: { id: business.id, name: business.name, company_name: business.company_name, preferred_category: business.preferred_category, address: business.address }, orders: [], assignments: assignments.results || [] }); } const orders = await env.DB.prepare("SELECT id, category, quantity, unit_price_cents, total_cents, status, paid_at, created_at, fulfilled_leads FROM lead_orders WHERE email=? ORDER BY created_at DESC LIMIT 200").bind(business.email).all(); const { password_hash, activation_nonce, activation_nonce_expires, ...safeBusiness } = business; return json({ business: safeBusiness, orders: orders.results || [], assignments: assignments.results || [] }); }
+      if (request.method === "GET" && businessDetailMatch) { const id = Number(businessDetailMatch[1]); const business = await findBusinessById(env, id); if (!business) return json({ error: "Business not found." }, 404); const assignments = await env.DB.prepare(`SELECT la.id, la.lead_id, la.status AS assignment_status, la.assigned_at, l.name, l.email, l.phone, l.category, l.message, l.source, l.city, l.state, l.status AS lead_status FROM lead_assignments la JOIN leads l ON l.id = la.lead_id WHERE la.business_id=? ORDER BY la.assigned_at DESC LIMIT 200`).bind(id).all(); if (session.role === "staff") { if (isCanceledBusiness(business)) return json({ error: "Business not found." }, 404); return json({ business: { id: business.id, name: business.name, company_name: business.company_name, preferred_category: business.preferred_category, address: business.address }, orders: [], assignments: assignments.results || [] }); } const orders = await env.DB.prepare("SELECT id, category, quantity, unit_price_cents, total_cents, status, paid_at, created_at, fulfilled_leads FROM lead_orders WHERE email=? ORDER BY created_at DESC LIMIT 200").bind(business.email).all(); const { password_hash, activation_nonce, activation_nonce_expires, ...safeBusiness } = business; return json({ business: safeBusiness, orders: orders.results || [], assignments: assignments.results || [] }); }
       if (request.method === "PATCH" && businessDetailMatch) { let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); } const id = Number(businessDetailMatch[1]); const business = await findBusinessById(env, id); if (!business) return json({ error: "Business not found." }, 404); const allowedStatuses = ["active", "past_due", "canceled", "suspended"]; const status = allowedStatuses.includes(clean(data.status, 30)) ? clean(data.status, 30) : business.status; const name = data.name !== undefined ? clean(data.name, 120) : business.name; const phone = data.phone !== undefined ? clean(data.phone, 40) : business.phone; const companyName = data.company_name !== undefined ? clean(data.company_name, 200) : business.company_name; const address = data.address !== undefined ? clean(data.address, 300) : business.address; const preferredCategory = data.preferred_category !== undefined && CATEGORIES.includes(clean(data.preferred_category, 60)) ? clean(data.preferred_category, 60) : business.preferred_category; await env.DB.prepare("UPDATE businesses SET status=?, name=?, phone=?, company_name=?, address=?, preferred_category=?, updated_at=? WHERE id=?").bind(status, name, phone, companyName, address, preferredCategory, new Date().toISOString(), id).run(); return json({ success: true, business: await findBusinessById(env, id) }); }
       const resetPasswordMatch = url.pathname.match(/^\/api\/admin\/businesses\/(\d+)\/reset-password$/);
       if (request.method === "POST" && resetPasswordMatch) { const id = Number(resetPasswordMatch[1]); const business = await findBusinessById(env, id); if (!business) return json({ error: "Business not found." }, 404); const token = await issueActivationToken(env, id); return json({ success: true, activation_url: `https://shedlr.com/portal/activate.html?token=${token}` }); }
