@@ -2,7 +2,7 @@ const SESSION_COOKIE = "shedlr_admin";
 const SESSION_TTL_SECONDS = 60 * 60 * 8;
 const BUSINESS_SESSION_COOKIE = "shedlr_business";
 const BUSINESS_SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
-const ACTIVATION_TTL_MS = 30 * 60 * 1000;
+const ACTIVATION_TTL_MS = 72 * 60 * 60 * 1000;
 const LEAD_PRICE_CENTS = 100; // fallback default
 
 const CATEGORY_PRICES = {
@@ -240,6 +240,52 @@ function isCanceledBusiness(business) {
   return status === "canceled" || status === "cancelled";
 }
 
+const activationUrl = (token) => `https://shedlr.com/portal/activate.html?token=${token}`;
+
+/* Delivers the portal activation link to a paying customer.
+   Prefers a real transactional provider (Resend) because the Cloudflare send_email
+   binding can only deliver to destination addresses verified in this account — it
+   cannot reach arbitrary customers. When no provider is configured we alert the
+   internal address instead so nobody is left waiting silently. */
+async function sendActivationEmail(env, email, token) {
+  const link = activationUrl(token);
+  const subject = "Activate your Shedlr lead portal";
+  const text = `Your Shedlr account is ready.\n\nSet your password and sign in here:\n${link}\n\nThis link expires in 72 hours. If it expires, go to https://shedlr.com/portal/ and use "Forgot password", or reply to this email and we will send a new one.\n\n— Shedlr\nsupport@shedlr.com · (307) 303-7530`;
+  const html = `<div style="font-family:Inter,Segoe UI,Helvetica,Arial,sans-serif;color:#16232e;line-height:1.5">
+<h2 style="margin:0 0 12px">Your Shedlr account is ready</h2>
+<p style="margin:0 0 18px">Set your password to access your lead portal.</p>
+<p style="margin:0 0 22px"><a href="${link}" style="display:inline-block;background:#16232e;color:#fff;text-decoration:none;padding:12px 20px;border-radius:6px;font-weight:600">Activate my account</a></p>
+<p style="margin:0 0 6px;font-size:13px;color:#5a6a7a">Or paste this link into your browser:</p>
+<p style="margin:0 0 18px;font-size:13px;word-break:break-all"><a href="${link}">${link}</a></p>
+<p style="margin:0 0 18px;font-size:13px;color:#5a6a7a">This link expires in 72 hours.</p>
+<p style="margin:0;font-size:13px;color:#5a6a7a">Shedlr &middot; support@shedlr.com &middot; (307) 303-7530</p>
+</div>`;
+
+  try {
+    if (env.RESEND_API_KEY) {
+      const res = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, "content-type": "application/json" },
+        body: JSON.stringify({ from: env.ACTIVATION_EMAIL_FROM || "Shedlr <support@shedlr.com>", to: [email], subject, text, html })
+      });
+      if (res.ok) return true;
+      console.error("Activation email provider rejected the send", res.status, await res.text().catch(() => ""));
+    }
+  } catch (error) { console.error("Activation email failed", error?.message || error); }
+
+  try {
+    if (env.EMAIL) {
+      const alertTo = env.INTERNAL_ALERT_EMAIL || "support@liferise.cc";
+      await env.EMAIL.send({
+        from: env.ACTIVATION_EMAIL_FROM || "Shedlr <notifications@liferise.cc>", to: alertTo,
+        subject: `Send activation link manually — ${email}`,
+        text: `No customer-capable email provider is configured, so ${email} was not emailed automatically.\n\nSend them this activation link:\n${link}\n\nIt expires in 72 hours.`
+      });
+    }
+  } catch (error) { console.error("Internal activation alert failed", error?.message || error); }
+  return false;
+}
+
 async function issueActivationToken(env, businessId) {
   const token = uuid().replace(/-/g, "") + uuid().replace(/-/g, "");
   const expires = new Date(Date.now() + ACTIVATION_TTL_MS).toISOString();
@@ -301,12 +347,70 @@ async function notify(env, order) {
   try {
     if (env.EMAIL) {
       await env.EMAIL.send({
-        from: "Shedlr Orders <notifications@liferise.cc>", to: "support@shedlr.com", replyTo: order.email,
+        /* Must be a destination address verified in this account's Email Routing,
+           otherwise Cloudflare rejects it with E_RECIPIENT_NOT_ALLOWED. */
+        from: "Shedlr Orders <notifications@liferise.cc>", to: env.INTERNAL_ALERT_EMAIL || "support@liferise.cc", replyTo: order.email,
         subject: `New Shedlr order — ${order.name} (${order.quantity} ${order.category} leads)`,
         text: `Name: ${order.name}\nEmail: ${order.email}\nPhone: ${order.phone}\nBusiness: ${order.business_name || '(none)'}\nCategory: ${order.category}\nLead Type: ${order.lead_type || '(not specified)'}\nZIP: ${order.zip || '(not specified)'}\nQuantity: ${order.quantity}\nTotal: $${(order.total_cents / 100).toFixed(2)}\nMessage: ${order.message || '(none)'}`
       });
     }
   } catch (error) { console.error("Email notification failed", error); }
+}
+
+/* Turns a completed Stripe Checkout session into a live business account and a fresh
+   activation token. Shared by the webhook and the post-checkout activation endpoint so
+   a customer still gets in even if the webhook is missing, delayed, or misconfigured.
+   Safe to run more than once for the same session. */
+async function provisionBusinessFromCheckout(env, session) {
+  const email = clean(session.customer_details?.email || session.customer_email || "", 254).toLowerCase();
+  if (!validEmail(email)) return { ok: false, error: "That checkout session has no customer email." };
+
+  const now = new Date().toISOString();
+
+  /* Payment Links carry our order id in client_reference_id; the Checkout API uses metadata. */
+  let orderId = session.metadata?.order_id ? Number(session.metadata.order_id) : null;
+  if (!orderId) {
+    const reference = clean(session.client_reference_id || "", 200);
+    const match = reference.match(/^order[_-]?(\d+)$/i);
+    if (match) orderId = Number(match[1]);
+  }
+
+  let order = orderId ? await env.DB.prepare("SELECT * FROM lead_orders WHERE id=?").bind(orderId).first() : null;
+  /* Last resort: the most recent order submitted with this email. */
+  if (!order) order = await env.DB.prepare("SELECT * FROM lead_orders WHERE email=? ORDER BY id DESC LIMIT 1").bind(email).first();
+
+  if (order && order.status !== "refunded") {
+    await env.DB.prepare("UPDATE lead_orders SET status='paid', stripe_session_id=COALESCE(stripe_session_id,?), stripe_payment_intent=COALESCE(stripe_payment_intent,?), paid_at=COALESCE(paid_at,?) WHERE id=?")
+      .bind(session.id || null, session.payment_intent || null, now, order.id).run();
+  }
+
+  const name = clean(session.customer_details?.name || "", 120) || order?.name || null;
+  const phone = clean(session.customer_details?.phone || "", 40) || order?.phone || null;
+  const customerId = session.customer || null;
+
+  const existing = await env.DB.prepare("SELECT * FROM businesses WHERE email=?").bind(email).first();
+  let businessId = existing?.id || null;
+  let created = false;
+
+  if (existing) {
+    await env.DB.prepare("UPDATE businesses SET stripe_customer_id=COALESCE(stripe_customer_id,?), name=COALESCE(name,?), phone=COALESCE(phone,?), company_name=COALESCE(company_name,?), preferred_category=COALESCE(preferred_category,?), status='active', updated_at=? WHERE id=?")
+      .bind(customerId, name, phone, order?.business_name || null, order?.category || null, now, existing.id).run();
+  } else {
+    const result = await env.DB.prepare(`INSERT INTO businesses
+      (stripe_customer_id, email, name, phone, company_name, preferred_category, status, created_at, updated_at)
+      VALUES (?,?,?,?,?,?,'active',?,?)`)
+      .bind(customerId, email, name, phone, order?.business_name || null, order?.category || null, now, now).run();
+    businessId = result.meta?.last_row_id || null;
+    created = true;
+  }
+
+  if (!businessId) return { ok: false, error: "We could not create the business account." };
+
+  const business = await findBusinessById(env, businessId);
+  if (business?.password_hash) return { ok: true, email, business_id: businessId, created, already_activated: true };
+
+  const token = await issueActivationToken(env, businessId);
+  return { ok: true, email, business_id: businessId, created, already_activated: false, token, activation_url: activationUrl(token) };
 }
 
 function mapOrderStatus(stripeStatus) {
@@ -354,34 +458,9 @@ export default {
 
       try {
         if (event.type === "checkout.session.completed") {
-          const session = event.data?.object || {};
-          const email = clean(session.customer_details?.email || session.customer_email || "", 254).toLowerCase();
-          if (!validEmail(email)) return json({ received: true });
-
-          const orderId = session.metadata?.order_id ? Number(session.metadata.order_id) : null;
-          if (orderId) {
-            await env.DB.prepare("UPDATE lead_orders SET status='paid', stripe_session_id=?, stripe_payment_intent=?, paid_at=? WHERE id=?")
-              .bind(session.id, session.payment_intent || null, new Date().toISOString(), orderId).run();
-          }
-
-          const existing = await env.DB.prepare("SELECT * FROM businesses WHERE email=?").bind(email).first();
-          const name = clean(session.customer_details?.name || "", 120) || null;
-          const phone = clean(session.customer_details?.phone || "", 40) || null;
-          const customerId = session.customer || null;
-          const now = new Date().toISOString();
-
-          if (existing) {
-            await env.DB.prepare("UPDATE businesses SET stripe_customer_id=COALESCE(stripe_customer_id,?), name=COALESCE(name,?), phone=COALESCE(phone,?), updated_at=? WHERE id=?")
-              .bind(customerId, name, phone, now, existing.id).run();
-            if (!existing.password_hash) await issueActivationToken(env, existing.id);
-          } else {
-            const order = orderId ? await env.DB.prepare("SELECT * FROM lead_orders WHERE id=?").bind(orderId).first() : null;
-            const result = await env.DB.prepare(`INSERT INTO businesses
-              (stripe_customer_id, email, name, phone, company_name, preferred_category, status, created_at, updated_at)
-              VALUES (?,?,?,?,?,?,'active',?,?)`)
-              .bind(customerId, email, name, phone, order?.business_name || null, order?.category || null, now, now).run();
-            if (result.meta?.last_row_id) await issueActivationToken(env, result.meta.last_row_id);
-          }
+          const outcome = await provisionBusinessFromCheckout(env, event.data?.object || {});
+          /* Without this the account exists but the customer is never told how to get in. */
+          if (outcome.ok && outcome.token) await sendActivationEmail(env, outcome.email, outcome.token);
         }
       } catch (error) { console.error("Stripe webhook processing error:", error?.message || error); }
 
@@ -407,6 +486,26 @@ export default {
         saveEvent(env, request, { event_name: "order_submitted", page_path: clean(data.page_path,500), session_id: clean(data.session_id,120), order_id: id, metadata: { category: order.category, quantity: order.quantity } })
       ]));
       return json({ success: true, order_id: id, message: "Thank you. Your order has been received. You will get a payment link by email shortly, and once payment is processed, our team will begin verifying leads for you." }, 201);
+    }
+
+    /* Post-checkout self-activation. Stripe redirects the buyer here with their own
+       Checkout Session id, which we verify against the Stripe API before handing back an
+       activation link — so activation never depends on an email arriving. */
+    if (request.method === "GET" && url.pathname === "/api/portal/checkout-activation") {
+      const sessionId = clean(url.searchParams.get("session_id") || "", 200);
+      if (!/^cs_[A-Za-z0-9_]+$/.test(sessionId)) return json({ error: "Missing or malformed checkout session id." }, 400);
+      const stripeResult = await stripeApi(env, `checkout/sessions/${sessionId}`);
+      if (!stripeResult.ok) return json({ error: "We could not verify that checkout session with Stripe." }, 502);
+      const session = stripeResult.data || {};
+      if (session.payment_status !== "paid" && session.status !== "complete") return json({ error: "This checkout has not been paid yet." }, 409);
+      const outcome = await provisionBusinessFromCheckout(env, session);
+      if (!outcome.ok) return json({ error: outcome.error }, 400);
+      /* Awaited, not fire-and-forget, so the page only claims an email was sent when one was. */
+      const emailed = outcome.token ? await sendActivationEmail(env, outcome.email, outcome.token) : false;
+      return json({
+        success: true, email: outcome.email, already_activated: outcome.already_activated, emailed,
+        activation_token: outcome.token || null, activation_url: outcome.activation_url || null
+      });
     }
 
     if (request.method === "POST" && url.pathname === "/api/portal/activate") {
@@ -445,7 +544,7 @@ export default {
 
     if (request.method === "POST" && url.pathname === "/api/portal/logout") return json({ success: true }, 200, { "set-cookie": businessCookieHeader("", 0) });
 
-    if (url.pathname.startsWith("/api/portal/") && !["/api/portal/activate", "/api/portal/set-password", "/api/portal/login", "/api/portal/logout"].includes(url.pathname)) {
+    if (url.pathname.startsWith("/api/portal/") && !["/api/portal/activate", "/api/portal/set-password", "/api/portal/login", "/api/portal/logout", "/api/portal/checkout-activation"].includes(url.pathname)) {
       const business = await getAuthedBusiness(request, env);
       if (!business) return json({ error: "Unauthorized." }, 401);
       if (request.method === "GET" && url.pathname === "/api/portal/me") return json({ business: { id: business.id, email: business.email, name: business.name, phone: business.phone, company_name: business.company_name, address: business.address, preferred_category: business.preferred_category, status: business.status } });

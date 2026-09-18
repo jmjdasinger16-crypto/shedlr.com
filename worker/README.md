@@ -53,7 +53,12 @@ This worker powers the Shedlr API: admin authentication, business portal auth, l
 - `PATCH /api/admin/orders/:id` — update order status
 - `GET  /api/admin/leads/:id/notes` — view notes for a lead
 
-### Business Portal (requires session cookie)
+### Business Portal (public activation endpoints)
+- `GET  /api/portal/checkout-activation?session_id=cs_...` — verifies a Stripe Checkout
+  session against the Stripe API, provisions/updates the business, marks the matching
+  order paid, and returns a fresh activation token. Backs `portal/welcome.html`, the
+  post-payment redirect target, so a paying customer can always reach their portal even
+  if the webhook or the activation email fails. Requires `STRIPE_SECRET_KEY`.
 - `POST /api/portal/activate` — verify activation token
 - `POST /api/portal/set-password` — set password after activation
 - `POST /api/portal/login` — authenticate
@@ -65,4 +70,18 @@ This worker powers the Shedlr API: admin authentication, business portal auth, l
 - `POST /api/portal/leads/:id/notes` — add note to lead
 
 ### Stripe Webhook
-- `POST /api/stripe/webhook` — handles `checkout.session.completed`
+- `POST /api/stripe/webhook` — handles `checkout.session.completed`: provisions the
+  business, marks the order paid (matched via `client_reference_id` = `order_<id>`,
+  falling back to `metadata.order_id` then the newest order for that email), issues an
+  activation token and emails the activation link.
+
+### Activation delivery
+Activation tokens live for 72 hours. Delivery order:
+1. `RESEND_API_KEY` set → the activation link is emailed to the customer.
+2. Otherwise → an alert with the link goes to `INTERNAL_ALERT_EMAIL` to send by hand.
+3. Independently, the Stripe post-payment redirect to
+   `https://shedlr.com/portal/welcome.html?session_id={CHECKOUT_SESSION_ID}` lets the
+   customer activate immediately without any email.
+
+Cloudflare's `send_email` binding cannot reach unverified addresses, so it is used only
+for internal alerts — never for customer mail.

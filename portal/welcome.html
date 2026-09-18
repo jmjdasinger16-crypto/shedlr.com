@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Payment Received · Shedlr</title>
+  <meta name="robots" content="noindex,nofollow">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/portal.css">
+</head>
+<body class="auth-shell">
+  <div class="auth-shell">
+    <a class="brand-row" href="../index.html" style="text-decoration:none;color:inherit"><img src="../assets/shedlr-logo.png" alt="Shedlr" class="brand-logo"></a>
+
+    <div class="auth-loading" data-welcome-loading>
+      <h1>Setting up your account…</h1>
+      <p>Confirming your payment with Stripe. This only takes a moment.</p>
+    </div>
+
+    <div hidden data-welcome-ready>
+      <h1>Payment received</h1>
+      <p class="lead" data-welcome-lead>Your Shedlr account is ready. Set your password to open your lead portal.</p>
+      <p><a class="button-link" data-welcome-link href="#">Set my password</a></p>
+      <p class="switch-link" hidden data-welcome-emailed>We also emailed this link to <span data-welcome-email></span>.</p>
+      <p class="switch-link" hidden data-welcome-not-emailed>Finish this now — the link is only valid for 72 hours. Need it again? Email <a href="mailto:support@shedlr.com">support@shedlr.com</a>.</p>
+    </div>
+
+    <div hidden data-welcome-active>
+      <h1>Payment received</h1>
+      <p class="lead">This email already has a Shedlr password set, so there is nothing to activate.</p>
+      <p><a class="button-link" href="index.html">Sign in to my portal</a></p>
+    </div>
+
+    <div hidden data-welcome-error>
+      <h1>We could not finish setup</h1>
+      <p class="lead" data-welcome-error-text></p>
+      <p class="switch-link">Your payment is safe. Email <a href="mailto:support@shedlr.com">support@shedlr.com</a> or call (307) 303-7530 and we will activate your portal by hand.</p>
+      <p class="switch-link"><a href="index.html">Go to login</a></p>
+    </div>
+
+    <p class="switch-link"><a href="../index.html">← Back to Shedlr</a></p>
+  </div>
+  <script src="js/portal-welcome.js?v=1"></script>
+</body>
+</html>
