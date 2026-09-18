@@ -57,9 +57,114 @@ function renderOrders(rows){
   ordersTable.innerHTML=rows.map(order=>`<tr><td><strong>${esc(order.business_name||order.name)}</strong></td><td>${esc(order.email)}<br>${esc(order.phone)}</td><td>${esc(catLabel(order.category))}</td><td>${order.quantity}</td><td>${fmtMoney(order.total_cents)}</td><td><span class="status">${esc(order.status)}</span></td><td>${order.fulfilled_leads||0}/${order.quantity}</td><td>${fmt(order.submitted_at)}</td><td><button type="button" data-open-order="${order.id}">View</button></td></tr>`).join('')||'<tr><td colspan="9">No orders found.</td></tr>';
 }
 
-function renderLeads(rows){
-  leadsTable.innerHTML=rows.map(lead=>`<tr><td><strong>${esc(lead.name)}</strong></td><td>${esc(lead.email||'—')}<br>${esc(lead.phone||'—')}</td><td>${esc(catLabel(lead.category))}</td><td>${esc(lead.city||'—')}${lead.state?', '+esc(lead.state):''}</td><td><span class="status">${esc(lead.status||'new')}</span></td><td>${esc(lead.assigned_to||'—')}</td><td>${fmt(lead.submitted_at)}</td><td><button type="button" data-open-lead="${lead.id}">View</button></td></tr>`).join('')||'<tr><td colspan="8">No leads found.</td></tr>';
+/* ── Lead multi-select: pick leads straight from the table and delete them in bulk,
+      without opening each one. Selection is keyed on lead id so it survives re-renders
+      (search, category filter, reload) and only ever deletes ids still in `leads`. ── */
+const selectedLeadIds=new Set();
+let renderedLeadIds=[];
+let lastClickedLeadId=null;
+
+function currentLeadRows(){
+  const q=(search?.value||'').trim().toLowerCase();
+  return !q?leads:leads.filter(l=>[l.name,l.email,l.phone,l.category,l.city].some(v=>String(v||'').toLowerCase().includes(q)));
 }
+
+function renderLeads(rows){
+  renderedLeadIds=rows.map(l=>String(l.id));
+  leadsTable.innerHTML=rows.map(lead=>`<tr${selectedLeadIds.has(String(lead.id))?' class="row-selected"':''}><td class="select-col"><input type="checkbox" data-lead-select="${lead.id}"${selectedLeadIds.has(String(lead.id))?' checked':''} aria-label="Select ${esc(lead.name||'lead')}"></td><td><strong>${esc(lead.name)}</strong></td><td>${esc(lead.email||'—')}<br>${esc(lead.phone||'—')}</td><td>${esc(catLabel(lead.category))}</td><td>${esc(lead.city||'—')}${lead.state?', '+esc(lead.state):''}</td><td><span class="status">${esc(lead.status||'new')}</span></td><td>${esc(lead.assigned_to||'—')}</td><td>${fmt(lead.submitted_at)}</td><td><button type="button" data-open-lead="${lead.id}">View</button></td></tr>`).join('')||'<tr><td colspan="9">No leads found.</td></tr>';
+  syncLeadSelectionUi();
+}
+
+function visibleSelectedLeadIds(){
+  return renderedLeadIds.filter(id=>selectedLeadIds.has(id));
+}
+
+function syncLeadSelectionUi(){
+  const count=visibleSelectedLeadIds().length;
+  const button=$('[data-leads-delete-selected]');
+  const status=$('[data-leads-selection-status]');
+  const selectAll=$('[data-leads-select-all]');
+  if(button){
+    button.hidden=count===0;
+    button.textContent=count?`Delete ${count} selected`:'Delete selected';
+  }
+  if(status&&!status.dataset.busy){
+    status.textContent=count?`${count} of ${renderedLeadIds.length} shown lead${renderedLeadIds.length===1?'':'s'} selected. Shift-click a checkbox to select a range.`:'';
+  }
+  if(selectAll){
+    selectAll.checked=count>0&&count===renderedLeadIds.length;
+    selectAll.indeterminate=count>0&&count<renderedLeadIds.length;
+  }
+}
+
+function setLeadSelected(id,selected){
+  id=String(id);
+  if(selected)selectedLeadIds.add(id);else selectedLeadIds.delete(id);
+  const box=leadsTable.querySelector(`[data-lead-select="${id}"]`);
+  if(box){box.checked=selected;box.closest('tr')?.classList.toggle('row-selected',selected);}
+}
+
+leadsTable.addEventListener('click',event=>{
+  const box=event.target.closest('[data-lead-select]');
+  if(!box)return;
+  const id=String(box.dataset.leadSelect);
+  if(event.shiftKey&&lastClickedLeadId!==null){
+    const from=renderedLeadIds.indexOf(lastClickedLeadId), to=renderedLeadIds.indexOf(id);
+    if(from!==-1&&to!==-1){
+      renderedLeadIds.slice(Math.min(from,to),Math.max(from,to)+1).forEach(rid=>setLeadSelected(rid,box.checked));
+    }
+  }else{
+    setLeadSelected(id,box.checked);
+  }
+  lastClickedLeadId=id;
+  syncLeadSelectionUi();
+});
+
+$('[data-leads-select-all]')?.addEventListener('change',event=>{
+  renderedLeadIds.forEach(id=>setLeadSelected(id,event.target.checked));
+  lastClickedLeadId=null;
+  syncLeadSelectionUi();
+});
+
+async function deleteSelectedLeads(){
+  const button=$('[data-leads-delete-selected]');
+  const status=$('[data-leads-selection-status]');
+  if(!button||!status)return;
+  const ids=visibleSelectedLeadIds();
+  if(!ids.length)return;
+  const names=ids.slice(0,3).map(id=>leads.find(l=>String(l.id)===id)?.name).filter(Boolean).join(', ');
+  const preview=names?`${names}${ids.length>3?` and ${ids.length-3} more`:''}`:`${ids.length} leads`;
+  if(!confirm(`Delete ${ids.length} lead${ids.length===1?'':'s'} (${preview})? This also removes their notes and assignments, and can't be undone.`))return;
+  button.disabled=true;
+  status.dataset.busy='1';
+  const failed=[];
+  let done=0;
+  for(const id of ids){
+    status.textContent=`Deleting ${done+1} of ${ids.length}…`;
+    try{
+      await api(`/api/admin/leads/${id}`,{method:'DELETE'});
+      selectedLeadIds.delete(id);
+      leads=leads.filter(l=>String(l.id)!==id);
+      done++;
+    }catch(error){
+      failed.push(`${leads.find(l=>String(l.id)===id)?.name||`#${id}`}: ${error.message}`);
+    }
+  }
+  button.disabled=false;
+  delete status.dataset.busy;
+  renderLeads(currentLeadRows());
+  status.textContent=failed.length
+    ? `Deleted ${done} of ${ids.length}. Failed: ${failed.join('; ')}`
+    : `Deleted ${done} lead${done===1?'':'s'}.`;
+  await refreshBusinessLeads().catch(()=>{});
+}
+
+$('[data-leads-delete-selected]')?.addEventListener('click',()=>{deleteSelectedLeads().catch(error=>{
+  const status=$('[data-leads-selection-status]');
+  if(status){delete status.dataset.busy;status.textContent=error.message;}
+  const button=$('[data-leads-delete-selected]');
+  if(button)button.disabled=false;
+});});
 
 function renderBusinesses(rows){
   businessesTable.innerHTML=rows.map(b=>`<tr><td><strong>${esc(b.name||'—')}</strong></td><td>${esc(b.email)}<br>${esc(b.phone||'')}</td><td>${esc(b.company_name||'—')}</td><td>${esc(catLabel(b.preferred_category))}</td><td><span class="status">${esc(b.status)}</span></td><td>${b.total_leads||0}</td><td>${fmt(b.last_login_at)}</td><td><button type="button" data-open-business="${b.id}">View</button></td></tr>`).join('')||'<tr><td colspan="8">No business accounts yet.</td></tr>';
@@ -352,7 +457,9 @@ async function loadLeads(){
   const cat=leadCategoryFilter.value;
   const data=await api(`/api/admin/leads${cat?`?category=${cat}`:''}`);
   leads=data.leads||[];
-  renderLeads(leads);
+  const live=new Set(leads.map(l=>String(l.id)));
+  [...selectedLeadIds].forEach(id=>{if(!live.has(id))selectedLeadIds.delete(id);});
+  renderLeads(currentLeadRows());
 }
 
 async function loadBusinesses(){
@@ -457,7 +564,8 @@ $('[data-lead-delete]').addEventListener('click',async()=>{
   try{
     await api(`/api/admin/leads/${activeLead.id}`,{method:'DELETE'});
     leads=leads.filter(l=>String(l.id)!==String(activeLead.id));
-    renderLeads(leads);
+    selectedLeadIds.delete(String(activeLead.id));
+    renderLeads(currentLeadRows());
     leadDialog.close();
     await refreshBusinessLeads();
   }catch(error){message.textContent=error.message;}
@@ -777,10 +885,7 @@ orderSearch.addEventListener('input',()=>{
   renderOrders(!q?orders:orders.filter(o=>[o.name,o.email,o.phone,o.business_name,o.category].some(v=>String(v||'').toLowerCase().includes(q))));
 });
 
-search.addEventListener('input',()=>{
-  const q=search.value.trim().toLowerCase();
-  renderLeads(!q?leads:leads.filter(l=>[l.name,l.email,l.phone,l.category,l.city].some(v=>String(v||'').toLowerCase().includes(q))));
-});
+search.addEventListener('input',()=>renderLeads(currentLeadRows()));
 
 leadCategoryFilter.addEventListener('change',()=>loadLeads().catch(()=>{}));
 
