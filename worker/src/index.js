@@ -514,7 +514,11 @@ export default {
       if (!token) return json({ error: "Missing activation token." }, 400);
       const business = await env.DB.prepare("SELECT * FROM businesses WHERE activation_nonce=?").bind(token).first();
       if (!business || !business.activation_nonce_expires || new Date(business.activation_nonce_expires).getTime() < Date.now()) return json({ error: "This activation link is invalid or has expired. Please contact support@shedlr.com for a new link." }, 400);
-      return json({ activation_token: business.activation_nonce, email: business.email, name: business.name, already_has_password: Boolean(business.password_hash) });
+      /* A valid, unexpired token is always usable — whether the account is brand new or
+         an admin/retention manager generated a fresh link to reset an existing password.
+         `mode` lets the page show the right copy instead of a false "already activated" error. */
+      const hasPassword = Boolean(business.password_hash);
+      return json({ activation_token: business.activation_nonce, email: business.email, name: business.name, already_has_password: hasPassword, mode: hasPassword ? "reset" : "activate" });
     }
 
     if (request.method === "POST" && url.pathname === "/api/portal/set-password") {
@@ -571,8 +575,9 @@ export default {
       const STAFF_ALLOWED = (request.method === "GET" && url.pathname === "/api/admin/session") || (request.method === "GET" && url.pathname === "/api/admin/businesses") || (request.method === "GET" && /^\/api\/admin\/businesses\/\d+$/.test(url.pathname)) || (request.method === "POST" && url.pathname === "/api/admin/leads") || (request.method === "POST" && url.pathname === "/api/admin/leads/bulk") || (request.method === "PATCH" && /^\/api\/admin\/leads\/\d+$/.test(url.pathname));
       /* Retention manager: read-only. Sees every business account in any status, with full
          contact details, business info, orders, assigned leads, and business notes.
-         Cannot create or edit leads, businesses, orders, or notes. */
-      const RETENTION_ALLOWED = (request.method === "GET" && url.pathname === "/api/admin/session") || (request.method === "GET" && url.pathname === "/api/admin/businesses") || (request.method === "GET" && /^\/api\/admin\/businesses\/\d+$/.test(url.pathname)) || (request.method === "GET" && /^\/api\/admin\/businesses\/\d+\/notes$/.test(url.pathname)) || (request.method === "GET" && /^\/api\/admin\/leads\/\d+\/notes$/.test(url.pathname));
+         Cannot create or edit leads, businesses, orders, or notes. Exception: may generate
+         activation / password-reset links for an account, same as admin. */
+      const RETENTION_ALLOWED = (request.method === "GET" && url.pathname === "/api/admin/session") || (request.method === "GET" && url.pathname === "/api/admin/businesses") || (request.method === "GET" && /^\/api\/admin\/businesses\/\d+$/.test(url.pathname)) || (request.method === "GET" && /^\/api\/admin\/businesses\/\d+\/notes$/.test(url.pathname)) || (request.method === "GET" && /^\/api\/admin\/leads\/\d+\/notes$/.test(url.pathname)) || (request.method === "POST" && /^\/api\/admin\/businesses\/\d+\/reset-password$/.test(url.pathname));
       if (session.role === "staff" && !STAFF_ALLOWED) return json({ error: "Your account does not have permission for this action." }, 403);
       if (session.role === "retention" && !RETENTION_ALLOWED) return json({ error: "Your account does not have permission for this action." }, 403);
       if (session.role !== "admin" && session.role !== "staff" && session.role !== "retention") return json({ error: "Your account does not have permission for this action." }, 403);

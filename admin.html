@@ -292,12 +292,18 @@
           </select>
         </label>
         <button type="button" data-business-save>Save changes</button>
-        <button type="button" class="secondary" data-business-reset-password>Generate activation / reset-password link</button>
         <p class="form-message" data-business-save-message hidden></p>
       </div>
 
       <div data-retention-only hidden>
         <div class="detail-grid" data-retention-business-details></div>
+      </div>
+
+      <!-- Activation / password reset: available to owner and retention manager -->
+      <div data-reset-access hidden style="margin-top:12px">
+        <button type="button" class="secondary" data-business-reset-password>Generate activation / reset-password link</button>
+        <p style="color:#5a6a7a;font-size:13px;margin:6px 0 0">Works for new accounts and for clients who need a new password. The link is valid for 72 hours and is copied to your clipboard.</p>
+        <p class="form-message" data-reset-link-message hidden></p>
       </div>
 
       <div class="business-tabs">

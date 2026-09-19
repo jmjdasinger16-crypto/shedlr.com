@@ -45,13 +45,18 @@ if (activateLoading) {
 
     try {
       const data = await api('/api/portal/activate', { method: 'POST', body: JSON.stringify({ token }) });
-      if (data.already_has_password) {
-        showActivateError('This account has already been activated. Please sign in with your existing password.');
-        return;
-      }
+      /* A valid link works for both first-time activation and a password reset requested
+         through the admin / retention portal. Only the wording changes. */
+      const isReset = data.mode === 'reset' || data.already_has_password;
       activateLoading.hidden = true;
       activateFormWrap.hidden = false;
-      $('[data-activate-lead]').textContent = `Create a password for ${data.email} to finish setting up your client portal.`;
+      const heading = $('[data-activate-heading]');
+      if (heading) heading.textContent = isReset ? 'Set a new password' : 'Set your password';
+      const submit = setPasswordForm.querySelector('button[type=submit]');
+      if (submit) submit.textContent = isReset ? 'Save new password & sign in' : 'Set password & sign in';
+      $('[data-activate-lead]').textContent = isReset
+        ? `Choose a new password for ${data.email}. Your old password stops working once you save.`
+        : `Create a password for ${data.email} to finish setting up your client portal.`;
       setPasswordForm.dataset.activationToken = data.activation_token;
     } catch (error) {
       showActivateError(error.message);
@@ -76,6 +81,7 @@ if (activateLoading) {
     message.textContent = 'Setting up your portal…';
     try {
       await api('/api/portal/set-password', { method: 'POST', body: JSON.stringify({ token: setPasswordForm.dataset.activationToken, password }) });
+      message.textContent = 'Password saved. Opening your portal…';
       window.location.href = 'dashboard.html';
     } catch (error) {
       message.className = 'form-message error';
