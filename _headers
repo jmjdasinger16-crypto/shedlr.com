@@ -1,0 +1,30 @@
+# Cloudflare Pages cache rules.
+#
+# The problem this solves: HTML pages carry versioned asset links like
+# js/admin.js?v=11. If the HTML itself is cached in a visitor's browser for
+# hours, they never see the new version string, so they keep running old
+# JavaScript long after a deploy. Admins and clients then report that a fix
+# "didn't work" when the fix is already live on the server.
+#
+# Rule: HTML always revalidates (cheap - a 304 when nothing changed).
+# Versioned CSS/JS can cache hard, because the ?v= bump forces a new URL.
+
+/*
+  Cache-Control: no-cache
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+
+/css/*
+  Cache-Control: public, max-age=604800
+
+/js/*
+  Cache-Control: public, max-age=604800
+
+/portal/css/*
+  Cache-Control: public, max-age=604800
+
+/portal/js/*
+  Cache-Control: public, max-age=604800
+
+/assets/*
+  Cache-Control: public, max-age=2592000
