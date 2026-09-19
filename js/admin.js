@@ -195,6 +195,8 @@ function applyRole(role){
   document.querySelectorAll('[data-staff-only]').forEach(el=>{el.hidden=!isStaff;});
   document.querySelectorAll('[data-retention-only]').forEach(el=>{el.hidden=!isRetention;});
   document.querySelectorAll('[data-retention-hide]').forEach(el=>{el.hidden=isRetention;});
+  /* Owner and retention manager can both generate activation / password-reset links. */
+  document.querySelectorAll('[data-reset-access]').forEach(el=>{el.hidden=!(isAdmin||isRetention);});
   const tag=document.querySelectorAll('.admin-tag');
   const label=isAdmin?'Admin':isStaff?'VA':'Retention';
   tag.forEach(el=>{el.textContent=label;});
@@ -614,6 +616,8 @@ function openBusiness(id){
     activeBusinessDetail=detail;
     $('[data-business-title]').textContent=detail.business.name||detail.business.email||detail.business.company_name;
     renderBusinessLeads(detail.assignments||[]);
+    const resetMessage=$('[data-reset-link-message]');
+    if(resetMessage){resetMessage.hidden=true;resetMessage.textContent='';}
     if(role==='retention'){
       renderRetentionBusinessDetail(detail);
       loadRetentionNotes(id);
@@ -697,12 +701,13 @@ $('[data-business-save]').addEventListener('click',async()=>{
 
 $('[data-business-reset-password]').addEventListener('click',async()=>{
   if(!activeBusiness)return;
-  const message=$('[data-business-save-message]');message.hidden=false;message.textContent='Generating link...';
+  const message=$('[data-reset-link-message]');
+  message.hidden=false;message.className='form-message';message.textContent='Generating link...';
   try{
     const data=await api(`/api/admin/businesses/${activeBusiness.id}/reset-password`,{method:'POST',body:'{}'});
-    message.textContent=`Share this link: ${data.activation_url}`;
+    message.textContent=`Link copied. Send this to the client (valid 72 hours): ${data.activation_url}`;
     if(navigator.clipboard)navigator.clipboard.writeText(data.activation_url).catch(()=>{});
-  }catch(error){message.textContent=error.message;}
+  }catch(error){message.className='form-message error';message.textContent=error.message;}
 });
 
 /* ── Bulk import ── */
