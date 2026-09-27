@@ -214,7 +214,12 @@ async function loadDashboard() {
     api('/api/portal/orders')
   ]);
 
-  renderLeads(leadsRes.leads || []);
+  /* Killswitch: the account stays open, but leads are withheld by the server. */
+  if (leadsRes.leads_locked || business.leads_locked) {
+    $('[data-leads-list]').innerHTML = `<p class="empty-state">${esc(leadsRes.message || 'Lead access for this account is paused. Please contact support@shedlr.com or (307) 303-7530.')}</p>`;
+  } else {
+    renderLeads(leadsRes.leads || []);
+  }
   renderOrders(ordersRes.orders || []);
   loadBusinessNotes().catch(() => {});
 }
