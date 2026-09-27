@@ -14,6 +14,8 @@ CREATE TABLE IF NOT EXISTS businesses (
   address TEXT,
   preferred_category TEXT,
   status TEXT NOT NULL DEFAULT 'active',
+  leads_locked INTEGER NOT NULL DEFAULT 0,
+  leads_locked_at TEXT,
   stripe_customer_id TEXT,
   activation_nonce TEXT,
   activation_nonce_expires TEXT,

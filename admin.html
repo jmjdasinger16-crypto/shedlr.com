@@ -8,14 +8,14 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=7">
+  <link rel="stylesheet" href="css/admin.css?v=8">
 </head>
 <body class="auth-shell">
   <main class="admin-shell">
     <section class="login-card" data-admin-login>
       <div class="admin-brand"><img src="assets/shedlr-logo.png" alt="Shedlr" class="brand-logo"><strong class="admin-tag">Admin</strong></div>
       <h1>Secure dashboard</h1>
-      <p>Enter your password to sign in. Access depends on your role: owner, VA, or retention manager.</p>
+      <p>Enter your password to sign in. Access depends on your role: owner, VA, retention manager, or business account manager.</p>
       <form data-admin-login-form>
         <label for="adminPassword">Password</label>
         <input id="adminPassword" name="password" type="password" autocomplete="current-password" required>
@@ -74,6 +74,34 @@
             <button class="secondary" type="button" data-report-range="ytd">Year to date</button>
           </div>
           <p class="filter-status" data-report-status></p>
+        </form>
+      </section>
+
+      <section class="panel filter-panel" data-admin-only>
+        <div class="panel-head">
+          <div><h2>Stripe reports</h2><p>Pulled live from Stripe and separate from the site report above: completed sign-ups, payments, 1st / 2nd / 3rd payment lists, failed payments, disputes, and Stripe fees, from gross to net.</p></div>
+          <div class="panel-actions"><button type="button" class="panel-toggle" data-panel-toggle aria-expanded="true">Minimize</button></div>
+        </div>
+        <form class="filter-grid stripe-grid" data-stripe-report-form>
+          <label>Start date<input type="date" data-stripe-from required></label>
+          <label>End date<input type="date" data-stripe-to required></label>
+          <label>Or pick a month<input type="month" data-stripe-month></label>
+          <label>Detail level
+            <select data-stripe-detail>
+              <option value="full">Totals plus every sign-up, payment, and list</option>
+              <option value="summary">Totals and gross-to-net only</option>
+            </select>
+          </label>
+          <div class="filter-actions">
+            <button type="submit">Print Stripe report</button>
+            <button class="secondary" type="button" data-stripe-preview>Preview Stripe report</button>
+            <button class="secondary" type="button" data-stripe-csv>Download CSV</button>
+            <button class="secondary" type="button" data-stripe-range="this-month">This month</button>
+            <button class="secondary" type="button" data-stripe-range="last-month">Last month</button>
+            <button class="secondary" type="button" data-stripe-range="last-7">Last 7 days</button>
+            <button class="secondary" type="button" data-stripe-range="ytd">Year to date</button>
+          </div>
+          <p class="filter-status" data-stripe-status></p>
         </form>
       </section>
 
@@ -217,6 +245,72 @@
         </div>
       </section>
 
+      <!-- Business account manager (BAM / sales) portal -->
+      <section class="panel filter-panel" data-bam-only hidden>
+        <div class="panel-head">
+          <div><h2>Stripe sign-ups</h2><p>Businesses that completed checkout in Stripe for any date range. Confirm the business is signed up here before you send an activation or password-reset link.</p></div>
+        </div>
+        <form class="filter-grid stripe-grid" data-bam-signups-form>
+          <label>Start date<input type="date" data-bam-from required></label>
+          <label>End date<input type="date" data-bam-to required></label>
+          <label>Search<input type="search" placeholder="Name, email, phone..." data-bam-signup-search></label>
+          <div class="filter-actions">
+            <button type="submit">Show sign-ups</button>
+            <button class="secondary" type="button" data-bam-range="today">Today</button>
+            <button class="secondary" type="button" data-bam-range="last-7">Last 7 days</button>
+            <button class="secondary" type="button" data-bam-range="this-month">This month</button>
+            <button class="secondary" type="button" data-bam-range="last-month">Last month</button>
+            <button class="secondary" type="button" data-bam-signups-print>Print sign-up report</button>
+            <button class="secondary" type="button" data-bam-signups-csv>Download CSV</button>
+          </div>
+          <p class="filter-status" data-bam-signups-status></p>
+        </form>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Signed up</th><th>Customer</th><th>Paid</th><th>Shedlr account</th><th>Portal</th><th></th></tr></thead>
+            <tbody data-bam-signups-table><tr><td colspan="6">Choose a date range and select Show sign-ups.</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel filter-panel" data-bam-only hidden>
+        <div class="panel-head">
+          <div><h2>Create account or send link</h2><p>Enter the business email. If an account already uses that email, no duplicate is created and you get a fresh password-reset link for that same account.</p></div>
+        </div>
+        <form class="filter-grid" data-bam-create-form>
+          <label>Email *<input type="email" name="email" required></label>
+          <label>Business name<input name="company_name"></label>
+          <label>Contact name<input name="name"></label>
+          <label>Phone<input type="tel" name="phone"></label>
+          <label>Address<input name="address" placeholder="Street, city, state, ZIP"></label>
+          <label>Business type<select name="preferred_category" data-bam-create-category><option value="">— None —</option></select></label>
+          <div class="filter-actions"><button type="submit">Get activation / reset link</button></div>
+          <p class="filter-status" data-bam-create-status></p>
+        </form>
+      </section>
+
+      <section class="panel" data-bam-only hidden>
+        <div class="panel-head">
+          <div><h2>Business accounts</h2><p>Every business account. Open one to edit its name, contact info, address, or type, or to send an activation / password-reset link.</p></div>
+          <div class="panel-actions">
+            <input type="search" placeholder="Search name, email, company..." data-bam-search>
+            <select data-bam-status-filter style="padding:8px;border:1px solid #cfd6da;font:inherit">
+              <option value="">All statuses</option>
+              <option value="active">Active</option>
+              <option value="past_due">Past due</option>
+              <option value="canceled">Canceled</option>
+              <option value="suspended">Suspended</option>
+            </select>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Business</th><th>Contact</th><th>Type</th><th>Address</th><th>Status</th><th>Portal</th><th>Created</th><th></th></tr></thead>
+            <tbody data-bam-businesses-table></tbody>
+          </table>
+        </div>
+      </section>
+
       <section class="panel" data-admin-only>
         <div class="panel-head">
           <div><h2>Events</h2><p>Page views, order submissions, and lead deliveries for the selected range.</p></div>
@@ -293,6 +387,31 @@
         </label>
         <button type="button" data-business-save>Save changes</button>
         <p class="form-message" data-business-save-message hidden></p>
+
+        <div class="danger-zone">
+          <h3>Client lead access (killswitch)</h3>
+          <p class="zone-copy" data-killswitch-state>—</p>
+          <button type="button" class="zone-btn" data-business-killswitch>Turn killswitch on</button>
+          <p class="form-message" data-killswitch-message hidden></p>
+
+          <h3>Delete business account</h3>
+          <p class="zone-copy">Owner only. Use this for duplicate accounts. Delivered leads go back to the unassigned pool, the account's notes are removed, and order history stays. This does not cancel anything in Stripe.</p>
+          <p class="zone-copy" data-duplicate-hint hidden></p>
+          <button type="button" class="zone-btn zone-btn-danger" data-business-delete>Delete this business account</button>
+          <p class="form-message" data-business-delete-message hidden></p>
+        </div>
+      </div>
+
+      <div data-bam-only hidden>
+        <div class="detail-grid" data-bam-business-details></div>
+        <label>Business name<input data-bam-company></label>
+        <label>Contact name<input data-bam-name></label>
+        <label>Email (portal login)<input type="email" data-bam-email></label>
+        <label>Phone<input data-bam-phone></label>
+        <label>Address<input data-bam-address placeholder="Street, city, state, ZIP"></label>
+        <label>Business type<select data-bam-category><option value="">— None —</option></select></label>
+        <button type="button" class="zone-btn" data-bam-save style="margin-top:14px">Save business details</button>
+        <p class="form-message" data-bam-save-message hidden></p>
       </div>
 
       <div data-retention-only hidden>
@@ -319,7 +438,11 @@
           <h3>Orders</h3>
           <div data-business-orders-list></div>
         </section>
-        <section class="business-subsection">
+        <section class="business-subsection" data-bam-only hidden>
+          <h3>Orders</h3>
+          <div data-bam-orders-list></div>
+        </section>
+        <section class="business-subsection" data-bam-hide>
           <h3>Assigned leads</h3>
           <p style="color:#5a6a7a;font-size:13px;margin:0 0 8px" data-retention-hide>Click Edit on any lead below to fix the name, type, phone number, or details if it was entered incorrectly.</p>
           <div data-business-leads-list></div>
@@ -403,7 +526,7 @@
     <form method="dialog" class="dialog-card" style="max-width:480px">
       <button class="dialog-close" value="cancel" aria-label="Close" formnovalidate>×</button>
       <h2>Create Business Account</h2>
-      <p style="color:#5a6a7a;font-size:14px;margin-bottom:12px">Manually create a business account, bypassing Stripe checkout. An activation link will be generated so they can set a password and log into the portal.</p>
+      <p style="color:#5a6a7a;font-size:14px;margin-bottom:12px">Manually create a business account, bypassing Stripe checkout. An activation link will be generated so they can set a password and log into the portal. If the email already has an account, no duplicate is created and you get a fresh reset link for that account.</p>
 
       <label style="display:block;margin-bottom:8px">Email *
         <input type="email" data-create-business-email required style="width:100%;padding:8px;border:1px solid #cfd6da;font:inherit">
@@ -416,6 +539,9 @@
       </label>
       <label style="display:block;margin-bottom:8px">Company name
         <input type="text" data-create-business-company style="width:100%;padding:8px;border:1px solid #cfd6da;font:inherit">
+      </label>
+      <label style="display:block;margin-bottom:8px">Address
+        <input type="text" data-create-business-address style="width:100%;padding:8px;border:1px solid #cfd6da;font:inherit">
       </label>
       <label style="display:block;margin-bottom:12px">Preferred category
         <select data-create-business-category style="width:100%;padding:8px;border:1px solid #cfd6da;font:inherit">
@@ -432,6 +558,6 @@
     </form>
   </dialog>
 
-  <script src="js/admin.js?v=11"></script>
+  <script src="js/admin.js?v=12"></script>
 </body>
 </html>

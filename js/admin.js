@@ -167,7 +167,7 @@ $('[data-leads-delete-selected]')?.addEventListener('click',()=>{deleteSelectedL
 });});
 
 function renderBusinesses(rows){
-  businessesTable.innerHTML=rows.map(b=>`<tr><td><strong>${esc(b.name||'—')}</strong></td><td>${esc(b.email)}<br>${esc(b.phone||'')}</td><td>${esc(b.company_name||'—')}</td><td>${esc(catLabel(b.preferred_category))}</td><td><span class="status">${esc(b.status)}</span></td><td>${b.total_leads||0}</td><td>${fmt(b.last_login_at)}</td><td><button type="button" data-open-business="${b.id}">View</button></td></tr>`).join('')||'<tr><td colspan="8">No business accounts yet.</td></tr>';
+  businessesTable.innerHTML=rows.map(b=>`<tr><td><strong>${esc(b.name||'—')}</strong></td><td>${esc(b.email)}<br>${esc(b.phone||'')}</td><td>${esc(b.company_name||'—')}</td><td>${esc(catLabel(b.preferred_category))}</td><td><span class="status">${esc(b.status)}</span>${b.leads_locked?'<span class="status locked" title="Killswitch on: client portal cannot see leads">Leads locked</span>':''}</td><td>${b.total_leads||0}</td><td>${fmt(b.last_login_at)}</td><td><button type="button" data-open-business="${b.id}">View</button></td></tr>`).join('')||'<tr><td colspan="8">No business accounts yet.</td></tr>';
 }
 
 function renderEvents(rows){
@@ -183,6 +183,7 @@ function populateCategoryFilters(){
   if(leadCat)leadCat.innerHTML=opts;
   const staffLeadCat=$('[data-staff-lead-category]');
   if(staffLeadCat)staffLeadCat.innerHTML='<option value="">Select category</option>'+opts;
+  ['[data-bam-category]','[data-bam-create-category]'].forEach(sel=>{const el=$(sel);if(el)el.innerHTML='<option value="">— None —</option>'+opts;});
 }
 
 /* ── Role-based view (admin / VA staff / retention manager) ── */
@@ -190,15 +191,18 @@ function applyRole(role){
   const isAdmin=role==='admin';
   const isStaff=role==='staff';
   const isRetention=role==='retention';
+  const isBam=role==='bam';
   document.body.dataset.role=role;
+  document.querySelectorAll('[data-bam-only]').forEach(el=>{el.hidden=!isBam;});
+  document.querySelectorAll('[data-bam-hide]').forEach(el=>{el.hidden=isBam;});
   document.querySelectorAll('[data-admin-only]').forEach(el=>{el.hidden=!isAdmin;});
   document.querySelectorAll('[data-staff-only]').forEach(el=>{el.hidden=!isStaff;});
   document.querySelectorAll('[data-retention-only]').forEach(el=>{el.hidden=!isRetention;});
   document.querySelectorAll('[data-retention-hide]').forEach(el=>{el.hidden=isRetention;});
   /* Owner and retention manager can both generate activation / password-reset links. */
-  document.querySelectorAll('[data-reset-access]').forEach(el=>{el.hidden=!(isAdmin||isRetention);});
+  document.querySelectorAll('[data-reset-access]').forEach(el=>{el.hidden=!(isAdmin||isRetention||isBam);});
   const tag=document.querySelectorAll('.admin-tag');
-  const label=isAdmin?'Admin':isStaff?'VA':'Retention';
+  const label=isAdmin?'Admin':isStaff?'VA':isBam?'Account Manager':'Retention';
   tag.forEach(el=>{el.textContent=label;});
 }
 
@@ -633,7 +637,10 @@ function openBusiness(id){
       $('[data-business-save-message]').hidden=true;
       renderBusinessOrders(detail.orders||[]);
       loadAdminBusinessNotes(id);
+      renderKillswitch(detail.business);
+      const del=$('[data-business-delete-message]');if(del){del.hidden=true;del.textContent='';}
     }
+    if(role==='bam')renderBamBusinessDetail(detail);
     businessDialog.showModal();
   }).catch(error=>{alert(error.message);});
 }
@@ -705,7 +712,8 @@ $('[data-business-reset-password]').addEventListener('click',async()=>{
   message.hidden=false;message.className='form-message';message.textContent='Generating link...';
   try{
     const data=await api(`/api/admin/businesses/${activeBusiness.id}/reset-password`,{method:'POST',body:'{}'});
-    message.textContent=`Link copied. Send this to the client (valid 72 hours): ${data.activation_url}`;
+    const kind=data.link_mode==='reset'?'Password-reset link':data.link_mode==='activate'?'Activation link':'Link';
+    message.textContent=`${kind} copied. Send this to the client (valid 72 hours): ${data.activation_url}`;
     if(navigator.clipboard)navigator.clipboard.writeText(data.activation_url).catch(()=>{});
   }catch(error){message.className='form-message error';message.textContent=error.message;}
 });
@@ -853,6 +861,7 @@ $('[data-open-create-business]').addEventListener('click',()=>{
   $('[data-create-business-name]').value='';
   $('[data-create-business-phone]').value='';
   $('[data-create-business-company]').value='';
+  $('[data-create-business-address]').value='';
   $('[data-create-business-category]').value='';
   createBusinessMessage.hidden=true;
   createBusinessResult.hidden=true;
@@ -873,11 +882,14 @@ $('[data-create-business-submit]').addEventListener('click',async()=>{
       name:$('[data-create-business-name]').value.trim(),
       phone:$('[data-create-business-phone]').value.trim(),
       company_name:$('[data-create-business-company]').value.trim(),
+      address:$('[data-create-business-address]').value.trim(),
       preferred_category:$('[data-create-business-category]').value||null
     })});
-    createBusinessMessage.textContent=`Business created (ID ${res.business.id}).`;
+    createBusinessMessage.textContent=res.existing?`No duplicate created — this email already belongs to business ID ${res.business.id}.`:`Business created (ID ${res.business.id}).`;
     createBusinessResult.hidden=false;
-    createBusinessResult.innerHTML=`Activation link — share this with the client so they can set a password and log in:<br><strong>${esc(res.activation_url)}</strong>`;
+    createBusinessResult.innerHTML=res.existing
+      ?`${esc(res.message||'')}<br>${res.link_mode==='reset'?'Password-reset':'Activation'} link (copied, valid 72 hours):<br><strong>${esc(res.activation_url)}</strong>`
+      :`Activation link — share this with the client so they can set a password and log in:<br><strong>${esc(res.activation_url)}</strong>`;
     if(navigator.clipboard)navigator.clipboard.writeText(res.activation_url).catch(()=>{});
     await loadBusinesses().catch(()=>{});
   }catch(error){createBusinessMessage.textContent=error.message;}
@@ -1059,6 +1071,460 @@ if(reportForm){
   });
 }
 
+/* ══════════════════════════════════════════════════════════════════════
+   Killswitch + delete (owner admin only)
+   ══════════════════════════════════════════════════════════════════════ */
+const digitsOnly=(v)=>String(v||'').replace(/\D/g,'');
+function findPossibleDuplicates(b){
+  if(!b)return [];
+  const phone=digitsOnly(b.phone).slice(-10);
+  const company=String(b.company_name||'').trim().toLowerCase();
+  const name=String(b.name||'').trim().toLowerCase();
+  return businesses.filter(x=>String(x.id)!==String(b.id)&&(
+    (phone.length===10&&digitsOnly(x.phone).slice(-10)===phone)||
+    (company&&String(x.company_name||'').trim().toLowerCase()===company)||
+    (name&&company===''&&String(x.name||'').trim().toLowerCase()===name)
+  ));
+}
+
+function renderKillswitch(b){
+  const state=$('[data-killswitch-state]');const btn=$('[data-business-killswitch]');const msg=$('[data-killswitch-message]');
+  if(!state||!btn||!b)return;
+  if(msg){msg.hidden=true;msg.textContent='';}
+  const on=!!b.leads_locked;
+  state.innerHTML=on
+    ?`<strong style="color:#b42318">ON</strong>${b.leads_locked_at?` since ${esc(fmt(b.leads_locked_at))}`:''}. The client can still sign in and see their account, but cannot see or open any leads. The account stays visible to admin, account managers, retention, and VAs (VAs until it is canceled).`
+    :'<strong>OFF</strong>. The client can see their delivered leads normally.';
+  btn.textContent=on?'Turn killswitch off (restore lead access)':'Turn killswitch on (block lead access)';
+  btn.classList.toggle('is-on',!on);
+  const hint=$('[data-duplicate-hint]');
+  if(hint){
+    const dups=findPossibleDuplicates(b);
+    hint.hidden=!dups.length;
+    hint.innerHTML=dups.length?`<strong>Possible duplicates:</strong> ${dups.slice(0,5).map(d=>`${esc(d.company_name||d.name||d.email)} (ID ${d.id}, ${esc(d.email)}${d.portal_activated?', activated':''})`).join('; ')}`:'';
+  }
+}
+
+$('[data-business-killswitch]')?.addEventListener('click',async()=>{
+  if(!activeBusiness||!activeBusinessDetail)return;
+  const b=activeBusinessDetail.business;
+  const next=!b.leads_locked;
+  const label=b.company_name||b.name||b.email;
+  if(next&&!confirm(`Turn the killswitch ON for ${label}?\n\nTheir client portal immediately stops showing leads. The account stays visible to everyone else, and you can turn it back off any time.`))return;
+  const btn=$('[data-business-killswitch]');const msg=$('[data-killswitch-message]');
+  btn.disabled=true;
+  try{
+    const res=await api(`/api/admin/businesses/${b.id}/killswitch`,{method:'POST',body:JSON.stringify({enabled:next})});
+    activeBusinessDetail.business={...b,...res.business};
+    Object.assign(activeBusiness,res.business);
+    renderKillswitch(activeBusinessDetail.business);
+    renderBusinesses(adminFilteredRows());
+    msg.hidden=false;msg.className='form-message';
+    msg.textContent=next?'Killswitch on. The client portal can no longer see leads.':'Killswitch off. The client can see their leads again.';
+  }catch(error){msg.hidden=false;msg.className='form-message error';msg.textContent=error.message;}
+  btn.disabled=false;
+});
+
+$('[data-business-delete]')?.addEventListener('click',async()=>{
+  if(!activeBusiness)return;
+  const b=activeBusinessDetail?.business||activeBusiness;
+  const label=b.company_name||b.name||b.email;
+  const leadCount=(activeBusinessDetail?.assignments||[]).length;
+  const warning=[
+    `Permanently delete ${label} (${b.email}, ID ${b.id})?`,
+    leadCount?`${leadCount} delivered lead${leadCount===1?'':'s'} will go back to the unassigned pool.`:'',
+    b.stripe_customer_id?`WARNING: this account is linked to Stripe customer ${b.stripe_customer_id}. Make sure this is the duplicate and not the paying account. Deleting here does not cancel anything in Stripe.`:'',
+    'This cannot be undone. Type DELETE to confirm.'
+  ].filter(Boolean).join('\n\n');
+  const typed=prompt(warning);
+  if(typed===null)return;
+  const msg=$('[data-business-delete-message]');
+  if(typed.trim().toUpperCase()!=='DELETE'){msg.hidden=false;msg.className='form-message error';msg.textContent='Not deleted. Type DELETE exactly to confirm.';return;}
+  const btn=$('[data-business-delete]');btn.disabled=true;
+  msg.hidden=false;msg.className='form-message';msg.textContent='Deleting…';
+  try{
+    const res=await api(`/api/admin/businesses/${b.id}`,{method:'DELETE'});
+    businesses=businesses.filter(x=>String(x.id)!==String(b.id));
+    renderBusinesses(adminFilteredRows());
+    activeBusiness=null;activeBusinessDetail=null;
+    businessDialog.close();
+    const out=$('[data-business-report-status]');
+    if(out)out.textContent=`Deleted ${label} (ID ${res.deleted?.id??b.id}).${res.leads_released?` ${res.leads_released} lead${res.leads_released===1?'':'s'} returned to the unassigned pool.`:''}`;
+    loadLeads().catch(()=>{});
+  }catch(error){msg.className='form-message error';msg.textContent=error.message;}
+  btn.disabled=false;
+});
+
+/* ══════════════════════════════════════════════════════════════════════
+   Shared report page shell (Stripe + sign-up reports)
+   ══════════════════════════════════════════════════════════════════════ */
+function reportPage(title,headerLines,body){
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${esc(title)}</title>
+<style>
+*{box-sizing:border-box}
+body{font-family:Inter,-apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:#16232e;margin:0;padding:28px 32px;background:#fff}
+header{border-bottom:2px solid #16232e;padding-bottom:12px;margin-bottom:18px}
+h1{font-size:22px;margin:0 0 4px}
+header p{margin:2px 0;color:#5a6a7a;font-size:13px}
+h2{font-size:15px;margin:22px 0 8px;padding-bottom:4px;border-bottom:1px solid #d8e0e5;page-break-after:avoid}
+.report-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px}
+.report-card{border:1px solid #d8e0e5;border-radius:6px;padding:8px 10px}
+.report-card span{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#5a6a7a}
+.report-card strong{display:block;font-size:17px;margin-top:2px}
+table.report-table{width:100%;border-collapse:collapse;font-size:12px}
+table.report-table th{text-align:left;background:#f4f7f8;border:1px solid #d8e0e5;padding:5px 7px}
+table.report-table td{border:1px solid #e3e9ec;padding:5px 7px;vertical-align:top}
+table.report-table td.num{text-align:right;white-space:nowrap}
+tr.total td{font-weight:700;background:#f4f7f8}
+.neg{color:#b42318}
+.warn{background:#fff4d6;border:1px solid #f0d58a;padding:8px 10px;border-radius:6px;font-size:12px;margin:8px 0}
+.report-empty{font-size:12px;color:#5a6a7a;margin:4px 0 0}
+.report-actions{margin-bottom:16px}
+.report-actions button{font:inherit;font-size:13px;padding:8px 14px;border:1px solid #16232e;background:#16232e;color:#fff;border-radius:6px;cursor:pointer}
+footer{margin-top:24px;border-top:1px solid #d8e0e5;padding-top:8px;font-size:11px;color:#5a6a7a}
+@media print{.report-actions{display:none}body{padding:0}@page{size:landscape}table.report-table{page-break-inside:auto}tr{page-break-inside:avoid}}
+</style></head><body>
+<div class="report-actions"><button type="button" onclick="window.print()">Print this report</button></div>
+<header><h1>${esc(title)}</h1>${headerLines.map(([k,v])=>`<p><strong>${esc(k)}:</strong> ${esc(v)}</p>`).join('')}</header>
+${body}
+<footer>Shedlr · shedlr.com · Confidential internal report · Amounts in USD</footer>
+</body></html>`;
+}
+
+function openHtmlWindow(html,name,autoPrint,statusEl){
+  const win=window.open('',name);
+  if(!win){if(statusEl)statusEl.textContent='Your browser blocked the report window. Allow pop-ups for shedlr.com and try again.';return false;}
+  win.document.open();win.document.write(html);win.document.close();win.focus();
+  if(autoPrint)setTimeout(()=>{try{win.print();}catch{}},600);
+  return true;
+}
+
+function downloadCsv(lines,filename){
+  const csv=lines.map(row=>row.map(csvCell).join(',')).join('\r\n');
+  const blob=new Blob([`\ufeff${csv}`],{type:'text/csv;charset=utf-8'});
+  const link=document.createElement('a');
+  link.href=URL.createObjectURL(blob);link.download=filename;
+  document.body.appendChild(link);link.click();link.remove();
+  setTimeout(()=>URL.revokeObjectURL(link.href),2000);
+}
+
+const dollars=(cents)=>(Number(cents||0)/100).toFixed(2);
+const accountLabel=(b)=>b?`${b.company_name||b.name||b.email} (ID ${b.id})`:'No Shedlr account';
+const portalLabel=(b)=>!b?'—':b.portal_activated?'Activated':'Not activated';
+const localRangeParams=(fromValue,toValue)=>new URLSearchParams({from:new Date(`${fromValue}T00:00:00`).toISOString(),to:new Date(`${toValue}T23:59:59.999`).toISOString()});
+function quickRange(key){
+  const now=new Date();
+  if(key==='today')return [dateOnly(now),dateOnly(now)];
+  if(key==='last-7')return [dateOnly(new Date(now.getTime()-6*86400000)),dateOnly(now)];
+  if(key==='last-month')return [dateOnly(new Date(now.getFullYear(),now.getMonth()-1,1)),dateOnly(new Date(now.getFullYear(),now.getMonth(),0))];
+  if(key==='ytd')return [dateOnly(new Date(now.getFullYear(),0,1)),dateOnly(now)];
+  return [dateOnly(new Date(now.getFullYear(),now.getMonth(),1)),dateOnly(now)];
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   Stripe reports (owner admin only) — separate from the site report
+   ══════════════════════════════════════════════════════════════════════ */
+const stripeForm=$('[data-stripe-report-form]');
+const stripeFrom=$('[data-stripe-from]');
+const stripeTo=$('[data-stripe-to]');
+const stripeMonth=$('[data-stripe-month]');
+const stripeDetail=$('[data-stripe-detail]');
+const stripeStatus=$('[data-stripe-status]');
+
+function setStripeRange(key){
+  if(!stripeFrom)return;
+  const [from,to]=quickRange(key);
+  stripeFrom.value=from;stripeTo.value=to;
+  if(stripeMonth)stripeMonth.value=(key==='this-month'||key==='last-month')?from.slice(0,7):'';
+}
+function resetStripeRange(){setStripeRange('this-month');}
+
+stripeMonth?.addEventListener('change',()=>{
+  if(!stripeMonth.value)return;
+  const [y,m]=stripeMonth.value.split('-').map(Number);
+  stripeFrom.value=dateOnly(new Date(y,m-1,1));
+  stripeTo.value=dateOnly(new Date(y,m,0));
+  stripeStatus.textContent=`Range set to ${fmtDay(stripeFrom.value)} through ${fmtDay(stripeTo.value)}.`;
+});
+
+async function fetchStripeReport(){
+  if(!stripeFrom.value||!stripeTo.value)throw new Error('Please choose a start and end date.');
+  if(stripeFrom.value>stripeTo.value)throw new Error('The start date must be on or before the end date.');
+  return api(`/api/admin/stripe-report?${localRangeParams(stripeFrom.value,stripeTo.value)}`);
+}
+
+function truncationNotes(data){
+  const t=data.truncated||{};const notes=[];
+  if(t.charges)notes.push('Stripe returned more charges than one report can load. Totals may be incomplete and 1st/2nd/3rd numbering may start late. Use a shorter date range.');
+  if(t.signups)notes.push('More than 1,000 sign-ups in range. The sign-up list is incomplete; use a shorter date range.');
+  if(t.disputes)notes.push('More than 500 disputes in range. The dispute list is incomplete.');
+  return notes;
+}
+
+const PAYMENT_LIST_LABELS=[['first','1st payments'],['second','2nd payments'],['third','3rd payments'],['fourth_plus','4th+ payments']];
+
+function buildStripeReportHtml(data,detailLevel){
+  const t=data.totals||{};
+  const rangeLabel=`${fmtLocalDay(data.range?.from)} – ${fmtLocalDay(data.range?.to)}`;
+  const money=(c)=>fmtMoney(c);const neg=(c)=>`<span class="neg">−${fmtMoney(c)}</span>`;
+  const cards=[
+    ['Completed sign-ups',Number(t.signups||0).toLocaleString()],
+    ['Gross from sign-ups',money(t.signup_gross_cents)],
+    ['Payments collected',Number(t.payments||0).toLocaleString()],
+    ['Gross collected',money(t.gross_collected_cents)],
+    ['Failed, not recovered',`${Number(t.failed_unrecovered_customers||0).toLocaleString()} · ${money(t.failed_unrecovered_cents)}`],
+    ['Disputes',`${Number(t.disputes||0).toLocaleString()} · ${money(t.disputed_cents)}`],
+    ['Stripe fees',money(t.stripe_fees_cents)],
+    ['Net after deductions',money(t.net_cents)]
+  ];
+  const sections=[];
+  truncationNotes(data).forEach(n=>sections.push(`<div class="warn">${esc(n)}</div>`));
+  sections.push(`<h2>Summary</h2><div class="report-cards">${cards.map(([l,v])=>`<div class="report-card"><span>${esc(l)}</span><strong>${esc(v)}</strong></div>`).join('')}</div>`);
+
+  sections.push(`<h2>Gross to net</h2><table class="report-table"><tbody>
+<tr><td>Total gross billed (collected + unrecovered failed payments)</td><td class="num">${money(t.gross_attempted_cents)}</td></tr>
+<tr><td>Less failed payments not recovered (${Number(t.failed_unrecovered_customers||0)} customer${t.failed_unrecovered_customers===1?'':'s'}; ${Number(t.failed_payments||0)} total failed attempt${t.failed_payments===1?'':'s'} worth ${money(t.failed_cents)} including Stripe retries)</td><td class="num">${neg(t.failed_unrecovered_cents)}</td></tr>
+<tr class="total"><td>Gross collected</td><td class="num">${money(t.gross_collected_cents)}</td></tr>
+<tr><td>Less refunds</td><td class="num">${neg(t.refunds_cents)}</td></tr>
+<tr><td>Less disputes (${Number(t.disputes||0)} opened; ${money(t.disputed_cents)} disputed incl. ${money(t.dispute_fees_cents)} dispute fees; shown as net loss after any won disputes)</td><td class="num">${neg(t.dispute_loss_cents)}</td></tr>
+<tr><td>Less Stripe processing fees</td><td class="num">${neg(t.stripe_fees_cents)}</td></tr>
+<tr class="total"><td>Net after deductions</td><td class="num">${money(t.net_cents)}</td></tr>
+</tbody></table>`);
+
+  const lists=data.payment_lists||{};
+  sections.push(`<h2>Payment number breakdown</h2>${reportTable(['Payment #','Payments','Gross','Stripe fees','Net'],
+    PAYMENT_LIST_LABELS.map(([key,label])=>{const rows=lists[key]||[];return [esc(label),rows.length.toLocaleString(),money(rows.reduce((s,p)=>s+Number(p.amount_cents||0),0)),money(rows.reduce((s,p)=>s+Number(p.fee_cents||0),0)),money(rows.reduce((s,p)=>s+Number(p.net_cents||0),0))];}),'No payments in this date range.')}`);
+
+  if(detailLevel==='full'){
+    sections.push(`<h2>Completed sign-ups (${(data.signups||[]).length})</h2>${reportTable(['Signed up','Customer','Email','Phone','Paid at checkout','Shedlr account','Portal'],
+      (data.signups||[]).map(s=>[fmt(s.created_at),esc(s.name||'—'),esc(s.email||'—'),esc(s.phone||'—'),money(s.amount_cents),esc(accountLabel(s.business)),esc(portalLabel(s.business))]),'No completed sign-ups in this date range.')}`);
+    PAYMENT_LIST_LABELS.forEach(([key,label])=>{
+      const rows=lists[key]||[];
+      sections.push(`<h2>${esc(label)} (${rows.length})</h2>${reportTable(['Paid','Customer','Email','Amount','Stripe fee','Net','Refunded','Shedlr account'],
+        rows.map(p=>[fmt(p.created_at),esc(p.business?.company_name||p.name||'—'),esc(p.email||'—'),money(p.amount_cents),money(p.fee_cents),p.net_cents==null?'—':money(p.net_cents),p.refunded_cents?money(p.refunded_cents):'—',esc(accountLabel(p.business))]),`No ${label.toLowerCase()} in this date range.`)}`);
+    });
+    sections.push(`<h2>Failed payments (${(data.failed_payments||[]).length} attempts)</h2>${reportTable(['Attempted','Customer','Email','Amount','Reason','Recovered later?','Shedlr account'],
+      (data.failed_payments||[]).map(p=>[fmt(p.created_at),esc(p.business?.company_name||p.name||'—'),esc(p.email||'—'),money(p.amount_cents),esc(p.failure_message||p.failure_code||'—'),p.recovered?'Yes, a retry succeeded':'<strong>No</strong>',esc(accountLabel(p.business))]),'No failed payments in this date range.')}`);
+    sections.push(`<h2>Disputes (${(data.disputes||[]).length})</h2>${reportTable(['Opened','Email','Amount','Status','Reason','Dispute fee','Net impact','Evidence due','Shedlr account'],
+      (data.disputes||[]).map(d=>[fmt(d.created_at),esc(d.email||'—'),money(d.amount_cents),esc(String(d.status||'—').replace(/_/g,' ')),esc(String(d.reason||'—').replace(/_/g,' ')),money(d.fee_cents),`${d.net_impact_cents<0?'−':''}${fmtMoney(Math.abs(d.net_impact_cents||0))}`,d.evidence_due_by?fmt(d.evidence_due_by):'—',esc(accountLabel(d.business))]),'No disputes opened in this date range.')}`);
+  }
+  return reportPage('Shedlr Stripe report',[['Date range',rangeLabel],['Generated',fmt(data.generated_at)],['Source','Live from Stripe (charges, Checkout sessions, disputes)']],sections.join('\n'));
+}
+
+async function openStripeReport(autoPrint){
+  stripeStatus.textContent='Pulling from Stripe…';
+  try{
+    const data=await fetchStripeReport();
+    if(openHtmlWindow(buildStripeReportHtml(data,stripeDetail.value),'shedlrStripeReport',autoPrint,stripeStatus)){
+      const notes=truncationNotes(data);
+      stripeStatus.textContent=`Stripe report ready for ${fmtDay(stripeFrom.value)} through ${fmtDay(stripeTo.value)}: ${data.totals.signups} sign-ups, ${fmtMoney(data.totals.gross_collected_cents)} collected, ${fmtMoney(data.totals.net_cents)} net.${notes.length?' '+notes[0]:''}`;
+    }
+  }catch(error){stripeStatus.textContent=error.message;}
+}
+
+async function downloadStripeCsv(){
+  stripeStatus.textContent='Building Stripe CSV…';
+  try{
+    const data=await fetchStripeReport();const t=data.totals||{};
+    const lines=[['Shedlr Stripe report'],['Range from',data.range?.from,'Range to',data.range?.to],['Generated',data.generated_at],[]];
+    truncationNotes(data).forEach(n=>lines.push(['WARNING',n]));
+    lines.push(['Gross to net','Amount (USD)']);
+    [['Total gross billed (collected + unrecovered failed)',t.gross_attempted_cents],['Less failed payments not recovered',-t.failed_unrecovered_cents],['Gross collected',t.gross_collected_cents],['Less refunds',-t.refunds_cents],['Less disputes (net loss)',-t.dispute_loss_cents],['Less Stripe fees',-t.stripe_fees_cents],['Net after deductions',t.net_cents]].forEach(([k,v])=>lines.push([k,dollars(v)]));
+    lines.push([]);
+    lines.push(['Metric','Value']);
+    [['Completed sign-ups',t.signups],['Gross from sign-ups',dollars(t.signup_gross_cents)],['Payments collected',t.payments],['Failed payment attempts (incl. retries)',t.failed_payments],['Failed attempts amount (incl. retries)',dollars(t.failed_cents)],['Customers with failed payments',t.failed_customers],['Customers still unrecovered',t.failed_unrecovered_customers],['Disputes opened',t.disputes],['Disputed amount',dollars(t.disputed_cents)],['Dispute fees',dollars(t.dispute_fees_cents)],['1st payments',t.first_payments],['2nd payments',t.second_payments],['3rd payments',t.third_payments],['4th+ payments',t.fourth_plus_payments]].forEach(r=>lines.push(r));
+    lines.push([]);
+    lines.push(['Completed sign-ups']);
+    lines.push(['Signed up','Customer','Email','Phone','Paid at checkout','Stripe session','Stripe customer','Shedlr business ID','Portal']);
+    (data.signups||[]).forEach(s=>lines.push([s.created_at,s.name||'',s.email||'',s.phone||'',dollars(s.amount_cents),s.session_id,s.customer_id||'',s.business?.id||'',portalLabel(s.business)]));
+    lines.push([]);
+    lines.push(['Payments (all, with payment number)']);
+    lines.push(['Paid','Payment #','Customer','Email','Amount','Stripe fee','Net','Refunded','Disputed','Stripe charge','Stripe customer','Shedlr business ID']);
+    (data.payments||[]).forEach(p=>lines.push([p.created_at,p.payment_number||'',p.business?.company_name||p.name||'',p.email||'',dollars(p.amount_cents),dollars(p.fee_cents),p.net_cents==null?'':dollars(p.net_cents),dollars(p.refunded_cents),p.disputed?'Yes':'No',p.charge_id,p.customer_id||'',p.business?.id||'']));
+    lines.push([]);
+    lines.push(['Failed payments']);
+    lines.push(['Attempted','Customer','Email','Amount','Reason','Recovered later','Stripe charge','Stripe customer','Shedlr business ID']);
+    (data.failed_payments||[]).forEach(p=>lines.push([p.created_at,p.business?.company_name||p.name||'',p.email||'',dollars(p.amount_cents),p.failure_message||p.failure_code||'',p.recovered?'Yes':'No',p.charge_id,p.customer_id||'',p.business?.id||'']));
+    lines.push([]);
+    lines.push(['Disputes']);
+    lines.push(['Opened','Email','Amount','Status','Reason','Dispute fee','Net impact','Evidence due','Stripe dispute','Stripe charge','Shedlr business ID']);
+    (data.disputes||[]).forEach(d=>lines.push([d.created_at,d.email||'',dollars(d.amount_cents),d.status||'',d.reason||'',dollars(d.fee_cents),dollars(d.net_impact_cents),d.evidence_due_by||'',d.dispute_id,d.charge_id||'',d.business?.id||'']));
+    downloadCsv(lines,`shedlr-stripe-report-${stripeFrom.value}-to-${stripeTo.value}.csv`);
+    stripeStatus.textContent='Stripe CSV downloaded.';
+  }catch(error){stripeStatus.textContent=error.message;}
+}
+
+if(stripeForm){
+  stripeForm.addEventListener('submit',event=>{event.preventDefault();openStripeReport(true);});
+  $('[data-stripe-preview]').addEventListener('click',()=>openStripeReport(false));
+  $('[data-stripe-csv]').addEventListener('click',downloadStripeCsv);
+  document.querySelectorAll('[data-stripe-range]').forEach(button=>button.addEventListener('click',()=>{
+    setStripeRange(button.dataset.stripeRange);
+    stripeStatus.textContent=`Range set to ${fmtDay(stripeFrom.value)} through ${fmtDay(stripeTo.value)}. Choose Print or Preview.`;
+  }));
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   Business account manager (BAM / sales) portal
+   ══════════════════════════════════════════════════════════════════════ */
+let bamSignups=[];let bamSignupData=null;
+const bamFrom=$('[data-bam-from]');const bamTo=$('[data-bam-to]');
+const bamSignupsStatus=$('[data-bam-signups-status]');
+const bamSignupsTable=$('[data-bam-signups-table]');
+const bamBusinessesTable=$('[data-bam-businesses-table]');
+
+const portalPill=(b)=>!b?'<span class="status warn">No account yet</span>':b.portal_activated?'<span class="status ok">Activated</span>':'<span class="status warn">Not activated</span>';
+function bamFilteredRows(){return filterBusinessRows($('[data-bam-search]')?.value,$('[data-bam-status-filter]')?.value);}
+
+function renderBamBusinesses(rows){
+  if(!bamBusinessesTable)return;
+  bamBusinessesTable.innerHTML=rows.map(b=>`<tr><td><strong>${esc(b.company_name||b.name||'—')}</strong>${b.company_name&&b.name?`<span class="row-note">${esc(b.name)}</span>`:''}</td><td>${esc(b.email||'—')}<br>${esc(b.phone||'—')}</td><td>${esc(catLabel(b.preferred_category))}</td><td>${esc(b.address||'—')}</td><td><span class="status">${esc(statusLabel(b.status))}</span></td><td>${portalPill(b)}</td><td>${fmt(b.created_at)}</td><td><button type="button" data-open-business="${b.id}">View / edit</button></td></tr>`).join('')||'<tr><td colspan="8">No business accounts found.</td></tr>';
+}
+
+async function loadBamBusinesses(){
+  const data=await api('/api/admin/businesses');
+  businesses=data.businesses||[];
+  renderBamBusinesses(bamFilteredRows());
+}
+
+function setBamRange(key){
+  if(!bamFrom)return;
+  const [from,to]=quickRange(key);bamFrom.value=from;bamTo.value=to;
+}
+
+function bamSignupRows(){
+  const q=($('[data-bam-signup-search]')?.value||'').trim().toLowerCase();
+  const rows=bamSignups.map((s,i)=>({...s,_i:i}));
+  if(!q)return rows;
+  return rows.filter(s=>[s.name,s.email,s.phone,s.business?.company_name,s.business?.name].some(v=>String(v||'').toLowerCase().includes(q)));
+}
+
+function renderBamSignups(){
+  if(!bamSignupsTable)return;
+  const rows=bamSignupRows();
+  bamSignupsTable.innerHTML=rows.map(s=>{
+    const b=s.business;
+    const account=b?`<strong>${esc(b.company_name||b.name||b.email)}</strong><span class="row-note">ID ${b.id} · ${esc(statusLabel(b.status))}</span>`:'<span class="status warn">No account yet</span>';
+    const action=b
+      ?`<button type="button" data-bam-signup-link="${s._i}">${b.portal_activated?'Get reset link':'Get activation link'}</button> <button type="button" data-open-business="${b.id}">View</button>`
+      :`<button type="button" data-bam-signup-link="${s._i}">Create account &amp; link</button>`;
+    return `<tr><td>${fmt(s.created_at)}</td><td><strong>${esc(s.name||'—')}</strong><span class="row-note">${esc(s.email||'—')}</span>${s.phone?`<span class="row-note">${esc(s.phone)}</span>`:''}</td><td>${fmtMoney(s.amount_cents)}</td><td>${account}</td><td>${b?portalPill(b):'—'}</td><td>${action}</td></tr>`;
+  }).join('')||'<tr><td colspan="6">No Stripe sign-ups in this date range.</td></tr>';
+}
+
+async function loadBamSignups(){
+  if(!bamFrom.value||!bamTo.value)throw new Error('Please choose a start and end date.');
+  if(bamFrom.value>bamTo.value)throw new Error('The start date must be on or before the end date.');
+  bamSignupsStatus.textContent='Checking Stripe…';
+  const data=await api(`/api/admin/stripe-signups?${localRangeParams(bamFrom.value,bamTo.value)}`);
+  bamSignupData=data;bamSignups=data.signups||[];
+  renderBamSignups();
+  const t=data.totals||{};
+  bamSignupsStatus.textContent=`${t.signups||0} sign-up${t.signups===1?'':'s'} (${fmtMoney(t.signup_gross_cents)}) from ${fmtDay(bamFrom.value)} through ${fmtDay(bamTo.value)}. ${t.not_activated||0} not activated yet, ${t.without_account||0} without a Shedlr account.${data.truncated?' More sign-ups exist than one list can show; use a shorter range.':''}`;
+}
+
+async function requestLinkForEmail(payload){
+  const res=await api('/api/admin/businesses',{method:'POST',body:JSON.stringify(payload)});
+  if(navigator.clipboard)navigator.clipboard.writeText(res.activation_url).catch(()=>{});
+  const kind=res.link_mode==='reset'?'Password-reset link':'Activation link';
+  const lead=res.existing?`Existing account found for ${res.business.email} (ID ${res.business.id}), so no duplicate was created.`:`New account created for ${res.business.email} (ID ${res.business.id}).`;
+  return {res,text:`${lead} ${kind} copied (valid 72 hours): ${res.activation_url}`};
+}
+
+bamSignupsTable?.addEventListener('click',async event=>{
+  const open=event.target.closest('[data-open-business]');
+  if(open){openBusiness(open.dataset.openBusiness);return;}
+  const btn=event.target.closest('[data-bam-signup-link]');
+  if(!btn)return;
+  const s=bamSignups[Number(btn.dataset.bamSignupLink)];
+  if(!s||!s.email){bamSignupsStatus.textContent='That Stripe sign-up has no email address.';return;}
+  btn.disabled=true;bamSignupsStatus.textContent='Generating link…';
+  try{
+    const {text}=await requestLinkForEmail({email:s.email,name:s.name||'',phone:s.phone||''});
+    bamSignupsStatus.textContent=text;
+    await loadBamBusinesses().catch(()=>{});
+    await loadBamSignups().then(()=>{bamSignupsStatus.textContent=text;}).catch(()=>{});
+  }catch(error){bamSignupsStatus.textContent=error.message;}
+  btn.disabled=false;
+});
+
+$('[data-bam-signups-form]')?.addEventListener('submit',event=>{event.preventDefault();loadBamSignups().catch(error=>{bamSignupsStatus.textContent=error.message;});});
+document.querySelectorAll('[data-bam-range]').forEach(button=>button.addEventListener('click',()=>{setBamRange(button.dataset.bamRange);loadBamSignups().catch(error=>{bamSignupsStatus.textContent=error.message;});}));
+$('[data-bam-signup-search]')?.addEventListener('input',renderBamSignups);
+
+function bamSignupReportHtml(){
+  const rows=bamSignupRows();const t=bamSignupData?.totals||{};
+  const cards=[['Sign-ups',String(rows.length)],['Paid at checkout',fmtMoney(rows.reduce((s,r)=>s+Number(r.amount_cents||0),0))],['Portal activated',String(rows.filter(r=>r.business?.portal_activated).length)],['Not activated',String(rows.filter(r=>r.business&&!r.business.portal_activated).length)],['No Shedlr account',String(rows.filter(r=>!r.business).length)]];
+  const body=`<h2>Summary</h2><div class="report-cards">${cards.map(([l,v])=>`<div class="report-card"><span>${esc(l)}</span><strong>${esc(v)}</strong></div>`).join('')}</div>
+<h2>Stripe sign-ups</h2>${reportTable(['Signed up','Customer','Email','Phone','Paid','Shedlr account','Portal'],rows.map(s=>[fmt(s.created_at),esc(s.name||'—'),esc(s.email||'—'),esc(s.phone||'—'),fmtMoney(s.amount_cents),esc(accountLabel(s.business)),esc(portalLabel(s.business))]),'No sign-ups in this date range.')}`;
+  return reportPage('Shedlr Stripe sign-up report',[['Date range',`${fmtDay(bamFrom.value)} – ${fmtDay(bamTo.value)}`],['Generated',fmt(new Date().toISOString())],['All sign-ups in range',String(t.signups||0)]],body);
+}
+
+$('[data-bam-signups-print]')?.addEventListener('click',()=>{
+  if(!bamSignupData){bamSignupsStatus.textContent='Select Show sign-ups first.';return;}
+  openHtmlWindow(bamSignupReportHtml(),'shedlrSignupReport',false,bamSignupsStatus);
+});
+$('[data-bam-signups-csv]')?.addEventListener('click',()=>{
+  if(!bamSignupData){bamSignupsStatus.textContent='Select Show sign-ups first.';return;}
+  const lines=[['Shedlr Stripe sign-up report'],['From',bamFrom.value,'To',bamTo.value],[],['Signed up','Customer','Email','Phone','Paid','Shedlr business ID','Business','Portal']];
+  bamSignupRows().forEach(s=>lines.push([s.created_at,s.name||'',s.email||'',s.phone||'',dollars(s.amount_cents),s.business?.id||'',s.business?.company_name||'',portalLabel(s.business)]));
+  downloadCsv(lines,`shedlr-signups-${bamFrom.value}-to-${bamTo.value}.csv`);
+});
+
+$('[data-bam-create-form]')?.addEventListener('submit',async event=>{
+  event.preventDefault();
+  const form=event.target;const out=$('[data-bam-create-status]');
+  out.textContent='Checking for an existing account…';
+  try{
+    const {text}=await requestLinkForEmail({email:form.email.value.trim(),company_name:form.company_name.value.trim(),name:form.name.value.trim(),phone:form.phone.value.trim(),address:form.address.value.trim(),preferred_category:form.preferred_category.value||null});
+    out.textContent=text;form.reset();
+    await loadBamBusinesses().catch(()=>{});
+  }catch(error){out.textContent=error.message;}
+});
+
+bamBusinessesTable?.addEventListener('click',event=>{const b=event.target.closest('[data-open-business]');if(b)openBusiness(b.dataset.openBusiness);});
+$('[data-bam-search]')?.addEventListener('input',()=>renderBamBusinesses(bamFilteredRows()));
+$('[data-bam-status-filter]')?.addEventListener('change',()=>renderBamBusinesses(bamFilteredRows()));
+
+function renderBamBusinessDetail(detail){
+  const b=detail.business||{};
+  const grid=$('[data-bam-business-details]');
+  if(grid)grid.innerHTML=[['Status',statusLabel(b.status)],['Portal',b.portal_activated?'Activated':'Not activated'],['Paid in Stripe',b.stripe_customer_id?'Yes (linked to Stripe)':'Not linked yet'],['Created',fmt(b.created_at)],['Last login',b.last_login_at?fmt(b.last_login_at):'Never'],['Account ID',b.id]].map(([l,v])=>`<div><strong>${esc(l)}</strong>${esc(v??'—')}</div>`).join('');
+  $('[data-bam-company]').value=b.company_name||'';
+  $('[data-bam-name]').value=b.name||'';
+  $('[data-bam-email]').value=b.email||'';
+  $('[data-bam-phone]').value=b.phone||'';
+  $('[data-bam-address]').value=b.address||'';
+  $('[data-bam-category]').value=b.preferred_category||'';
+  const msg=$('[data-bam-save-message]');if(msg){msg.hidden=true;msg.textContent='';}
+  const list=$('[data-bam-orders-list]');
+  if(list){const orders=detail.orders||[];list.innerHTML=orders.length?orders.map(o=>`<div class="note-item"><strong>${catLabel(o.category)} — ${o.quantity} leads</strong><div>${fmtMoney(o.total_cents)} · Status: ${esc(o.status)}</div><div class="meta">Submitted ${fmt(o.created_at)}${o.paid_at?` · Paid ${fmt(o.paid_at)}`:''}</div></div>`).join(''):'<p class="empty-hint">No orders on file.</p>';}
+}
+
+$('[data-bam-save]')?.addEventListener('click',async()=>{
+  if(!activeBusiness)return;
+  const msg=$('[data-bam-save-message]');msg.hidden=false;msg.className='form-message';msg.textContent='Saving…';
+  try{
+    const res=await api(`/api/admin/businesses/${activeBusiness.id}`,{method:'PATCH',body:JSON.stringify({
+      company_name:$('[data-bam-company]').value.trim(),name:$('[data-bam-name]').value.trim(),email:$('[data-bam-email]').value.trim(),
+      phone:$('[data-bam-phone]').value.trim(),address:$('[data-bam-address]').value.trim(),preferred_category:$('[data-bam-category]').value
+    })});
+    Object.assign(activeBusiness,res.business);
+    if(activeBusinessDetail)activeBusinessDetail.business=res.business;
+    $('[data-business-title]').textContent=res.business.company_name||res.business.name||res.business.email;
+    renderBamBusinessDetail({business:res.business,orders:activeBusinessDetail?.orders||[]});
+    renderBamBusinesses(bamFilteredRows());
+    if(bamSignupData)renderBamSignups();
+    msg.hidden=false;msg.textContent='Saved.';
+  }catch(error){msg.hidden=false;msg.className='form-message error';msg.textContent=error.message;}
+});
+
+async function enterBamPortal(){
+  setBamRange('this-month');
+  await loadBamBusinesses();
+  await loadBamSignups().catch(error=>{bamSignupsStatus.textContent=error.message;});
+}
+
 /* ── Init ── */
 loginForm.addEventListener('submit',async event=>{
   event.preventDefault();
@@ -1075,10 +1541,12 @@ async function enterDashboard(role){
   showDashboard();
   populateCategoryFilters();
   if(role==='admin'){
-    resetRange();resetReportRange();populateBulkCategory();
+    resetRange();resetReportRange();resetStripeRange();populateBulkCategory();
     await loadDashboard();
   }else if(role==='retention'){
     await loadRetentionBusinesses();
+  }else if(role==='bam'){
+    await enterBamPortal();
   }else{
     await loadStaffBusinesses();
   }

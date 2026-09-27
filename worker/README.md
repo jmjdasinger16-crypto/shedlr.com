@@ -19,6 +19,8 @@ This worker powers the Shedlr API: admin authentication, business portal auth, l
    - `ADMIN_PASSWORD` — admin dashboard password (full access)
    - `STAFF_PASSWORD` — optional VA password (view active accounts, add leads only)
    - `RETENTION_PASSWORD` — optional retention manager password (read-only view of every business account in any status, including contact info and notes)
+   - `BAM_PASSWORD` — optional business account manager (sales) password: sees every account and Stripe sign-ups for any date range, creates accounts without duplicates, edits business name/contact/address/type, and generates activation / password-reset links
+   - `STRIPE_REPORT_PAYMENT_LINKS` — optional comma-separated `plink_...` ids; limits the sign-up lists to Shedlr's payment links if the Stripe account is shared
    - `ADMIN_SESSION_SECRET` — random string for signing admin sessions
    - `BUSINESS_SESSION_SECRET` — random string for signing business sessions
    - `STRIPE_SECRET_KEY` — Stripe API key (optional, for payment processing)
@@ -41,6 +43,11 @@ This worker powers the Shedlr API: admin authentication, business portal auth, l
 - `POST /api/admin/logout` — sign out
 - `GET  /api/admin/dashboard` — metrics, orders, events, pages
 - `GET  /api/admin/report?from=&to=` — backend report for a date range (admin only; printable/CSV source for the dashboard)
+- `GET  /api/admin/stripe-report?from=&to=` — live Stripe report (admin only): completed sign-ups, gross from sign-ups, payments numbered 1st/2nd/3rd/4th+ per customer, failed payments, refunds, disputes, Stripe fees, gross to net
+- `GET  /api/admin/stripe-signups?from=&to=` — completed Stripe Checkout sign-ups matched to Shedlr accounts (admin + BAM)
+- `DELETE /api/admin/businesses/:id` — delete a business account (admin only; leads return to the unassigned pool)
+- `POST /api/admin/businesses/:id/killswitch` — `{ "enabled": true|false }` block / restore client portal lead access (admin only; needs `migration_killswitch.sql`)
+- `POST /api/admin/businesses` — create an account; if the email already exists (case-insensitive) no duplicate is created and a fresh link for the existing account is returned
 - `GET  /api/admin/businesses` — list businesses
 - `GET  /api/admin/businesses/:id` — business detail with orders and assignments
 - `PATCH /api/admin/businesses/:id` — update business

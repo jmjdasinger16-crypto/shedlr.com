@@ -182,6 +182,7 @@ async function getAdminSession(request, env) {
     if (!(decoded.exp > Math.floor(Date.now() / 1000))) return null;
     if (decoded.role === "staff") return { role: "staff" };
     if (decoded.role === "retention") return { role: "retention" };
+    if (decoded.role === "bam") return { role: "bam" };
     return { role: "admin" };
   } catch { return null; }
 }
@@ -238,6 +239,25 @@ async function findBusinessById(env, id) {
 function isCanceledBusiness(business) {
   const status = String(business && business.status || "").trim().toLowerCase();
   return status === "canceled" || status === "cancelled";
+}
+
+/* Killswitch: when on, the client portal can no longer see or open its leads. The account
+   itself stays live and visible to admin, BAM, retention, and (unless canceled) VA staff. */
+const isLeadsLocked = (business) => Boolean(Number(business && business.leads_locked || 0));
+const LEADS_LOCKED_MESSAGE = "Lead access for this account is paused. Please contact support@shedlr.com or (307) 303-7530.";
+
+const normEmail = (value) => clean(value, 254).toLowerCase();
+
+/* Never send password hashes or live activation tokens to any browser. */
+function safeBusiness(business) {
+  if (!business) return null;
+  const { password_hash, activation_nonce, activation_nonce_expires, ...rest } = business;
+  return { ...rest, portal_activated: Boolean(password_hash), leads_locked: isLeadsLocked(business) };
+}
+
+/* Case/whitespace-insensitive lookup so "Bob@X.com " and "bob@x.com" are the same account. */
+async function findBusinessByEmail(env, email) {
+  return env.DB.prepare("SELECT * FROM businesses WHERE lower(trim(email))=? ORDER BY id ASC LIMIT 1").bind(normEmail(email)).first();
 }
 
 const activationUrl = (token) => `https://shedlr.com/portal/activate.html?token=${token}`;
@@ -388,7 +408,7 @@ async function provisionBusinessFromCheckout(env, session) {
   const phone = clean(session.customer_details?.phone || "", 40) || order?.phone || null;
   const customerId = session.customer || null;
 
-  const existing = await env.DB.prepare("SELECT * FROM businesses WHERE email=?").bind(email).first();
+  const existing = await findBusinessByEmail(env, email);
   let businessId = existing?.id || null;
   let created = false;
 
@@ -418,6 +438,208 @@ function mapOrderStatus(stripeStatus) {
   return null;
 }
 
+/* ══════════════════════════════ STRIPE REPORTS ══════════════════════════════ */
+
+/* Accepts YYYY-MM-DD (whole UTC day) or a full ISO timestamp (the admin UI sends the
+   browser's local midnight / 23:59:59 as ISO, so ranges follow the user's time zone). */
+function parseReportRange(url, defaultDays = 30) {
+  const now = new Date();
+  const parseBound = (raw, fallback, endOfDay) => {
+    if (!raw) return fallback;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return new Date(`${raw}T${endOfDay ? "23:59:59.999" : "00:00:00.000"}Z`);
+    return new Date(raw);
+  };
+  const fromDate = parseBound(url.searchParams.get("from"), new Date(now.getTime() - defaultDays * 86400000), false);
+  const toDate = parseBound(url.searchParams.get("to"), now, true);
+  if (Number.isNaN(fromDate.getTime()) || Number.isNaN(toDate.getTime())) return { error: "Invalid date range." };
+  if (fromDate > toDate) return { error: "The start date must be before the end date." };
+  return { fromDate, toDate, fromSec: Math.floor(fromDate.getTime() / 1000), toSec: Math.floor(toDate.getTime() / 1000) };
+}
+
+/* Pages through a Stripe list endpoint. `params` is an array of [key, value] pairs so
+   repeated keys like expand[] survive. Capped so one report stays inside the Worker
+   subrequest budget; `truncated` tells the UI when the cap was hit. */
+async function stripeListAll(env, path, params = [], maxPages = 10) {
+  const items = [];
+  let startingAfter = null; let pages = 0; let hasMore = true;
+  while (hasMore && pages < maxPages) {
+    const qs = new URLSearchParams(params);
+    qs.set("limit", "100");
+    if (startingAfter) qs.set("starting_after", startingAfter);
+    const res = await stripeApi(env, `${path}?${qs.toString()}`);
+    if (!res.ok) {
+      const err = res.data && res.data.error;
+      throw new Error((err && err.message) || (typeof err === "string" ? err : `Stripe request failed (${res.status}).`));
+    }
+    const batch = Array.isArray(res.data && res.data.data) ? res.data.data : [];
+    items.push(...batch);
+    pages++;
+    hasMore = Boolean(res.data.has_more) && batch.length > 0;
+    startingAfter = batch.length ? batch[batch.length - 1].id : null;
+  }
+  return { items, truncated: hasMore };
+}
+
+const stripeId = (value) => (typeof value === "string" ? value : (value && value.id) || null);
+const isoFromUnix = (sec) => (sec ? new Date(Number(sec) * 1000).toISOString() : null);
+const sumBy = (rows, pick) => rows.reduce((total, row) => total + Number(pick(row) || 0), 0);
+
+/* Matches Stripe customers/emails to Shedlr business accounts (customer id first, then email). */
+async function loadBusinessMatcher(env) {
+  const rows = (await env.DB.prepare("SELECT * FROM businesses").all()).results || [];
+  const byCustomer = new Map(); const byEmail = new Map();
+  for (const b of rows) {
+    if (b.stripe_customer_id) byCustomer.set(b.stripe_customer_id, b);
+    const key = normEmail(b.email);
+    if (key && !byEmail.has(key)) byEmail.set(key, b);
+  }
+  return (customerId, email) => {
+    const b = (customerId && byCustomer.get(customerId)) || (email && byEmail.get(normEmail(email))) || null;
+    if (!b) return null;
+    return { id: b.id, email: b.email, name: b.name, company_name: b.company_name, status: b.status, portal_activated: Boolean(b.password_hash), leads_locked: isLeadsLocked(b), last_login_at: b.last_login_at };
+  };
+}
+
+/* Completed Stripe Checkout sessions = completed sign-ups. Optional STRIPE_REPORT_PAYMENT_LINKS
+   (comma-separated plink_... ids) limits this to Shedlr's own payment links when the Stripe
+   account is shared with another business. */
+async function fetchStripeSignups(env, fromSec, toSec, matchBusiness) {
+  const { items, truncated } = await stripeListAll(env, "checkout/sessions", [["status", "complete"], ["created[gte]", String(fromSec)], ["created[lte]", String(toSec)]], 10);
+  const allowedLinks = String(env.STRIPE_REPORT_PAYMENT_LINKS || "").split(",").map((v) => v.trim()).filter(Boolean);
+  const sessions = allowedLinks.length ? items.filter((s) => allowedLinks.includes(stripeId(s.payment_link))) : items;
+  const signups = sessions.map((s) => {
+    const email = normEmail((s.customer_details && s.customer_details.email) || s.customer_email || "");
+    const customerId = stripeId(s.customer);
+    return {
+      session_id: s.id, created_at: isoFromUnix(s.created), email,
+      name: (s.customer_details && s.customer_details.name) || null,
+      phone: (s.customer_details && s.customer_details.phone) || null,
+      amount_cents: Number(s.amount_total || 0), currency: s.currency || "usd",
+      payment_status: s.payment_status, mode: s.mode, customer_id: customerId,
+      business: matchBusiness(customerId, email)
+    };
+  }).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+  return { signups, truncated };
+}
+
+async function buildStripeReport(env, range) {
+  const { fromSec, toSec } = range;
+  const matchBusiness = await loadBusinessMatcher(env);
+  /* Charges are fetched from the start of the account up to the end of the range so every
+     payment can be numbered (1st, 2nd, 3rd...) against the customer's full history. */
+  const [signupRes, chargeRes, disputeRes] = await Promise.all([
+    fetchStripeSignups(env, fromSec, toSec, matchBusiness),
+    stripeListAll(env, "charges", [["created[lte]", String(toSec)], ["expand[]", "data.balance_transaction"]], 25),
+    stripeListAll(env, "disputes", [["created[gte]", String(fromSec)], ["created[lte]", String(toSec)], ["expand[]", "data.charge"]], 5)
+  ]);
+
+  const chargeEmail = (c) => normEmail((c.billing_details && c.billing_details.email) || c.receipt_email || "");
+  const customerKey = (c) => stripeId(c.customer) || chargeEmail(c) || `charge:${c.id}`;
+
+  const succeededAll = chargeRes.items.filter((c) => c.status === "succeeded" && c.paid)
+    .sort((a, b) => (a.created - b.created) || String(a.id).localeCompare(String(b.id)));
+  const paymentNumber = new Map(); const perCustomer = new Map();
+  for (const c of succeededAll) {
+    const key = customerKey(c);
+    const n = (perCustomer.get(key) || 0) + 1;
+    perCustomer.set(key, n);
+    paymentNumber.set(c.id, n);
+  }
+
+  const toPayment = (c) => {
+    const bt = c.balance_transaction && typeof c.balance_transaction === "object" ? c.balance_transaction : null;
+    const email = chargeEmail(c); const customerId = stripeId(c.customer);
+    return {
+      charge_id: c.id, created_at: isoFromUnix(c.created), email,
+      name: (c.billing_details && c.billing_details.name) || null,
+      description: c.description || null, amount_cents: Number(c.amount || 0),
+      fee_cents: bt ? Number(bt.fee || 0) : 0, net_cents: bt ? Number(bt.net || 0) : null,
+      refunded_cents: Number(c.amount_refunded || 0), disputed: Boolean(c.disputed), status: c.status,
+      payment_number: paymentNumber.get(c.id) || null,
+      failure_code: c.failure_code || null,
+      failure_message: c.failure_message || (c.outcome && c.outcome.seller_message) || null,
+      customer_id: customerId, business: matchBusiness(customerId, email)
+    };
+  };
+
+  const inRange = chargeRes.items.filter((c) => c.created >= fromSec && c.created <= toSec);
+  const byNewest = (a, b) => String(b.created_at).localeCompare(String(a.created_at));
+  const payments = inRange.filter((c) => c.status === "succeeded" && c.paid).map(toPayment).sort(byNewest);
+  const failed = inRange.filter((c) => c.status === "failed").map(toPayment).sort(byNewest);
+
+  const disputes = disputeRes.items.map((d) => {
+    const bts = Array.isArray(d.balance_transactions) ? d.balance_transactions : [];
+    const charge = d.charge && typeof d.charge === "object" ? d.charge : null;
+    const email = charge ? chargeEmail(charge) : "";
+    const customerId = charge ? stripeId(charge.customer) : null;
+    return {
+      dispute_id: d.id, charge_id: stripeId(d.charge), created_at: isoFromUnix(d.created), email,
+      amount_cents: Number(d.amount || 0), status: d.status, reason: d.reason,
+      fee_cents: sumBy(bts, (b) => b.fee), net_impact_cents: sumBy(bts, (b) => b.net),
+      evidence_due_by: isoFromUnix(d.evidence_details && d.evidence_details.due_by),
+      business: matchBusiness(customerId, email)
+    };
+  }).sort(byNewest);
+
+  const grossCollected = sumBy(payments, (p) => p.amount_cents);
+  const failedCents = sumBy(failed, (p) => p.amount_cents);
+  /* Stripe retries a declined renewal several times, so raw failed attempts overstate what was
+     lost. "Unrecovered" counts each customer + amount once, and drops it if a later retry for
+     the same customer and amount succeeded. This is what gets deducted from gross billed. */
+  const unrecovered = new Map();
+  for (const f of failed) {
+    const key = `${f.customer_id || f.email || f.charge_id}|${f.amount_cents}`;
+    const failedAt = Date.parse(f.created_at) / 1000;
+    const recovered = succeededAll.some((c) => customerKey(c) === (f.customer_id || f.email || `charge:${f.charge_id}`) && Number(c.amount) === f.amount_cents && c.created >= failedAt);
+    f.recovered = recovered;
+    if (!recovered && !unrecovered.has(key)) unrecovered.set(key, f.amount_cents);
+  }
+  const unrecoveredCents = [...unrecovered.values()].reduce((a, b) => a + b, 0);
+  const refunds = sumBy(payments, (p) => p.refunded_cents);
+  const fees = sumBy(payments, (p) => p.fee_cents);
+  const disputeLoss = Math.max(0, -sumBy(disputes, (d) => d.net_impact_cents));
+  const lists = { first: [], second: [], third: [], fourth_plus: [] };
+  for (const p of payments) {
+    if (p.payment_number === 1) lists.first.push(p);
+    else if (p.payment_number === 2) lists.second.push(p);
+    else if (p.payment_number === 3) lists.third.push(p);
+    else lists.fourth_plus.push(p);
+  }
+
+  return {
+    range: { from: range.fromDate.toISOString(), to: range.toDate.toISOString() },
+    generated_at: new Date().toISOString(),
+    currency: "usd",
+    truncated: { signups: signupRes.truncated, charges: chargeRes.truncated, disputes: disputeRes.truncated },
+    totals: {
+      signups: signupRes.signups.length,
+      signup_gross_cents: sumBy(signupRes.signups, (s) => s.amount_cents),
+      payments: payments.length,
+      gross_attempted_cents: grossCollected + unrecoveredCents,
+      failed_unrecovered_cents: unrecoveredCents,
+      failed_unrecovered_customers: new Set([...unrecovered.keys()].map((k) => k.split("|")[0])).size,
+      failed_payments: failed.length,
+      failed_customers: new Set(failed.map((f) => f.customer_id || f.email || f.charge_id)).size,
+      failed_cents: failedCents,
+      gross_collected_cents: grossCollected,
+      refunds_cents: refunds,
+      stripe_fees_cents: fees,
+      disputes: disputes.length,
+      disputed_cents: sumBy(disputes, (d) => d.amount_cents),
+      dispute_fees_cents: sumBy(disputes, (d) => d.fee_cents),
+      dispute_loss_cents: disputeLoss,
+      net_cents: grossCollected - refunds - fees - disputeLoss,
+      first_payments: lists.first.length, second_payments: lists.second.length,
+      third_payments: lists.third.length, fourth_plus_payments: lists.fourth_plus.length
+    },
+    signups: signupRes.signups,
+    payments,
+    payment_lists: lists,
+    failed_payments: failed,
+    disputes
+  };
+}
+
 /* ══════════════════════════════ MAIN HANDLER ══════════════════════════════ */
 
 export default {
@@ -440,6 +662,7 @@ export default {
       if (timingSafeEqual(password, env.ADMIN_PASSWORD)) role = "admin";
       else if (env.STAFF_PASSWORD && timingSafeEqual(password, env.STAFF_PASSWORD)) role = "staff";
       else if (env.RETENTION_PASSWORD && timingSafeEqual(password, env.RETENTION_PASSWORD)) role = "retention";
+      else if (env.BAM_PASSWORD && timingSafeEqual(password, env.BAM_PASSWORD)) role = "bam";
       if (!role) return json({ error: "Incorrect password." }, 401);
       const token = await createSession(env, role);
       return json({ success: true, role }, 200, { "set-cookie": `${SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${SESSION_TTL_SECONDS}` });
@@ -539,7 +762,7 @@ export default {
       if (!env.BUSINESS_SESSION_SECRET) return json({ error: "Business portal is not configured." }, 503);
       const email = clean(data.email, 254).toLowerCase(); const password = String(data.password || "");
       if (!validEmail(email) || !password) return json({ error: "Please provide a valid email and password." }, 400);
-      const business = await env.DB.prepare("SELECT * FROM businesses WHERE email=?").bind(email).first();
+      const business = await findBusinessByEmail(env, email);
       if (!business || !business.password_hash || !(await verifyPassword(password, business.password_hash))) return json({ error: "Incorrect email or password." }, 401);
       await env.DB.prepare("UPDATE businesses SET last_login_at=? WHERE id=?").bind(new Date().toISOString(), business.id).run();
       const token = await createBusinessSessionToken(env, business.id);
@@ -551,14 +774,19 @@ export default {
     if (url.pathname.startsWith("/api/portal/") && !["/api/portal/activate", "/api/portal/set-password", "/api/portal/login", "/api/portal/logout", "/api/portal/checkout-activation"].includes(url.pathname)) {
       const business = await getAuthedBusiness(request, env);
       if (!business) return json({ error: "Unauthorized." }, 401);
-      if (request.method === "GET" && url.pathname === "/api/portal/me") return json({ business: { id: business.id, email: business.email, name: business.name, phone: business.phone, company_name: business.company_name, address: business.address, preferred_category: business.preferred_category, status: business.status } });
+      if (request.method === "GET" && url.pathname === "/api/portal/me") return json({ business: { id: business.id, email: business.email, name: business.name, phone: business.phone, company_name: business.company_name, address: business.address, preferred_category: business.preferred_category, status: business.status, leads_locked: isLeadsLocked(business) } });
       if (request.method === "PATCH" && url.pathname === "/api/portal/me") {
         let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); }
         const name = data.name !== undefined ? clean(data.name, 120) : business.name; const phone = data.phone !== undefined ? clean(data.phone, 40) : business.phone; const companyName = data.company_name !== undefined ? clean(data.company_name, 200) : business.company_name; const address = data.address !== undefined ? clean(data.address, 300) : business.address; const now = new Date().toISOString();
         await env.DB.prepare("UPDATE businesses SET name=?, phone=?, company_name=?, address=?, updated_at=? WHERE id=?").bind(name, phone, companyName, address, now, business.id).run();
-        return json({ success: true, business: { id: business.id, email: business.email, name, phone, company_name: companyName, address, preferred_category: business.preferred_category, status: business.status } });
+        return json({ success: true, business: { id: business.id, email: business.email, name, phone, company_name: companyName, address, preferred_category: business.preferred_category, status: business.status, leads_locked: isLeadsLocked(business) } });
       }
       if (request.method === "GET" && url.pathname === "/api/portal/orders") { const orders = await env.DB.prepare("SELECT id, category, quantity, unit_price_cents, total_cents, status, paid_at, created_at, fulfilled_leads FROM lead_orders WHERE email=? ORDER BY created_at DESC LIMIT 200").bind(business.email).all(); return json({ orders: orders.results || [] }); }
+      /* Killswitch: every lead read/write from the client portal is blocked while it is on. */
+      if (isLeadsLocked(business) && url.pathname.startsWith("/api/portal/leads")) {
+        if (request.method === "GET" && url.pathname === "/api/portal/leads") return json({ leads: [], leads_locked: true, message: LEADS_LOCKED_MESSAGE });
+        return json({ error: LEADS_LOCKED_MESSAGE, leads_locked: true }, 403);
+      }
       if (request.method === "GET" && url.pathname === "/api/portal/leads") { const leads = await env.DB.prepare(`SELECT la.id AS assignment_id, la.status AS assignment_status, la.assigned_at, l.id AS lead_id, l.name, l.email, l.phone, l.category, l.message, l.source, l.city, l.state, l.submitted_at FROM lead_assignments la JOIN leads l ON l.id = la.lead_id WHERE la.business_id=? ORDER BY la.assigned_at DESC LIMIT 500`).bind(business.id).all(); return json({ leads: leads.results || [] }); }
       const leadNotesMatch = url.pathname.match(/^\/api\/portal\/leads\/(\d+)$/);
       if (request.method === "GET" && leadNotesMatch) { const leadId = Number(leadNotesMatch[1]); const assignment = await env.DB.prepare("SELECT id FROM lead_assignments WHERE business_id=? AND lead_id=?").bind(business.id, leadId).first(); if (!assignment) return json({ error: "Lead not found in your account." }, 404); const notes = await env.DB.prepare("SELECT id, author, content, created_at, updated_at FROM lead_notes WHERE assignment_id=? ORDER BY created_at DESC LIMIT 200").bind(assignment.id).all(); return json({ notes: notes.results || [] }); }
@@ -578,9 +806,15 @@ export default {
          Cannot create or edit leads, businesses, orders, or notes. Exception: may generate
          activation / password-reset links for an account, same as admin. */
       const RETENTION_ALLOWED = (request.method === "GET" && url.pathname === "/api/admin/session") || (request.method === "GET" && url.pathname === "/api/admin/businesses") || (request.method === "GET" && /^\/api\/admin\/businesses\/\d+$/.test(url.pathname)) || (request.method === "GET" && /^\/api\/admin\/businesses\/\d+\/notes$/.test(url.pathname)) || (request.method === "GET" && /^\/api\/admin\/leads\/\d+\/notes$/.test(url.pathname)) || (request.method === "POST" && /^\/api\/admin\/businesses\/\d+\/reset-password$/.test(url.pathname));
+      /* Business account manager (BAM / sales): sees every account and Stripe sign-ups for any
+         date range, creates accounts (never duplicates — a matching email returns a fresh link
+         for the existing account), edits name/contact/address/type, and generates activation /
+         password-reset links. Cannot change status, delete, killswitch, or see leads/reports. */
+      const BAM_ALLOWED = (request.method === "GET" && url.pathname === "/api/admin/session") || (request.method === "GET" && url.pathname === "/api/admin/businesses") || (request.method === "POST" && url.pathname === "/api/admin/businesses") || (request.method === "GET" && /^\/api\/admin\/businesses\/\d+$/.test(url.pathname)) || (request.method === "PATCH" && /^\/api\/admin\/businesses\/\d+$/.test(url.pathname)) || (request.method === "POST" && /^\/api\/admin\/businesses\/\d+\/reset-password$/.test(url.pathname)) || (request.method === "GET" && url.pathname === "/api/admin/stripe-signups");
+      if (session.role === "bam" && !BAM_ALLOWED) return json({ error: "Your account does not have permission for this action." }, 403);
       if (session.role === "staff" && !STAFF_ALLOWED) return json({ error: "Your account does not have permission for this action." }, 403);
       if (session.role === "retention" && !RETENTION_ALLOWED) return json({ error: "Your account does not have permission for this action." }, 403);
-      if (session.role !== "admin" && session.role !== "staff" && session.role !== "retention") return json({ error: "Your account does not have permission for this action." }, 403);
+      if (session.role !== "admin" && session.role !== "staff" && session.role !== "retention" && session.role !== "bam") return json({ error: "Your account does not have permission for this action." }, 403);
       if (request.method === "GET" && url.pathname === "/api/admin/session") return json({ role: session.role });
       if (request.method === "GET" && url.pathname === "/api/admin/dashboard") {
         const now = new Date(); const defaultFrom = new Date(now.getTime() - 30 * 86400000); const fromRaw = url.searchParams.get("from"); const toRaw = url.searchParams.get("to"); const fromDate = fromRaw ? new Date(fromRaw) : defaultFrom; const toDate = toRaw ? new Date(toRaw) : now;
@@ -639,13 +873,115 @@ export default {
           daily: daily.results || []
         });
       }
-      if (request.method === "GET" && url.pathname === "/api/admin/businesses") { const businesses = await env.DB.prepare(`SELECT id, email, name, phone, company_name, address, preferred_category, status, created_at, last_login_at, (SELECT COUNT(*) FROM lead_assignments la WHERE la.business_id = businesses.id) total_leads FROM businesses ORDER BY created_at DESC LIMIT 500`).all(); const rows = businesses.results || []; if (session.role === "staff") return json({ businesses: rows.filter(b => !isCanceledBusiness(b)).map(b => ({ id: b.id, name: b.name || b.company_name, company_name: b.company_name, preferred_category: b.preferred_category, address: b.address })) }); return json({ businesses: rows }); }
-      if (request.method === "POST" && url.pathname === "/api/admin/businesses") { let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); } const email = clean(data.email, 254).toLowerCase(); if (!validEmail(email)) return json({ error: "A valid email is required." }, 400); const existing = await env.DB.prepare("SELECT id FROM businesses WHERE email=?").bind(email).first(); if (existing) return json({ error: "A business with this email already exists." }, 409); const name = clean(data.name, 120) || null; const phone = clean(data.phone, 40) || null; const companyName = clean(data.company_name, 200) || null; const preferredCategory = data.preferred_category && CATEGORIES.includes(clean(data.preferred_category, 60)) ? clean(data.preferred_category, 60) : null; const now = new Date().toISOString(); const result = await env.DB.prepare(`INSERT INTO businesses (email, name, phone, company_name, preferred_category, status, created_at, updated_at) VALUES (?,?,?,?,?,'active',?,?)`).bind(email, name, phone, companyName, preferredCategory, now, now).run(); const businessId = result.meta?.last_row_id; if (!businessId) return json({ error: "Failed to create business." }, 500); const token = await issueActivationToken(env, businessId); return json({ success: true, business: await findBusinessById(env, businessId), activation_url: `https://shedlr.com/portal/activate.html?token=${token}` }, 201); }
+      /* Stripe reports: full gross-to-net report is owner-only; the sign-up list is shared with BAM. */
+      if (request.method === "GET" && (url.pathname === "/api/admin/stripe-report" || url.pathname === "/api/admin/stripe-signups")) {
+        if (url.pathname === "/api/admin/stripe-report" && session.role !== "admin") return json({ error: "Your account does not have permission for this action." }, 403);
+        if (!env.STRIPE_SECRET_KEY) return json({ error: "Stripe is not configured. Add STRIPE_SECRET_KEY to the shedlr-api Worker." }, 503);
+        const range = parseReportRange(url);
+        if (range.error) return json({ error: range.error }, 400);
+        try {
+          if (url.pathname === "/api/admin/stripe-report") return json(await buildStripeReport(env, range));
+          const matchBusiness = await loadBusinessMatcher(env);
+          const { signups, truncated } = await fetchStripeSignups(env, range.fromSec, range.toSec, matchBusiness);
+          return json({ range: { from: range.fromDate.toISOString(), to: range.toDate.toISOString() }, generated_at: new Date().toISOString(), truncated, totals: { signups: signups.length, signup_gross_cents: sumBy(signups, (s) => s.amount_cents), without_account: signups.filter((s) => !s.business).length, not_activated: signups.filter((s) => s.business && !s.business.portal_activated).length }, signups });
+        } catch (error) { return json({ error: `Stripe error: ${error.message}` }, 502); }
+      }
+      if (request.method === "GET" && url.pathname === "/api/admin/businesses") {
+        /* SELECT b.* keeps this working before and after the killswitch migration; secrets are stripped by safeBusiness. */
+        const businesses = await env.DB.prepare(`SELECT b.*, (SELECT COUNT(*) FROM lead_assignments la WHERE la.business_id = b.id) total_leads FROM businesses b ORDER BY b.created_at DESC LIMIT 1000`).all();
+        const rows = (businesses.results || []).map(safeBusiness);
+        if (session.role === "staff") return json({ businesses: rows.filter(b => !isCanceledBusiness(b)).map(b => ({ id: b.id, name: b.name || b.company_name, company_name: b.company_name, preferred_category: b.preferred_category, address: b.address })) });
+        return json({ businesses: rows });
+      }
+      /* Create a business account. Never creates a duplicate: if the email already exists (any
+         case/spacing), the existing account gets a fresh activation / password-reset link instead. */
+      if (request.method === "POST" && url.pathname === "/api/admin/businesses") {
+        let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); }
+        const email = normEmail(data.email);
+        if (!validEmail(email)) return json({ error: "A valid email is required." }, 400);
+        const name = clean(data.name, 120) || null; const phone = clean(data.phone, 40) || null; const companyName = clean(data.company_name, 200) || null; const address = clean(data.address, 300) || null;
+        const preferredCategory = data.preferred_category && CATEGORIES.includes(clean(data.preferred_category, 60)) ? clean(data.preferred_category, 60) : null;
+        const now = new Date().toISOString();
+        const existing = await findBusinessByEmail(env, email);
+        if (existing) {
+          /* Only fill blanks — never overwrite what is already on the account. */
+          await env.DB.prepare("UPDATE businesses SET name=COALESCE(NULLIF(name,''),?), phone=COALESCE(NULLIF(phone,''),?), company_name=COALESCE(NULLIF(company_name,''),?), address=COALESCE(NULLIF(address,''),?), preferred_category=COALESCE(NULLIF(preferred_category,''),?), updated_at=? WHERE id=?").bind(name, phone, companyName, address, preferredCategory, now, existing.id).run();
+          const token = await issueActivationToken(env, existing.id);
+          const mode = existing.password_hash ? "reset" : "activate";
+          return json({ success: true, existing: true, link_mode: mode, business: safeBusiness(await findBusinessById(env, existing.id)), activation_url: activationUrl(token), message: `An account with ${email} already exists (ID ${existing.id}), so no duplicate was created. Here is a fresh ${mode === "reset" ? "password-reset" : "activation"} link for that account.` });
+        }
+        let result;
+        try {
+          result = await env.DB.prepare(`INSERT INTO businesses (email, name, phone, company_name, address, preferred_category, status, created_at, updated_at) VALUES (?,?,?,?,?,?,'active',?,?)`).bind(email, name, phone, companyName, address, preferredCategory, now, now).run();
+        } catch (error) {
+          /* Race with the Stripe webhook creating the same email: fall back to the existing row. */
+          const raced = await findBusinessByEmail(env, email);
+          if (!raced) throw error;
+          const token = await issueActivationToken(env, raced.id);
+          return json({ success: true, existing: true, link_mode: raced.password_hash ? "reset" : "activate", business: safeBusiness(raced), activation_url: activationUrl(token), message: `An account with ${email} already exists (ID ${raced.id}), so no duplicate was created.` });
+        }
+        const businessId = result.meta?.last_row_id;
+        if (!businessId) return json({ error: "Failed to create business." }, 500);
+        const token = await issueActivationToken(env, businessId);
+        return json({ success: true, existing: false, link_mode: "activate", business: safeBusiness(await findBusinessById(env, businessId)), activation_url: activationUrl(token) }, 201);
+      }
       const businessDetailMatch = url.pathname.match(/^\/api\/admin\/businesses\/(\d+)$/);
-      if (request.method === "GET" && businessDetailMatch) { const id = Number(businessDetailMatch[1]); const business = await findBusinessById(env, id); if (!business) return json({ error: "Business not found." }, 404); const assignments = await env.DB.prepare(`SELECT la.id, la.lead_id, la.status AS assignment_status, la.assigned_at, l.name, l.email, l.phone, l.category, l.message, l.source, l.city, l.state, l.status AS lead_status FROM lead_assignments la JOIN leads l ON l.id = la.lead_id WHERE la.business_id=? ORDER BY la.assigned_at DESC LIMIT 200`).bind(id).all(); if (session.role === "staff") { if (isCanceledBusiness(business)) return json({ error: "Business not found." }, 404); return json({ business: { id: business.id, name: business.name, company_name: business.company_name, preferred_category: business.preferred_category, address: business.address }, orders: [], assignments: assignments.results || [] }); } const orders = await env.DB.prepare("SELECT id, category, quantity, unit_price_cents, total_cents, status, paid_at, created_at, fulfilled_leads FROM lead_orders WHERE email=? ORDER BY created_at DESC LIMIT 200").bind(business.email).all(); const { password_hash, activation_nonce, activation_nonce_expires, ...safeBusiness } = business; return json({ business: safeBusiness, orders: orders.results || [], assignments: assignments.results || [] }); }
-      if (request.method === "PATCH" && businessDetailMatch) { let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); } const id = Number(businessDetailMatch[1]); const business = await findBusinessById(env, id); if (!business) return json({ error: "Business not found." }, 404); const allowedStatuses = ["active", "past_due", "canceled", "suspended"]; const status = allowedStatuses.includes(clean(data.status, 30)) ? clean(data.status, 30) : business.status; const name = data.name !== undefined ? clean(data.name, 120) : business.name; const phone = data.phone !== undefined ? clean(data.phone, 40) : business.phone; const companyName = data.company_name !== undefined ? clean(data.company_name, 200) : business.company_name; const address = data.address !== undefined ? clean(data.address, 300) : business.address; const preferredCategory = data.preferred_category !== undefined && CATEGORIES.includes(clean(data.preferred_category, 60)) ? clean(data.preferred_category, 60) : business.preferred_category; await env.DB.prepare("UPDATE businesses SET status=?, name=?, phone=?, company_name=?, address=?, preferred_category=?, updated_at=? WHERE id=?").bind(status, name, phone, companyName, address, preferredCategory, new Date().toISOString(), id).run(); return json({ success: true, business: await findBusinessById(env, id) }); }
+      if (request.method === "GET" && businessDetailMatch) { const id = Number(businessDetailMatch[1]); const business = await findBusinessById(env, id); if (!business) return json({ error: "Business not found." }, 404); const assignments = await env.DB.prepare(`SELECT la.id, la.lead_id, la.status AS assignment_status, la.assigned_at, l.name, l.email, l.phone, l.category, l.message, l.source, l.city, l.state, l.status AS lead_status FROM lead_assignments la JOIN leads l ON l.id = la.lead_id WHERE la.business_id=? ORDER BY la.assigned_at DESC LIMIT 200`).bind(id).all(); if (session.role === "bam") { const bamOrders = await env.DB.prepare("SELECT id, category, quantity, unit_price_cents, total_cents, status, paid_at, created_at, fulfilled_leads FROM lead_orders WHERE lower(email)=? ORDER BY created_at DESC LIMIT 200").bind(normEmail(business.email)).all(); return json({ business: safeBusiness(business), orders: bamOrders.results || [], assignments: [] }); } if (session.role === "staff") { if (isCanceledBusiness(business)) return json({ error: "Business not found." }, 404); return json({ business: { id: business.id, name: business.name, company_name: business.company_name, preferred_category: business.preferred_category, address: business.address }, orders: [], assignments: assignments.results || [] }); } const orders = await env.DB.prepare("SELECT id, category, quantity, unit_price_cents, total_cents, status, paid_at, created_at, fulfilled_leads FROM lead_orders WHERE email=? ORDER BY created_at DESC LIMIT 200").bind(business.email).all(); return json({ business: safeBusiness(business), orders: orders.results || [], assignments: assignments.results || [] }); }
+      if (request.method === "PATCH" && businessDetailMatch) {
+        let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); }
+        const id = Number(businessDetailMatch[1]); const business = await findBusinessById(env, id); if (!business) return json({ error: "Business not found." }, 404);
+        const allowedStatuses = ["active", "past_due", "canceled", "suspended"];
+        /* Only the owner can change status (e.g. cancel an account). BAM edits details only. */
+        const status = session.role === "admin" && allowedStatuses.includes(clean(data.status, 30)) ? clean(data.status, 30) : business.status;
+        const name = data.name !== undefined ? clean(data.name, 120) : business.name; const phone = data.phone !== undefined ? clean(data.phone, 40) : business.phone; const companyName = data.company_name !== undefined ? clean(data.company_name, 200) : business.company_name; const address = data.address !== undefined ? clean(data.address, 300) : business.address;
+        const preferredCategory = data.preferred_category !== undefined && CATEGORIES.includes(clean(data.preferred_category, 60)) ? clean(data.preferred_category, 60) : business.preferred_category;
+        const oldEmail = normEmail(business.email);
+        let email = business.email;
+        if (data.email !== undefined) {
+          const nextEmail = normEmail(data.email);
+          if (!validEmail(nextEmail)) return json({ error: "Please enter a valid email address." }, 400);
+          if (nextEmail !== oldEmail) {
+            const clash = await env.DB.prepare("SELECT id, company_name, name FROM businesses WHERE lower(trim(email))=? AND id<>? LIMIT 1").bind(nextEmail, id).first();
+            if (clash) return json({ error: `Another account already uses ${nextEmail} (ID ${clash.id}${clash.company_name ? `, ${clash.company_name}` : ""}). Open that account instead of creating a duplicate.`, duplicate_business_id: clash.id }, 409);
+          }
+          email = nextEmail;
+        }
+        const now = new Date().toISOString();
+        await env.DB.prepare("UPDATE businesses SET status=?, email=?, name=?, phone=?, company_name=?, address=?, preferred_category=?, updated_at=? WHERE id=?").bind(status, email, name, phone, companyName, address, preferredCategory, now, id).run();
+        /* Orders are keyed by email, so carry them over when an email typo is fixed. */
+        if (normEmail(email) !== oldEmail) await env.DB.prepare("UPDATE lead_orders SET email=?, updated_at=? WHERE lower(email)=?").bind(normEmail(email), now, oldEmail).run();
+        return json({ success: true, business: safeBusiness(await findBusinessById(env, id)) });
+      }
+      /* Owner-only: permanently delete a business account (for duplicates created by sales).
+         Its delivered leads go back to the unassigned pool; orders stay in the order history. */
+      if (request.method === "DELETE" && businessDetailMatch) {
+        if (session.role !== "admin") return json({ error: "Only the owner admin can delete business accounts." }, 403);
+        const id = Number(businessDetailMatch[1]); const business = await findBusinessById(env, id); if (!business) return json({ error: "Business not found." }, 404);
+        const assignments = (await env.DB.prepare("SELECT lead_id, order_id FROM lead_assignments WHERE business_id=?").bind(id).all()).results || [];
+        const now = new Date().toISOString();
+        const statements = [];
+        for (const a of assignments) if (a.order_id) statements.push(env.DB.prepare("UPDATE lead_orders SET fulfilled_leads = MAX(fulfilled_leads - 1, 0) WHERE id=?").bind(a.order_id));
+        statements.push(env.DB.prepare("DELETE FROM lead_notes WHERE business_id=?").bind(id));
+        statements.push(env.DB.prepare("DELETE FROM lead_assignments WHERE business_id=?").bind(id));
+        statements.push(env.DB.prepare("DELETE FROM business_notes WHERE business_id=?").bind(id));
+        statements.push(env.DB.prepare("UPDATE leads SET status='new', assigned_to='unassigned', updated_at=? WHERE assigned_to=? AND NOT EXISTS (SELECT 1 FROM lead_assignments la WHERE la.lead_id = leads.id)").bind(now, String(id)));
+        statements.push(env.DB.prepare("DELETE FROM businesses WHERE id=?").bind(id));
+        await env.DB.batch(statements);
+        return json({ success: true, deleted: { id, email: business.email, company_name: business.company_name }, leads_released: assignments.length });
+      }
+      /* Owner-only killswitch: blocks the client portal from its leads without hiding the account. */
+      const killswitchMatch = url.pathname.match(/^\/api\/admin\/businesses\/(\d+)\/killswitch$/);
+      if (request.method === "POST" && killswitchMatch) {
+        if (session.role !== "admin") return json({ error: "Only the owner admin can use the killswitch." }, 403);
+        let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); }
+        const id = Number(killswitchMatch[1]); const business = await findBusinessById(env, id); if (!business) return json({ error: "Business not found." }, 404);
+        if (!Object.prototype.hasOwnProperty.call(business, "leads_locked")) return json({ error: "Run worker/migration_killswitch.sql on the shedlr-leads database first." }, 500);
+        const enabled = Boolean(data.enabled); const now = new Date().toISOString();
+        await env.DB.prepare("UPDATE businesses SET leads_locked=?, leads_locked_at=?, updated_at=? WHERE id=?").bind(enabled ? 1 : 0, enabled ? now : null, now, id).run();
+        return json({ success: true, business: safeBusiness(await findBusinessById(env, id)) });
+      }
       const resetPasswordMatch = url.pathname.match(/^\/api\/admin\/businesses\/(\d+)\/reset-password$/);
-      if (request.method === "POST" && resetPasswordMatch) { const id = Number(resetPasswordMatch[1]); const business = await findBusinessById(env, id); if (!business) return json({ error: "Business not found." }, 404); const token = await issueActivationToken(env, id); return json({ success: true, activation_url: `https://shedlr.com/portal/activate.html?token=${token}` }); }
+      if (request.method === "POST" && resetPasswordMatch) { const id = Number(resetPasswordMatch[1]); const business = await findBusinessById(env, id); if (!business) return json({ error: "Business not found." }, 404); const token = await issueActivationToken(env, id); return json({ success: true, link_mode: business.password_hash ? "reset" : "activate", activation_url: activationUrl(token) }); }
       const businessNotesAdminMatch = url.pathname.match(/^\/api\/admin\/businesses\/(\d+)\/notes$/);
       if (businessNotesAdminMatch) { const bizId = Number(businessNotesAdminMatch[1]); const business = await findBusinessById(env, bizId); if (!business) return json({ error: "Business not found." }, 404); if (request.method === "GET") { const note = await env.DB.prepare("SELECT id, content, updated_by, created_at, updated_at FROM business_notes WHERE business_id=?").bind(bizId).first(); return json({ note: note || { content: "", updated_by: null, created_at: null, updated_at: null } }); } if (request.method === "PUT") { let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); } const content = clean(data.content, 10000); const now = new Date().toISOString(); await env.DB.prepare(`INSERT INTO business_notes (business_id, content, updated_by, created_at, updated_at) VALUES (?,?, 'admin', ?, ?) ON CONFLICT(business_id) DO UPDATE SET content=excluded.content, updated_by='admin', updated_at=excluded.updated_at`).bind(bizId, content, now, now).run(); return json({ success: true, note: { content, updated_by: "admin", updated_at: now } }); } }
       if (request.method === "GET" && url.pathname === "/api/admin/leads") { const category = clean(url.searchParams.get("category"), 60); const clause = category ? " WHERE category = ?" : ""; const bindings = category ? [category] : []; const leads = await env.DB.prepare(`SELECT id, name, email, phone, category, message, source, city, state, status, submitted_at, assigned_to FROM leads${clause} ORDER BY submitted_at DESC LIMIT 500`).bind(...bindings).all(); return json({ leads: leads.results || [] }); }
