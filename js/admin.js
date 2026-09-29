@@ -167,7 +167,7 @@ $('[data-leads-delete-selected]')?.addEventListener('click',()=>{deleteSelectedL
 });});
 
 function renderBusinesses(rows){
-  businessesTable.innerHTML=rows.map(b=>`<tr><td><strong>${esc(b.name||'—')}</strong></td><td>${esc(b.email)}<br>${esc(b.phone||'')}</td><td>${esc(b.company_name||'—')}</td><td>${esc(catLabel(b.preferred_category))}</td><td><span class="status">${esc(b.status)}</span>${b.leads_locked?'<span class="status locked" title="Killswitch on: client portal cannot see leads">Leads locked</span>':''}</td><td>${b.total_leads||0}</td><td>${fmt(b.last_login_at)}</td><td><button type="button" data-open-business="${b.id}">View</button></td></tr>`).join('')||'<tr><td colspan="8">No business accounts yet.</td></tr>';
+  businessesTable.innerHTML=rows.map(b=>`<tr><td><strong>${esc(b.name||'—')}</strong></td><td>${esc(b.email)}<br>${esc(b.phone||'')}</td><td>${esc(b.company_name||'—')}</td><td>${esc(catLabel(b.preferred_category))}</td><td><span class="status">${esc(b.status)}</span>${b.leads_locked?'<span class="status locked" title="Killswitch on: client portal cannot see leads">Leads locked</span>':''}</td><td>${salesmanCell(b)}</td><td>${b.total_leads||0}</td><td>${fmt(b.last_login_at)}</td><td><button type="button" data-open-business="${b.id}">View</button></td></tr>`).join('')||'<tr><td colspan="9">No business accounts yet.</td></tr>';
 }
 
 function renderEvents(rows){
@@ -258,7 +258,11 @@ function retentionFilteredRows(){
 }
 
 function adminFilteredRows(){
-  return filterBusinessRows(businessSearch?.value,$('[data-business-status-filter]')?.value);
+  const rows=filterBusinessRows(businessSearch?.value,$('[data-business-status-filter]')?.value);
+  const sp=$('[data-business-salesman-filter]')?.value||'';
+  if(!sp)return rows;
+  if(sp==='none')return rows.filter(b=>!b.salesperson_id);
+  return rows.filter(b=>String(b.salesperson_id||'')===sp);
 }
 
 function renderRetentionBusinesses(rows){
@@ -638,6 +642,7 @@ function openBusiness(id){
       renderBusinessOrders(detail.orders||[]);
       loadAdminBusinessNotes(id);
       renderKillswitch(detail.business);
+      renderBusinessSalesman(detail.business);
       const del=$('[data-business-delete-message]');if(del){del.hidden=true;del.textContent='';}
     }
     if(role==='bam')renderBamBusinessDetail(detail);
@@ -1295,13 +1300,15 @@ function buildStripeReportHtml(data,detailLevel){
   sections.push(`<h2>Payment number breakdown</h2>${reportTable(['Payment #','Payments','Gross','Stripe fees','Net'],
     PAYMENT_LIST_LABELS.map(([key,label])=>{const rows=lists[key]||[];return [esc(label),rows.length.toLocaleString(),money(rows.reduce((s,p)=>s+Number(p.amount_cents||0),0)),money(rows.reduce((s,p)=>s+Number(p.fee_cents||0),0)),money(rows.reduce((s,p)=>s+Number(p.net_cents||0),0))];}),'No payments in this date range.')}`);
 
+  if(data.salespeople_ready!==false)sections.push(salesSummaryHtml(data));
+
   if(detailLevel==='full'){
-    sections.push(`<h2>Completed sign-ups (${(data.signups||[]).length})</h2>${reportTable(['Signed up','Customer','Email','Phone','Paid at checkout','Shedlr account','Portal'],
-      (data.signups||[]).map(s=>[fmt(s.created_at),esc(s.name||'—'),esc(s.email||'—'),esc(s.phone||'—'),money(s.amount_cents),esc(accountLabel(s.business)),esc(portalLabel(s.business))]),'No completed sign-ups in this date range.')}`);
+    sections.push(`<h2>Completed sign-ups (${(data.signups||[]).length})</h2>${reportTable(['Signed up','Customer','Email','Phone','Paid at checkout','Shedlr account','Salesman','Portal'],
+      (data.signups||[]).map(s=>[fmt(s.created_at),esc(s.name||'—'),esc(s.email||'—'),esc(s.phone||'—'),money(s.amount_cents),esc(accountLabel(s.business)),esc(salesmanOf(s.business)),esc(portalLabel(s.business))]),'No completed sign-ups in this date range.')}`);
     PAYMENT_LIST_LABELS.forEach(([key,label])=>{
       const rows=lists[key]||[];
-      sections.push(`<h2>${esc(label)} (${rows.length})</h2>${reportTable(['Paid','Customer','Email','Amount','Stripe fee','Net','Refunded','Shedlr account'],
-        rows.map(p=>[fmt(p.created_at),esc(p.business?.company_name||p.name||'—'),esc(p.email||'—'),money(p.amount_cents),money(p.fee_cents),p.net_cents==null?'—':money(p.net_cents),p.refunded_cents?money(p.refunded_cents):'—',esc(accountLabel(p.business))]),`No ${label.toLowerCase()} in this date range.`)}`);
+      sections.push(`<h2>${esc(label)} (${rows.length})</h2>${reportTable(['Paid','Customer','Email','Amount','Stripe fee','Net','Refunded','Shedlr account','Salesman'],
+        rows.map(p=>[fmt(p.created_at),esc(p.business?.company_name||p.name||'—'),esc(p.email||'—'),money(p.amount_cents),money(p.fee_cents),p.net_cents==null?'—':money(p.net_cents),p.refunded_cents?money(p.refunded_cents):'—',esc(accountLabel(p.business)),esc(salesmanOf(p.business))]),`No ${label.toLowerCase()} in this date range.`)}`);
     });
     sections.push(`<h2>Failed payments (${(data.failed_payments||[]).length} attempts)</h2>${reportTable(['Attempted','Customer','Email','Amount','Reason','Recovered later?','Shedlr account'],
       (data.failed_payments||[]).map(p=>[fmt(p.created_at),esc(p.business?.company_name||p.name||'—'),esc(p.email||'—'),money(p.amount_cents),esc(p.failure_message||p.failure_code||'—'),p.recovered?'Yes, a retry succeeded':'<strong>No</strong>',esc(accountLabel(p.business))]),'No failed payments in this date range.')}`);
@@ -1334,13 +1341,15 @@ async function downloadStripeCsv(){
     lines.push(['Metric','Value']);
     [['Completed sign-ups',t.signups],['Gross from sign-ups',dollars(t.signup_gross_cents)],['Payments collected',t.payments],['Failed payment attempts (incl. retries)',t.failed_payments],['Failed attempts amount (incl. retries)',dollars(t.failed_cents)],['Customers with failed payments',t.failed_customers],['Customers still unrecovered',t.failed_unrecovered_customers],['Disputes opened',t.disputes],['Disputed amount',dollars(t.disputed_cents)],['Dispute fees',dollars(t.dispute_fees_cents)],['1st payments',t.first_payments],['2nd payments',t.second_payments],['3rd payments',t.third_payments],['4th+ payments',t.fourth_plus_payments]].forEach(r=>lines.push(r));
     lines.push([]);
+    salesCsvLines(data).forEach(r=>lines.push(r));
+    lines.push([]);
     lines.push(['Completed sign-ups']);
-    lines.push(['Signed up','Customer','Email','Phone','Paid at checkout','Stripe session','Stripe customer','Shedlr business ID','Portal']);
-    (data.signups||[]).forEach(s=>lines.push([s.created_at,s.name||'',s.email||'',s.phone||'',dollars(s.amount_cents),s.session_id,s.customer_id||'',s.business?.id||'',portalLabel(s.business)]));
+    lines.push(['Signed up','Customer','Email','Phone','Paid at checkout','Stripe session','Stripe customer','Shedlr business ID','Salesman','Portal']);
+    (data.signups||[]).forEach(s=>lines.push([s.created_at,s.name||'',s.email||'',s.phone||'',dollars(s.amount_cents),s.session_id,s.customer_id||'',s.business?.id||'',salesmanOf(s.business,''),portalLabel(s.business)]));
     lines.push([]);
     lines.push(['Payments (all, with payment number)']);
-    lines.push(['Paid','Payment #','Customer','Email','Amount','Stripe fee','Net','Refunded','Disputed','Stripe charge','Stripe customer','Shedlr business ID']);
-    (data.payments||[]).forEach(p=>lines.push([p.created_at,p.payment_number||'',p.business?.company_name||p.name||'',p.email||'',dollars(p.amount_cents),dollars(p.fee_cents),p.net_cents==null?'':dollars(p.net_cents),dollars(p.refunded_cents),p.disputed?'Yes':'No',p.charge_id,p.customer_id||'',p.business?.id||'']));
+    lines.push(['Paid','Payment #','Customer','Email','Amount','Stripe fee','Net','Refunded','Disputed','Stripe charge','Stripe customer','Shedlr business ID','Salesman']);
+    (data.payments||[]).forEach(p=>lines.push([p.created_at,p.payment_number||'',p.business?.company_name||p.name||'',p.email||'',dollars(p.amount_cents),dollars(p.fee_cents),p.net_cents==null?'':dollars(p.net_cents),dollars(p.refunded_cents),p.disputed?'Yes':'No',p.charge_id,p.customer_id||'',p.business?.id||'',salesmanOf(p.business,'')]));
     lines.push([]);
     lines.push(['Failed payments']);
     lines.push(['Attempted','Customer','Email','Amount','Reason','Recovered later','Stripe charge','Stripe customer','Shedlr business ID']);
@@ -1525,6 +1534,279 @@ async function enterBamPortal(){
   await loadBamSignups().catch(error=>{bamSignupsStatus.textContent=error.message;});
 }
 
+
+/* ══════════════════════════════════════════════════════════════════════
+   Salesmen & commissions (owner admin only)
+   ══════════════════════════════════════════════════════════════════════ */
+let salespeople=[];let salesReport=null;let salesSetupError='';
+const salesTable=$('[data-sales-table]');
+const salesAssignSelect=$('[data-sales-assign-select]');
+const salesFrom=$('[data-sales-from]');const salesTo=$('[data-sales-to]');const salesMonth=$('[data-sales-month]');
+const salesReportStatus=$('[data-sales-report-status]');
+const salesReportTable=$('[data-sales-report-table]');
+
+const salesmanById=(id)=>salespeople.find(sp=>String(sp.id)===String(id));
+function salesmanOf(b,empty='Unassigned'){if(!b)return empty;if(b.salesperson_name)return b.salesperson_name;const sp=b.salesperson_id?salesmanById(b.salesperson_id):null;return sp?sp.name:empty;}
+function salesmanCell(b){
+  if(!b.salesperson_id)return '<span class="status muted">None</span>';
+  const sp=salesmanById(b.salesperson_id);
+  return sp?`<strong>${esc(sp.name)}</strong>${sp.active?'':'<span class="row-note">inactive</span>'}`:`ID ${esc(b.salesperson_id)}`;
+}
+
+function renderSalesmanOptions(){
+  const active=salespeople.filter(sp=>sp.active);const inactive=salespeople.filter(sp=>!sp.active);
+  const opts=(list)=>list.map(sp=>`<option value="${sp.id}">${esc(sp.name)}</option>`).join('');
+  if(salesAssignSelect){const cur=salesAssignSelect.value;salesAssignSelect.innerHTML='<option value="">Select a salesman</option>'+opts(active);salesAssignSelect.value=salesmanById(cur)?.active?cur:'';}
+  const filter=$('[data-business-salesman-filter]');
+  if(filter){const cur=filter.value;filter.innerHTML='<option value="">All salesmen</option><option value="none">No salesman</option>'+opts(salespeople);filter.value=(cur==='none'||salesmanById(cur))?cur:'';}
+  const dlg=$('[data-business-salesman]');
+  if(dlg){const cur=dlg.value;dlg.innerHTML='<option value="">— No salesman —</option>'+opts(active)+(inactive.length?`<optgroup label="Inactive">${opts(inactive)}</optgroup>`:'');dlg.value=salesmanById(cur)?cur:'';}
+}
+
+function renderSalesTable(){
+  if(!salesTable)return;
+  if(salesSetupError){salesTable.innerHTML=`<tr><td colspan="5">${esc(salesSetupError)}</td></tr>`;return;}
+  salesTable.innerHTML=salespeople.map(sp=>`<tr class="${sp.active?'':'sales-inactive'}"><td><strong>${esc(sp.name)}</strong><span class="row-note">Added ${esc(fmtLocalDay(sp.created_at))}</span></td><td>${esc(sp.email||'—')}<br>${esc(sp.phone||'')}</td><td>${Number(sp.businesses_assigned||0).toLocaleString()}</td><td>${sp.active?'<span class="status ok">Active</span>':'<span class="status muted">Inactive</span>'}</td><td><div class="sales-actions"><button type="button" data-sales-view="${sp.id}">Show businesses</button><button type="button" data-sales-edit="${sp.id}">Edit</button><button type="button" data-sales-toggle="${sp.id}">${sp.active?'Deactivate':'Reactivate'}</button><button type="button" class="danger-link" data-sales-delete="${sp.id}">Delete</button></div></td></tr>`).join('')||'<tr><td colspan="5">No salesmen yet. Add one above.</td></tr>';
+}
+
+function applySalespeople(list){
+  salespeople=(list||[]).map(sp=>({...sp,active:!!sp.active}));
+  salesSetupError='';
+  renderSalesTable();renderSalesmanOptions();
+  if(businessesTable&&businesses.length)renderBusinesses(adminFilteredRows());
+}
+
+async function loadSalespeople(){
+  try{const data=await api('/api/admin/salespeople');applySalespeople(data.salespeople);}
+  catch(error){salesSetupError=error.message;salespeople=[];renderSalesTable();renderSalesmanOptions();}
+}
+
+$('[data-business-salesman-filter]')?.addEventListener('change',()=>renderBusinesses(adminFilteredRows()));
+
+$('[data-sales-add-form]')?.addEventListener('submit',async event=>{
+  event.preventDefault();
+  const form=event.target;const out=$('[data-sales-add-status]');
+  out.textContent='Adding…';
+  try{
+    const data=await api('/api/admin/salespeople',{method:'POST',body:JSON.stringify({name:form.name.value.trim(),email:form.email.value.trim(),phone:form.phone.value.trim()})});
+    applySalespeople(data.salespeople);
+    out.textContent=`${form.name.value.trim()} added. You can now credit businesses to them.`;
+    form.reset();
+  }catch(error){out.textContent=error.message;}
+});
+
+salesTable?.addEventListener('click',async event=>{
+  const out=$('[data-sales-add-status]');
+  const view=event.target.closest('[data-sales-view]');
+  if(view){
+    const filter=$('[data-business-salesman-filter]');if(filter)filter.value=view.dataset.salesView;
+    if(businessSearch)businessSearch.value='';const st=$('[data-business-status-filter]');if(st)st.value='';
+    renderBusinesses(adminFilteredRows());
+    businessesTable.closest('.panel')?.scrollIntoView({behavior:'smooth',block:'start'});
+    return;
+  }
+  const edit=event.target.closest('[data-sales-edit]');
+  const toggle=event.target.closest('[data-sales-toggle]');
+  const del=event.target.closest('[data-sales-delete]');
+  const sp=salesmanById((edit||toggle||del)?.dataset.salesEdit||(edit||toggle||del)?.dataset.salesToggle||(edit||toggle||del)?.dataset.salesDelete);
+  if(!sp)return;
+  try{
+    if(edit){
+      const name=prompt('Salesman name',sp.name);if(name===null)return;
+      const email=prompt('Salesman email (optional)',sp.email||'');if(email===null)return;
+      const phone=prompt('Salesman phone (optional)',sp.phone||'');if(phone===null)return;
+      const data=await api(`/api/admin/salespeople/${sp.id}`,{method:'PATCH',body:JSON.stringify({name:name.trim(),email:email.trim(),phone:phone.trim()})});
+      applySalespeople(data.salespeople);out.textContent=`Saved ${name.trim()}.`;
+    }else if(toggle){
+      if(sp.active&&!confirm(`Deactivate ${sp.name}?\n\nTheir ${sp.businesses_assigned||0} credited business${sp.businesses_assigned===1?'':'es'} stay credited to them and still count in their sales totals. They just won't show up in the pick lists for new credits.`))return;
+      const data=await api(`/api/admin/salespeople/${sp.id}`,{method:'PATCH',body:JSON.stringify({active:!sp.active})});
+      applySalespeople(data.salespeople);out.textContent=`${sp.name} ${sp.active?'deactivated':'reactivated'}.`;
+    }else if(del){
+      const typed=prompt(`Delete ${sp.name}?\n\nTheir ${sp.businesses_assigned||0} credited business${sp.businesses_assigned===1?'':'es'} will become unassigned and stop counting toward any salesman. To keep their history, choose Deactivate instead.\n\nType DELETE to confirm.`);
+      if(typed===null)return;
+      if(typed.trim().toUpperCase()!=='DELETE'){out.textContent='Not deleted. Type DELETE exactly to confirm.';return;}
+      const data=await api(`/api/admin/salespeople/${sp.id}`,{method:'DELETE'});
+      applySalespeople(data.salespeople);
+      out.textContent=`${sp.name} deleted. ${data.unassigned_businesses||0} business${data.unassigned_businesses===1?'':'es'} unassigned.`;
+      await loadBusinesses().catch(()=>{});
+    }
+  }catch(error){out.textContent=error.message;}
+});
+
+/* Nightly BAM check-in */
+function salesResultList(title,rows,fmtRow){
+  if(!rows.length)return '';
+  return `<p><strong>${esc(title)} (${rows.length})</strong></p><ul>${rows.map(r=>`<li>${fmtRow(r)}</li>`).join('')}</ul>`;
+}
+$('[data-sales-assign-form]')?.addEventListener('submit',async event=>{
+  event.preventDefault();
+  const form=event.target;const out=$('[data-sales-assign-status]');
+  const spId=form.salesperson_id.value;
+  if(!spId){out.textContent='Pick a salesman first.';return;}
+  out.textContent='Matching emails to business accounts…';
+  const btn=form.querySelector('button[type=submit]');btn.disabled=true;
+  try{
+    const res=await api(`/api/admin/salespeople/${spId}/assign-emails`,{method:'POST',body:JSON.stringify({emails:form.emails.value,reassign:form.reassign.checked})});
+    applySalespeople(res.salespeople);
+    const biz=(r)=>`${esc(r.email)} → ${esc(r.company_name||'business')} (ID ${r.business_id})`;
+    const newly=res.credited.length+res.reassigned.length;
+    out.innerHTML=`<p><strong>${esc(res.salesperson.name)}:</strong> checked ${res.emails_checked} email${res.emails_checked===1?'':'s'} — ${newly} newly credited, ${res.already_credited.length} already theirs, ${res.conflicts.length} credited to someone else, ${res.not_found.length} with no Shedlr account.</p>`
+      +salesResultList('Newly credited',res.credited,biz)
+      +salesResultList('Moved from another salesman',res.reassigned,r=>`${biz(r)} — was ${esc(r.previous_salesperson)}`)
+      +salesResultList('Already credited to someone else (not changed)',res.conflicts,r=>`${biz(r)} — currently ${esc(r.current_salesperson)}. Tick “Move businesses already credited…” and run again if this should change.`)
+      +salesResultList('No Shedlr account with this email',res.not_found,r=>`${esc(r.email)} — check the spelling with the BAM, or look it up in Stripe sign-ups. It hasn't been credited.`)
+      +salesResultList('Already credited to this salesman',res.already_credited,biz);
+    if(newly)form.emails.value='';
+    await loadBusinesses().catch(()=>{});
+  }catch(error){out.textContent=error.message;}
+  btn.disabled=false;
+});
+
+/* Business dialog: credit one business */
+function renderBusinessSalesman(b){
+  const state=$('[data-business-salesman-state]');const sel=$('[data-business-salesman]');const msg=$('[data-business-salesman-message]');
+  if(!state||!sel||!b)return;
+  if(msg){msg.hidden=true;msg.textContent='';}
+  renderSalesmanOptions();
+  if(salesSetupError){state.textContent=salesSetupError;sel.disabled=true;return;}
+  sel.disabled=false;
+  const sp=b.salesperson_id?salesmanById(b.salesperson_id):null;
+  sel.value=sp?String(sp.id):'';
+  state.innerHTML=sp?`Credited to <strong>${esc(sp.name)}</strong>${b.salesperson_assigned_at?` since ${esc(fmt(b.salesperson_assigned_at))}`:''}. Their Stripe payments count toward ${esc(sp.name)}'s sales totals.`:'Not credited to a salesman. Its Stripe payments show under “Unassigned” in the sales totals.';
+}
+$('[data-business-salesman-save]')?.addEventListener('click',async()=>{
+  if(!activeBusiness)return;
+  const msg=$('[data-business-salesman-message]');const sel=$('[data-business-salesman]');
+  msg.hidden=false;msg.className='form-message';msg.textContent='Saving…';
+  try{
+    const res=await api(`/api/admin/businesses/${activeBusiness.id}/salesperson`,{method:'POST',body:JSON.stringify({salesperson_id:sel.value?Number(sel.value):null})});
+    Object.assign(activeBusiness,res.business);
+    if(activeBusinessDetail)activeBusinessDetail.business={...activeBusinessDetail.business,...res.business};
+    renderBusinessSalesman(res.business);
+    msg.hidden=false;msg.className='form-message';
+    msg.textContent=sel.value?`Credited to ${salesmanById(sel.value)?.name||'salesman'}.`:'Salesman removed.';
+    await loadSalespeople();
+  }catch(error){msg.hidden=false;msg.className='form-message error';msg.textContent=error.message;}
+});
+
+/* Monthly sales totals (same live Stripe data as the Stripe report) */
+function setSalesRange(key){
+  if(!salesFrom)return;
+  const [from,to]=quickRange(key);salesFrom.value=from;salesTo.value=to;
+  if(salesMonth)salesMonth.value=from.slice(0,7);
+}
+function resetSalesRange(){setSalesRange('this-month');}
+salesMonth?.addEventListener('change',()=>{
+  if(!salesMonth.value)return;
+  const [y,m]=salesMonth.value.split('-').map(Number);
+  salesFrom.value=dateOnly(new Date(y,m-1,1));
+  const end=new Date(y,m,0);const today=new Date();
+  salesTo.value=dateOnly(end>today&&y===today.getFullYear()&&m-1===today.getMonth()?today:end);
+});
+[salesFrom,salesTo].forEach(el=>el?.addEventListener('change',()=>{if(salesMonth)salesMonth.value='';}));
+
+const salesRowName=(r)=>r.salesperson?`${r.salesperson.name}${r.salesperson.active===false?' (inactive)':''}`:'Unassigned / no salesman';
+function salesTotalsRow(rows){
+  const sum=(k)=>rows.reduce((t,r)=>t+Number(r[k]||0),0);
+  return {signups:sum('signups'),signup_gross_cents:sum('signup_gross_cents'),paying_businesses:sum('paying_businesses'),first_payments:sum('first_payments'),first_payment_cents:sum('first_payment_cents'),recurring_payments:sum('recurring_payments'),recurring_cents:sum('recurring_cents'),payments:sum('payments'),gross_collected_cents:sum('gross_collected_cents'),refunds_cents:sum('refunds_cents'),stripe_fees_cents:sum('stripe_fees_cents'),dispute_loss_cents:sum('dispute_loss_cents'),net_cents:sum('net_cents')};
+}
+function salesCells(r){
+  return [
+    `${Number(r.signups||0)}${r.signup_gross_cents?`<span class="row-note">${fmtMoney(r.signup_gross_cents)} at checkout</span>`:''}`,
+    String(Number(r.paying_businesses||0)),
+    `${Number(r.first_payments||0)} · ${fmtMoney(r.first_payment_cents)}`,
+    `${Number(r.recurring_payments||0)} · ${fmtMoney(r.recurring_cents)}`,
+    `<strong>${fmtMoney(r.gross_collected_cents)}</strong>`,
+    r.refunds_cents?`−${fmtMoney(r.refunds_cents)}`:'—',
+    r.stripe_fees_cents?`−${fmtMoney(r.stripe_fees_cents)}`:'—',
+    r.dispute_loss_cents?`−${fmtMoney(r.dispute_loss_cents)}`:'—',
+    `<strong>${fmtMoney(r.net_cents)}</strong>`
+  ];
+}
+function renderSalesReportTable(data){
+  if(!salesReportTable)return;
+  const rows=data.by_salesperson||[];
+  if(!rows.length){salesReportTable.innerHTML='<tr><td colspan="10">No salesmen or Stripe activity in this range.</td></tr>';return;}
+  const total=salesTotalsRow(rows);
+  salesReportTable.innerHTML=rows.map(r=>`<tr class="${r.salesperson?'':'sales-inactive'}"><td><strong>${esc(salesRowName(r))}</strong>${r.salesperson?`<span class="row-note">${Number(r.businesses_assigned||0)} business${r.businesses_assigned===1?'':'es'} credited</span>`:''}</td>${salesCells(r).map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')
+    +`<tr class="sales-total"><td>All salesmen</td>${salesCells(total).map(c=>`<td>${c}</td>`).join('')}</tr>`;
+}
+
+async function fetchSalesReport(){
+  if(!salesFrom.value||!salesTo.value)throw new Error('Please choose a month or a start and end date.');
+  if(salesFrom.value>salesTo.value)throw new Error('The start date must be on or before the end date.');
+  const data=await api(`/api/admin/stripe-report?${localRangeParams(salesFrom.value,salesTo.value)}`);
+  if(data.salespeople_ready===false)throw new Error('Salesmen are not set up yet. Run worker/migration_salespeople.sql on the shedlr-leads database first.');
+  salesReport=data;return data;
+}
+
+function salesSummaryHtml(data){
+  const rows=data.by_salesperson||[];
+  const total=salesTotalsRow(rows);
+  const header=['Salesman','Credited accounts','New sign-ups','Paying businesses','1st payments','Recurring payments','Gross collected','Refunds','Stripe fees','Dispute loss','Net'];
+  const line=(name,r,credited)=>[`<strong>${esc(name)}</strong>`,credited,`${Number(r.signups||0)} (${fmtMoney(r.signup_gross_cents)})`,String(Number(r.paying_businesses||0)),`${Number(r.first_payments||0)} · ${fmtMoney(r.first_payment_cents)}`,`${Number(r.recurring_payments||0)} · ${fmtMoney(r.recurring_cents)}`,`<strong>${fmtMoney(r.gross_collected_cents)}</strong>`,r.refunds_cents?`<span class="neg">−${fmtMoney(r.refunds_cents)}</span>`:'—',r.stripe_fees_cents?`<span class="neg">−${fmtMoney(r.stripe_fees_cents)}</span>`:'—',r.dispute_loss_cents?`<span class="neg">−${fmtMoney(r.dispute_loss_cents)}</span>`:'—',`<strong>${fmtMoney(r.net_cents)}</strong>`];
+  const body=rows.map(r=>line(salesRowName(r),r,r.salesperson?String(Number(r.businesses_assigned||0)):'—'));
+  let html=`<h2>Sales by salesman</h2>`;
+  if(!rows.length)return html+'<p class="report-empty">No salesmen or Stripe activity in this date range.</p>';
+  html+=`<table class="report-table"><thead><tr>${header.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${body.map(c=>`<tr>${c.map((v,i)=>`<td${i>1?' class="num"':''}>${v}</td>`).join('')}</tr>`).join('')}<tr class="total">${line('All salesmen',total,'—').map((v,i)=>`<td${i>1?' class="num"':''}>${v}</td>`).join('')}</tr></tbody></table>`;
+  html+='<p class="report-empty">Payments are credited to the salesman the business is assigned to now. Net = gross collected − refunds − Stripe fees − dispute losses. “1st payments” are each customer\'s first-ever Stripe payment; “Recurring” are their 2nd and later payments.</p>';
+  return html;
+}
+
+function salesDetailHtml(data){
+  return (data.by_salesperson||[]).map(r=>{
+    const list=r.businesses||[];
+    return `<h2>${esc(salesRowName(r))} — ${fmtMoney(r.gross_collected_cents)} collected, ${fmtMoney(r.net_cents)} net</h2>${reportTable(['Business','Email','Signed up in range','Payments','Gross','Refunded','Stripe fees','Net'],
+      list.map(b=>[esc(b.business?(b.business.company_name||b.business.name||b.business.email):(b.name||'No Shedlr account')),esc(b.business?.email||b.email||'—'),b.signed_up_at?`${esc(fmt(b.signed_up_at))} (${fmtMoney(b.signup_cents)})`:'—',String(b.payments),fmtMoney(b.gross_cents),b.refunds_cents?fmtMoney(b.refunds_cents):'—',fmtMoney(b.fees_cents),fmtMoney(b.net_cents)]),'No sign-ups or payments in this date range.')}`;
+  }).join('\n');
+}
+
+function salesCsvLines(data){
+  const rows=data.by_salesperson||[];const lines=[];
+  if(data.salespeople_ready===false)return lines;
+  lines.push(['Sales by salesman']);
+  lines.push(['Salesman','Active','Credited accounts','New sign-ups','Sign-up gross','Paying businesses','1st payments','1st payment gross','Recurring payments','Recurring gross','Gross collected','Refunds','Stripe fees','Dispute loss','Net']);
+  const push=(name,active,credited,r)=>lines.push([name,active,credited,r.signups,dollars(r.signup_gross_cents),r.paying_businesses,r.first_payments,dollars(r.first_payment_cents),r.recurring_payments,dollars(r.recurring_cents),dollars(r.gross_collected_cents),dollars(r.refunds_cents),dollars(r.stripe_fees_cents),dollars(r.dispute_loss_cents),dollars(r.net_cents)]);
+  rows.forEach(r=>push(r.salesperson?r.salesperson.name:'Unassigned',r.salesperson?(r.salesperson.active===false?'No':'Yes'):'',r.salesperson?r.businesses_assigned:'',r));
+  push('All salesmen','','',salesTotalsRow(rows));
+  return lines;
+}
+
+$('[data-sales-report-form]')?.addEventListener('submit',async event=>{
+  event.preventDefault();
+  salesReportStatus.textContent='Pulling from Stripe…';
+  try{
+    const data=await fetchSalesReport();renderSalesReportTable(data);
+    const t=salesTotalsRow(data.by_salesperson||[]);
+    salesReportStatus.textContent=`${fmtDay(salesFrom.value)} through ${fmtDay(salesTo.value)}: ${fmtMoney(t.gross_collected_cents)} collected, ${fmtMoney(t.net_cents)} net across ${(data.by_salesperson||[]).filter(r=>r.salesperson).length} salesmen.${truncationNotes(data).length?' '+truncationNotes(data)[0]:''}`;
+  }catch(error){salesReportStatus.textContent=error.message;}
+});
+document.querySelectorAll('[data-sales-range]').forEach(button=>button.addEventListener('click',()=>{setSalesRange(button.dataset.salesRange);$('[data-sales-report-form]').requestSubmit();}));
+$('[data-sales-print]')?.addEventListener('click',async()=>{
+  salesReportStatus.textContent='Building commission report…';
+  try{
+    const data=await fetchSalesReport();renderSalesReportTable(data);
+    const notes=truncationNotes(data).map(n=>`<div class="warn">${esc(n)}</div>`).join('');
+    const html=reportPage('Shedlr commission report',[['Date range',`${fmtDay(salesFrom.value)} – ${fmtDay(salesTo.value)}`],['Generated',fmt(data.generated_at)],['Source','Live from Stripe, credited by salesman assignment in Shedlr']],notes+salesSummaryHtml(data)+salesDetailHtml(data));
+    if(openHtmlWindow(html,'shedlrCommissionReport',false,salesReportStatus))salesReportStatus.textContent='Commission report opened in a new window.';
+  }catch(error){salesReportStatus.textContent=error.message;}
+});
+$('[data-sales-csv]')?.addEventListener('click',async()=>{
+  salesReportStatus.textContent='Building CSV…';
+  try{
+    const data=await fetchSalesReport();renderSalesReportTable(data);
+    const lines=[['Shedlr commission report'],['From',salesFrom.value,'To',salesTo.value],['Generated',data.generated_at],[]];
+    truncationNotes(data).forEach(n=>lines.push(['WARNING',n]));
+    salesCsvLines(data).forEach(r=>lines.push(r));
+    lines.push([]);
+    lines.push(['Detail by business']);
+    lines.push(['Salesman','Business','Shedlr business ID','Email','Signed up in range','Sign-up amount','Payments','Gross','Refunded','Stripe fees','Net']);
+    (data.by_salesperson||[]).forEach(r=>(r.businesses||[]).forEach(b=>lines.push([r.salesperson?r.salesperson.name:'Unassigned',b.business?(b.business.company_name||b.business.name||''):(b.name||''),b.business?.id||'',b.business?.email||b.email||'',b.signed_up_at||'',dollars(b.signup_cents),b.payments,dollars(b.gross_cents),dollars(b.refunds_cents),dollars(b.fees_cents),dollars(b.net_cents)])));
+    downloadCsv(lines,`shedlr-commissions-${salesFrom.value}-to-${salesTo.value}.csv`);
+    salesReportStatus.textContent='Commission CSV downloaded.';
+  }catch(error){salesReportStatus.textContent=error.message;}
+});
+
 /* ── Init ── */
 loginForm.addEventListener('submit',async event=>{
   event.preventDefault();
@@ -1541,7 +1823,8 @@ async function enterDashboard(role){
   showDashboard();
   populateCategoryFilters();
   if(role==='admin'){
-    resetRange();resetReportRange();resetStripeRange();populateBulkCategory();
+    resetRange();resetReportRange();resetStripeRange();resetSalesRange();populateBulkCategory();
+    loadSalespeople().catch(()=>{});
     await loadDashboard();
   }else if(role==='retention'){
     await loadRetentionBusinesses();

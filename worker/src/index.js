@@ -484,20 +484,115 @@ const stripeId = (value) => (typeof value === "string" ? value : (value && value
 const isoFromUnix = (sec) => (sec ? new Date(Number(sec) * 1000).toISOString() : null);
 const sumBy = (rows, pick) => rows.reduce((total, row) => total + Number(pick(row) || 0), 0);
 
-/* Matches Stripe customers/emails to Shedlr business accounts (customer id first, then email). */
-async function loadBusinessMatcher(env) {
+/* ── Salesmen (commission credit) ──
+   Needs worker/migration_salespeople.sql. Every helper degrades to "no salesmen" before the
+   migration runs so the existing reports keep working. */
+const SALES_MIGRATION_MESSAGE = "Salesmen are not set up yet. Run worker/migration_salespeople.sql on the shedlr-leads database first.";
+async function loadSalespeople(env) {
+  try {
+    const rows = (await env.DB.prepare("SELECT id, name, email, phone, active, created_at, updated_at FROM salespeople ORDER BY lower(name) ASC").all()).results || [];
+    return rows.map((r) => ({ ...r, active: Boolean(Number(r.active)) }));
+  } catch { return null; }
+}
+async function findSalesperson(env, id) {
+  try { return await env.DB.prepare("SELECT * FROM salespeople WHERE id=?").bind(Number(id)).first(); } catch { return null; }
+}
+/* Pulls every email-looking token out of whatever the BAM sent (commas, new lines, a pasted email body...). */
+function parseEmailList(text) {
+  const found = String(text || "").toLowerCase().match(/[a-z0-9._%+'-]+@[a-z0-9.-]+\.[a-z]{2,}/g) || [];
+  return [...new Set(found.map((e) => e.replace(/^[.'-]+|[.'-]+$/g, "")))].filter(validEmail);
+}
+async function logSalesAssignments(env, entries) {
+  if (!entries.length) return;
+  const now = new Date().toISOString();
+  try {
+    await env.DB.batch(entries.map((e) => env.DB.prepare("INSERT INTO salesperson_assignment_log (business_id, salesperson_id, previous_salesperson_id, source, created_at) VALUES (?,?,?,?,?)").bind(e.business_id, e.salesperson_id ?? null, e.previous_salesperson_id ?? null, e.source || "manual", now)));
+  } catch { /* the audit log must never block an assignment */ }
+}
+
+/* Matches Stripe customers/emails to Shedlr business accounts (customer id first, then email).
+   With withSales, each match also carries the credited salesman. */
+async function loadBusinessMatcher(env, { withSales = false } = {}) {
   const rows = (await env.DB.prepare("SELECT * FROM businesses").all()).results || [];
+  const loaded = withSales ? await loadSalespeople(env) : null;
+  const salespeople = loaded || [];
+  const spById = new Map(salespeople.map((sp) => [Number(sp.id), sp]));
   const byCustomer = new Map(); const byEmail = new Map();
+  const assignedCounts = new Map();
   for (const b of rows) {
     if (b.stripe_customer_id) byCustomer.set(b.stripe_customer_id, b);
     const key = normEmail(b.email);
     if (key && !byEmail.has(key)) byEmail.set(key, b);
+    if (b.salesperson_id) assignedCounts.set(Number(b.salesperson_id), (assignedCounts.get(Number(b.salesperson_id)) || 0) + 1);
   }
-  return (customerId, email) => {
+  const matcher = (customerId, email) => {
     const b = (customerId && byCustomer.get(customerId)) || (email && byEmail.get(normEmail(email))) || null;
     if (!b) return null;
-    return { id: b.id, email: b.email, name: b.name, company_name: b.company_name, status: b.status, portal_activated: Boolean(b.password_hash), leads_locked: isLeadsLocked(b), last_login_at: b.last_login_at };
+    const out = { id: b.id, email: b.email, name: b.name, company_name: b.company_name, status: b.status, portal_activated: Boolean(b.password_hash), leads_locked: isLeadsLocked(b), last_login_at: b.last_login_at };
+    if (withSales) {
+      const sp = b.salesperson_id ? spById.get(Number(b.salesperson_id)) : null;
+      out.salesperson_id = sp ? sp.id : null;
+      out.salesperson_name = sp ? sp.name : null;
+    }
+    return out;
   };
+  matcher.salespeople = salespeople;
+  matcher.salesReady = Array.isArray(loaded);
+  matcher.assignedCounts = assignedCounts;
+  return matcher;
+}
+
+/* Month (or any range) sales totals per salesman, built from the same Stripe data as the
+   Stripe report so the two always agree. Payments are credited to whoever the business is
+   assigned to right now; anything without a salesman lands in "Unassigned". */
+function buildSalesBySalesperson(matcher, signups, payments, disputes) {
+  const buckets = new Map();
+  const bucket = (b) => {
+    const key = b && b.salesperson_id ? String(b.salesperson_id) : "unassigned";
+    if (!buckets.has(key)) {
+      const sp = key === "unassigned" ? null : (matcher.salespeople || []).find((x) => String(x.id) === key);
+      buckets.set(key, {
+        salesperson: sp ? { id: sp.id, name: sp.name, email: sp.email || null, active: sp.active } : null,
+        businesses_assigned: sp ? (matcher.assignedCounts.get(Number(sp.id)) || 0) : 0,
+        signups: 0, signup_gross_cents: 0,
+        payments: 0, gross_collected_cents: 0,
+        first_payments: 0, first_payment_cents: 0, recurring_payments: 0, recurring_cents: 0,
+        refunds_cents: 0, stripe_fees_cents: 0, disputes: 0, dispute_loss_cents: 0, net_cents: 0,
+        paying_businesses: 0, _biz: new Map()
+      });
+    }
+    return buckets.get(key);
+  };
+  for (const sp of matcher.salespeople || []) if (sp.active || matcher.assignedCounts.get(Number(sp.id))) bucket({ salesperson_id: sp.id });
+  const bizRow = (row, p) => {
+    const key = p.business ? `b${p.business.id}` : `e${p.email || p.customer_id || p.charge_id || p.session_id}`;
+    if (!row._biz.has(key)) row._biz.set(key, { business: p.business || null, email: p.email || null, name: p.name || null, signed_up_at: null, signup_cents: 0, payments: 0, gross_cents: 0, refunds_cents: 0, fees_cents: 0, net_cents: 0 });
+    return row._biz.get(key);
+  };
+  for (const s of signups) {
+    const row = bucket(s.business); row.signups++; row.signup_gross_cents += Number(s.amount_cents || 0);
+    const br = bizRow(row, s); br.signed_up_at = br.signed_up_at || s.created_at; br.signup_cents += Number(s.amount_cents || 0);
+  }
+  for (const p of payments) {
+    const row = bucket(p.business);
+    const amount = Number(p.amount_cents || 0); const refunded = Number(p.refunded_cents || 0); const fee = Number(p.fee_cents || 0);
+    row.payments++; row.gross_collected_cents += amount; row.refunds_cents += refunded; row.stripe_fees_cents += fee;
+    if (p.payment_number === 1) { row.first_payments++; row.first_payment_cents += amount; } else { row.recurring_payments++; row.recurring_cents += amount; }
+    const br = bizRow(row, p); br.payments++; br.gross_cents += amount; br.refunds_cents += refunded; br.fees_cents += fee; br.net_cents += amount - refunded - fee;
+  }
+  for (const d of disputes) {
+    const row = bucket(d.business); row.disputes++;
+    row.dispute_loss_cents += Math.max(0, -Number(d.net_impact_cents || 0));
+  }
+  const out = [];
+  for (const row of buckets.values()) {
+    row.net_cents = row.gross_collected_cents - row.refunds_cents - row.stripe_fees_cents - row.dispute_loss_cents;
+    row.businesses = [...row._biz.values()].sort((a, b) => b.gross_cents - a.gross_cents || String(a.business?.company_name || a.email || "").localeCompare(String(b.business?.company_name || b.email || "")));
+    row.paying_businesses = row.businesses.filter((b) => b.payments > 0).length;
+    delete row._biz;
+    out.push(row);
+  }
+  return out.sort((a, b) => (a.salesperson ? 0 : 1) - (b.salesperson ? 0 : 1) || b.gross_collected_cents - a.gross_collected_cents || String(a.salesperson?.name || "").localeCompare(String(b.salesperson?.name || "")));
 }
 
 /* Completed Stripe Checkout sessions = completed sign-ups. Optional STRIPE_REPORT_PAYMENT_LINKS
@@ -524,7 +619,7 @@ async function fetchStripeSignups(env, fromSec, toSec, matchBusiness) {
 
 async function buildStripeReport(env, range) {
   const { fromSec, toSec } = range;
-  const matchBusiness = await loadBusinessMatcher(env);
+  const matchBusiness = await loadBusinessMatcher(env, { withSales: true });
   /* Charges are fetched from the start of the account up to the end of the range so every
      payment can be numbered (1st, 2nd, 3rd...) against the customer's full history. */
   const [signupRes, chargeRes, disputeRes] = await Promise.all([
@@ -632,6 +727,8 @@ async function buildStripeReport(env, range) {
       first_payments: lists.first.length, second_payments: lists.second.length,
       third_payments: lists.third.length, fourth_plus_payments: lists.fourth_plus.length
     },
+    salespeople_ready: Boolean(matchBusiness.salesReady),
+    by_salesperson: buildSalesBySalesperson(matchBusiness, signupRes.signups, payments, disputes),
     signups: signupRes.signups,
     payments,
     payment_lists: lists,
@@ -885,6 +982,108 @@ export default {
           const { signups, truncated } = await fetchStripeSignups(env, range.fromSec, range.toSec, matchBusiness);
           return json({ range: { from: range.fromDate.toISOString(), to: range.toDate.toISOString() }, generated_at: new Date().toISOString(), truncated, totals: { signups: signups.length, signup_gross_cents: sumBy(signups, (s) => s.amount_cents), without_account: signups.filter((s) => !s.business).length, not_activated: signups.filter((s) => s.business && !s.business.portal_activated).length }, signups });
         } catch (error) { return json({ error: `Stripe error: ${error.message}` }, 502); }
+      }
+      /* ── Salesmen + commission credit (owner admin only) ── */
+      const salespersonMatch = url.pathname.match(/^\/api\/admin\/salespeople\/(\d+)$/);
+      const salespersonAssignMatch = url.pathname.match(/^\/api\/admin\/salespeople\/(\d+)\/assign-emails$/);
+      const businessSalespersonMatch = url.pathname.match(/^\/api\/admin\/businesses\/(\d+)\/salesperson$/);
+      if (url.pathname === "/api/admin/salespeople" || salespersonMatch || salespersonAssignMatch || businessSalespersonMatch) {
+        if (session.role !== "admin") return json({ error: "Only the owner admin can manage salesmen." }, 403);
+        const salespeople = await loadSalespeople(env);
+        if (!salespeople) return json({ error: SALES_MIGRATION_MESSAGE }, 500);
+        const now = new Date().toISOString();
+        const withCounts = async () => {
+          const counts = (await env.DB.prepare("SELECT salesperson_id, COUNT(*) n FROM businesses WHERE salesperson_id IS NOT NULL GROUP BY salesperson_id").all()).results || [];
+          const byId = new Map(counts.map((c) => [Number(c.salesperson_id), Number(c.n)]));
+          return (await loadSalespeople(env)).map((sp) => ({ ...sp, businesses_assigned: byId.get(Number(sp.id)) || 0 }));
+        };
+        const nameTaken = (name, exceptId) => salespeople.some((sp) => sp.name.trim().toLowerCase() === name.toLowerCase() && Number(sp.id) !== Number(exceptId || 0));
+
+        if (request.method === "GET" && url.pathname === "/api/admin/salespeople") return json({ salespeople: await withCounts() });
+
+        if (request.method === "POST" && url.pathname === "/api/admin/salespeople") {
+          let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); }
+          const name = clean(data.name, 120);
+          if (!name) return json({ error: "Enter the salesman's name." }, 400);
+          if (nameTaken(name)) return json({ error: `A salesman named ${name} already exists.` }, 409);
+          const email = data.email ? normEmail(data.email) : null;
+          if (email && !validEmail(email)) return json({ error: "That salesman email is not valid." }, 400);
+          const phone = clean(data.phone, 40) || null;
+          await env.DB.prepare("INSERT INTO salespeople (name, email, phone, active, created_at, updated_at) VALUES (?,?,?,1,?,?)").bind(name, email, phone, now, now).run();
+          return json({ success: true, salespeople: await withCounts() }, 201);
+        }
+
+        if (salespersonMatch && (request.method === "PATCH" || request.method === "DELETE")) {
+          const id = Number(salespersonMatch[1]);
+          const sp = salespeople.find((x) => Number(x.id) === id);
+          if (!sp) return json({ error: "Salesman not found." }, 404);
+          if (request.method === "PATCH") {
+            let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); }
+            const name = data.name !== undefined ? clean(data.name, 120) : sp.name;
+            if (!name) return json({ error: "The salesman needs a name." }, 400);
+            if (nameTaken(name, id)) return json({ error: `A salesman named ${name} already exists.` }, 409);
+            const email = data.email !== undefined ? (data.email ? normEmail(data.email) : null) : sp.email;
+            if (email && !validEmail(email)) return json({ error: "That salesman email is not valid." }, 400);
+            const phone = data.phone !== undefined ? (clean(data.phone, 40) || null) : sp.phone;
+            const active = data.active !== undefined ? (data.active ? 1 : 0) : (sp.active ? 1 : 0);
+            await env.DB.prepare("UPDATE salespeople SET name=?, email=?, phone=?, active=?, updated_at=? WHERE id=?").bind(name, email, phone, active, now, id).run();
+            return json({ success: true, salespeople: await withCounts() });
+          }
+          /* Delete: their businesses become unassigned (logged), then the salesman is removed. */
+          const credited = (await env.DB.prepare("SELECT id FROM businesses WHERE salesperson_id=?").bind(id).all()).results || [];
+          await env.DB.batch([
+            env.DB.prepare("UPDATE businesses SET salesperson_id=NULL, salesperson_assigned_at=NULL, updated_at=? WHERE salesperson_id=?").bind(now, id),
+            env.DB.prepare("DELETE FROM salespeople WHERE id=?").bind(id)
+          ]);
+          await logSalesAssignments(env, credited.map((b) => ({ business_id: b.id, salesperson_id: null, previous_salesperson_id: id, source: "salesman_deleted" })));
+          return json({ success: true, unassigned_businesses: credited.length, salespeople: await withCounts() });
+        }
+
+        /* Credit one business to a salesman (or clear it with salesperson_id: null). */
+        if (request.method === "POST" && businessSalespersonMatch) {
+          let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); }
+          const id = Number(businessSalespersonMatch[1]); const business = await findBusinessById(env, id);
+          if (!business) return json({ error: "Business not found." }, 404);
+          const nextId = data.salesperson_id === null || data.salesperson_id === "" || data.salesperson_id === undefined ? null : Number(data.salesperson_id);
+          if (nextId !== null && !salespeople.some((sp) => Number(sp.id) === nextId)) return json({ error: "Salesman not found." }, 404);
+          const prevId = business.salesperson_id ? Number(business.salesperson_id) : null;
+          if (prevId !== nextId) {
+            await env.DB.prepare("UPDATE businesses SET salesperson_id=?, salesperson_assigned_at=?, updated_at=? WHERE id=?").bind(nextId, nextId ? now : null, now, id).run();
+            await logSalesAssignments(env, [{ business_id: id, salesperson_id: nextId, previous_salesperson_id: prevId, source: "manual" }]);
+          }
+          return json({ success: true, business: safeBusiness(await findBusinessById(env, id)) });
+        }
+
+        /* Nightly BAM check-in: paste the emails a salesman signed up and credit them all at once.
+           Businesses already credited to a different salesman are left alone unless reassign=true. */
+        if (request.method === "POST" && salespersonAssignMatch) {
+          let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); }
+          const spId = Number(salespersonAssignMatch[1]);
+          const sp = salespeople.find((x) => Number(x.id) === spId);
+          if (!sp) return json({ error: "Salesman not found." }, 404);
+          const emails = parseEmailList(data.emails);
+          if (!emails.length) return json({ error: "No email addresses found. Paste one email per line (or separated by commas)." }, 400);
+          if (emails.length > 500) return json({ error: "Paste 500 emails or fewer at a time." }, 400);
+          const reassign = Boolean(data.reassign);
+          const spName = new Map(salespeople.map((x) => [Number(x.id), x.name]));
+          const result = { credited: [], already_credited: [], reassigned: [], conflicts: [], not_found: [] };
+          const updates = []; const logs = [];
+          for (const email of emails) {
+            const b = await findBusinessByEmail(env, email);
+            if (!b) { result.not_found.push({ email }); continue; }
+            const row = { email, business_id: b.id, company_name: b.company_name || b.name || null };
+            const prevId = b.salesperson_id ? Number(b.salesperson_id) : null;
+            if (prevId === spId) { result.already_credited.push(row); continue; }
+            if (prevId && !reassign) { result.conflicts.push({ ...row, current_salesperson: spName.get(prevId) || `ID ${prevId}` }); continue; }
+            updates.push(env.DB.prepare("UPDATE businesses SET salesperson_id=?, salesperson_assigned_at=?, updated_at=? WHERE id=?").bind(spId, now, now, b.id));
+            logs.push({ business_id: b.id, salesperson_id: spId, previous_salesperson_id: prevId, source: "email_list" });
+            if (prevId) result.reassigned.push({ ...row, previous_salesperson: spName.get(prevId) || `ID ${prevId}` }); else result.credited.push(row);
+          }
+          if (updates.length) await env.DB.batch(updates);
+          await logSalesAssignments(env, logs);
+          return json({ success: true, salesperson: { id: sp.id, name: sp.name }, emails_checked: emails.length, ...result, salespeople: await withCounts() });
+        }
+        return json({ error: "Not found." }, 404);
       }
       if (request.method === "GET" && url.pathname === "/api/admin/businesses") {
         /* SELECT b.* keeps this working before and after the killswitch migration; secrets are stripped by safeBusiness. */

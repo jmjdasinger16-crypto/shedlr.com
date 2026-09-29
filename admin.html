@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=8">
+  <link rel="stylesheet" href="css/admin.css?v=9">
 </head>
 <body class="auth-shell">
   <main class="admin-shell">
@@ -105,6 +105,63 @@
         </form>
       </section>
 
+      <!-- Salesmen + commission credit (owner only) -->
+      <section class="panel filter-panel sales-panel" data-admin-only>
+        <div class="panel-head">
+          <div><h2>Salesmen &amp; commissions</h2><p>Add salesmen, credit businesses to them (one at a time or from the emails a BAM sends you each night), and pull monthly sales totals per salesman from the same live Stripe data as the Stripe report.</p></div>
+          <div class="panel-actions"><button type="button" class="panel-toggle" data-panel-toggle aria-expanded="true">Minimize</button></div>
+        </div>
+        <div class="table-wrap sales-body">
+          <div class="sales-block">
+            <h3>Add a salesman</h3>
+            <form class="filter-grid sales-add-grid" data-sales-add-form>
+              <label>Name *<input name="name" required maxlength="120" placeholder="First and last name"></label>
+              <label>Email<input type="email" name="email" placeholder="Optional"></label>
+              <label>Phone<input type="tel" name="phone" placeholder="Optional"></label>
+              <div class="filter-actions"><button type="submit">Add salesman</button></div>
+              <p class="filter-status" data-sales-add-status></p>
+            </form>
+            <table>
+              <thead><tr><th>Salesman</th><th>Contact</th><th>Businesses credited</th><th>Status</th><th></th></tr></thead>
+              <tbody data-sales-table><tr><td colspan="5">Loading salesmen…</td></tr></tbody>
+            </table>
+          </div>
+
+          <div class="sales-block">
+            <h3>Nightly check-in: credit sign-ups to a salesman</h3>
+            <p class="zone-copy">Paste the emails the BAM sent you for tonight. Each email is matched to its Shedlr business account (case and spacing don't matter) and credited to the salesman you pick. Anything that doesn't match an account, or is already credited to someone else, is listed so you can follow up.</p>
+            <form class="filter-grid sales-assign-grid" data-sales-assign-form>
+              <label>Salesman *<select name="salesperson_id" data-sales-assign-select required><option value="">Select a salesman</option></select></label>
+              <label class="sales-emails">Emails they signed up *<textarea name="emails" rows="5" required placeholder="one@business.com&#10;two@business.com&#10;(one per line, or separated by commas — you can paste the whole email)"></textarea></label>
+              <label class="sales-check"><input type="checkbox" name="reassign"> Move businesses already credited to a different salesman</label>
+              <div class="filter-actions"><button type="submit">Credit these sign-ups</button></div>
+              <div class="filter-status sales-result" data-sales-assign-status></div>
+            </form>
+          </div>
+
+          <div class="sales-block">
+            <h3>Monthly sales totals by salesman</h3>
+            <form class="filter-grid stripe-grid" data-sales-report-form>
+              <label>Month<input type="month" data-sales-month></label>
+              <label>Start date<input type="date" data-sales-from required></label>
+              <label>End date<input type="date" data-sales-to required></label>
+              <div class="filter-actions">
+                <button type="submit">Show totals</button>
+                <button class="secondary" type="button" data-sales-print>Print commission report</button>
+                <button class="secondary" type="button" data-sales-csv>Download CSV</button>
+                <button class="secondary" type="button" data-sales-range="this-month">This month</button>
+                <button class="secondary" type="button" data-sales-range="last-month">Last month</button>
+              </div>
+              <p class="filter-status" data-sales-report-status></p>
+            </form>
+            <table>
+              <thead><tr><th>Salesman</th><th>New sign-ups</th><th>Paying businesses</th><th>1st payments</th><th>Recurring</th><th>Gross collected</th><th>Refunds</th><th>Stripe fees</th><th>Dispute loss</th><th>Net</th></tr></thead>
+              <tbody data-sales-report-table><tr><td colspan="10">Pick a month and select Show totals.</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
       <section class="metric-grid" data-admin-metrics data-admin-only></section>
 
       <section class="panel" data-admin-only>
@@ -170,6 +227,10 @@
               <option value="canceled">Canceled</option>
               <option value="suspended">Suspended</option>
             </select>
+            <select data-business-salesman-filter aria-label="Filter by salesman">
+              <option value="">All salesmen</option>
+              <option value="none">No salesman</option>
+            </select>
             <button type="button" data-open-create-business>Create Business</button>
             <button type="button" data-business-report>Account report</button>
             <button type="button" data-business-report-csv>Download CSV</button>
@@ -179,7 +240,7 @@
         <p class="filter-status" data-business-report-status></p>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Name</th><th>Contact</th><th>Company</th><th>Category</th><th>Status</th><th>Leads</th><th>Last login</th><th></th></tr></thead>
+            <thead><tr><th>Name</th><th>Contact</th><th>Company</th><th>Category</th><th>Status</th><th>Salesman</th><th>Leads</th><th>Last login</th><th></th></tr></thead>
             <tbody data-businesses-table></tbody>
           </table>
         </div>
@@ -388,6 +449,16 @@
         <button type="button" data-business-save>Save changes</button>
         <p class="form-message" data-business-save-message hidden></p>
 
+        <div class="sales-credit">
+          <h3>Salesman (commission credit)</h3>
+          <p class="zone-copy" data-business-salesman-state>—</p>
+          <div class="sales-credit-row">
+            <select data-business-salesman aria-label="Salesman"><option value="">— No salesman —</option></select>
+            <button type="button" class="zone-btn" data-business-salesman-save>Save salesman</button>
+          </div>
+          <p class="form-message" data-business-salesman-message hidden></p>
+        </div>
+
         <div class="danger-zone">
           <h3>Client lead access (killswitch)</h3>
           <p class="zone-copy" data-killswitch-state>—</p>
@@ -558,6 +629,6 @@
     </form>
   </dialog>
 
-  <script src="js/admin.js?v=12"></script>
+  <script src="js/admin.js?v=13"></script>
 </body>
 </html>

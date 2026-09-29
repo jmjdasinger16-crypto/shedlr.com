@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS businesses (
   status TEXT NOT NULL DEFAULT 'active',
   leads_locked INTEGER NOT NULL DEFAULT 0,
   leads_locked_at TEXT,
+  salesperson_id INTEGER,
+  salesperson_assigned_at TEXT,
   stripe_customer_id TEXT,
   activation_nonce TEXT,
   activation_nonce_expires TEXT,
@@ -25,6 +27,28 @@ CREATE TABLE IF NOT EXISTS businesses (
 );
 CREATE INDEX IF NOT EXISTS idx_businesses_email ON businesses(email);
 CREATE INDEX IF NOT EXISTS idx_businesses_activation ON businesses(activation_nonce);
+CREATE INDEX IF NOT EXISTS idx_businesses_salesperson ON businesses(salesperson_id);
+
+-- Salesmen (commission credit). Businesses point at one via businesses.salesperson_id.
+CREATE TABLE IF NOT EXISTS salespeople (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  email TEXT,
+  phone TEXT,
+  active INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_salespeople_name ON salespeople(lower(trim(name)));
+CREATE TABLE IF NOT EXISTS salesperson_assignment_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  business_id INTEGER NOT NULL,
+  salesperson_id INTEGER,
+  previous_salesperson_id INTEGER,
+  source TEXT NOT NULL DEFAULT 'manual',
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_sp_log_business ON salesperson_assignment_log(business_id);
 
 -- Lead orders (businesses purchase lead credits)
 CREATE TABLE IF NOT EXISTS lead_orders (
