@@ -48,3 +48,32 @@ tr.row-selected td{background:#fff8e6}
 .zone-btn:disabled{opacity:.55;cursor:progress}
 td .row-note{display:block;color:#707b86;font-size:11.5px;margin-top:3px}
 [data-reset-link-message],[data-bam-signups-status],[data-bam-create-status],[data-stripe-status]{overflow-wrap:anywhere}
+
+/* ── Salesmen & commissions (2026-09) ── */
+.sales-body{padding:4px 0 8px}
+.sales-block{padding:6px 0 18px;border-bottom:1px solid #edf0f2}
+.sales-block:last-child{border-bottom:0}
+.sales-block>h3{font:700 22px 'Cormorant Garamond';margin:18px 28px 6px}
+.sales-block>.zone-copy{margin:0 28px 12px}
+.sales-block>table{margin-top:4px}
+.sales-add-grid{grid-template-columns:1.2fr 1fr 1fr auto}
+.sales-assign-grid{grid-template-columns:1fr 2fr;align-items:start}
+.sales-assign-grid textarea{display:block;width:100%;min-height:130px;margin-top:8px;padding:12px;resize:vertical;font-size:14px}
+.sales-assign-grid select{margin-top:8px}
+.sales-assign-grid .sales-check,.sales-assign-grid .filter-actions{grid-column:1/-1}
+.filter-grid label.sales-check{display:flex;align-items:center;gap:10px;text-transform:none;letter-spacing:0;font-weight:600;font-size:13px}
+.filter-grid label.sales-check input{width:18px;height:18px;margin:0;accent-color:#0b1f33}
+.sales-result ul{margin:6px 0 10px;padding-left:18px}
+.sales-result li{margin:2px 0}
+.sales-result strong{color:#0b1f33}
+.sales-actions{display:flex;gap:6px;flex-wrap:wrap}
+.sales-actions button{padding:6px 10px;font-size:12px}
+.sales-actions .danger-link{background:#fff;color:#b42318;border:1px solid #b42318}
+tr.sales-total td{font-weight:800;background:#f6f8f9}
+tr.sales-inactive td{color:#8993a0}
+.status.muted{background:#eef1f3;color:#5a6a7a}
+.sales-credit{margin-top:22px;border-top:1px solid #edf0f2;padding-top:6px}
+.sales-credit h3{font:700 20px 'Cormorant Garamond';margin:18px 0 6px}
+.sales-credit-row{display:flex;gap:10px;align-items:stretch;flex-wrap:wrap}
+.sales-credit-row select{flex:1;min-width:200px}
+@media(max-width:900px){.sales-add-grid,.sales-assign-grid{grid-template-columns:1fr}.sales-block>h3{margin:18px 18px 6px}.sales-block>.zone-copy{margin:0 18px 12px}}

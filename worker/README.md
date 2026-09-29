@@ -45,6 +45,13 @@ This worker powers the Shedlr API: admin authentication, business portal auth, l
 - `GET  /api/admin/report?from=&to=` — backend report for a date range (admin only; printable/CSV source for the dashboard)
 - `GET  /api/admin/stripe-report?from=&to=` — live Stripe report (admin only): completed sign-ups, gross from sign-ups, payments numbered 1st/2nd/3rd/4th+ per customer, failed payments, refunds, disputes, Stripe fees, gross to net
 - `GET  /api/admin/stripe-signups?from=&to=` — completed Stripe Checkout sign-ups matched to Shedlr accounts (admin + BAM)
+- `GET  /api/admin/salespeople` — list salesmen with how many businesses are credited to each (admin only; needs `migration_salespeople.sql`)
+- `POST /api/admin/salespeople` — `{ "name", "email"?, "phone"? }` add a salesman (admin only; names are unique, case-insensitive)
+- `PATCH /api/admin/salespeople/:id` — `{ "name"?, "email"?, "phone"?, "active"? }` edit / deactivate / reactivate (admin only)
+- `DELETE /api/admin/salespeople/:id` — delete a salesman; their businesses become unassigned (admin only)
+- `POST /api/admin/salespeople/:id/assign-emails` — `{ "emails": "<pasted text>", "reassign": false }` nightly BAM check-in: credits every business whose email appears in the text; returns credited / already credited / conflicts (credited to someone else) / not found (admin only)
+- `POST /api/admin/businesses/:id/salesperson` — `{ "salesperson_id": 3 | null }` credit one business (admin only)
+- The Stripe report response now includes `by_salesperson` (monthly/range sales totals per salesman) and each matched business carries `salesperson_name`. Every credit change is written to `salesperson_assignment_log`.
 - `DELETE /api/admin/businesses/:id` — delete a business account (admin only; leads return to the unassigned pool)
 - `POST /api/admin/businesses/:id/killswitch` — `{ "enabled": true|false }` block / restore client portal lead access (admin only; needs `migration_killswitch.sql`)
 - `POST /api/admin/businesses` — create an account; if the email already exists (case-insensitive) no duplicate is created and a fresh link for the existing account is returned
