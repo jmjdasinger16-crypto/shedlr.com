@@ -525,6 +525,12 @@ async function loadBusinessMatcher(env, { withSales = false } = {}) {
     if (key && !byEmail.has(key)) byEmail.set(key, b);
     if (b.salesperson_id) assignedCounts.set(Number(b.salesperson_id), (assignedCounts.get(Number(b.salesperson_id)) || 0) + 1);
   }
+  /* Stripe billing email (set by the owner when a client paid with a different email than
+     their portal login). Portal emails win if the same address is on two accounts. */
+  for (const b of rows) {
+    const key = normEmail(b.stripe_email || "");
+    if (key && !byEmail.has(key)) byEmail.set(key, b);
+  }
   const matcher = (customerId, email) => {
     const b = (customerId && byCustomer.get(customerId)) || (email && byEmail.get(normEmail(email))) || null;
     if (!b) return null;
@@ -983,6 +989,25 @@ export default {
           return json({ range: { from: range.fromDate.toISOString(), to: range.toDate.toISOString() }, generated_at: new Date().toISOString(), truncated, totals: { signups: signups.length, signup_gross_cents: sumBy(signups, (s) => s.amount_cents), without_account: signups.filter((s) => !s.business).length, not_activated: signups.filter((s) => s.business && !s.business.portal_activated).length }, signups });
         } catch (error) { return json({ error: `Stripe error: ${error.message}` }, 502); }
       }
+      /* Owner-only: the email the client used in Stripe, when it differs from their portal login.
+         Used only to match Stripe payments and nightly check-in emails; never changes the login. */
+      const stripeEmailMatch = url.pathname.match(/^\/api\/admin\/businesses\/(\d+)\/stripe-email$/);
+      if (request.method === "POST" && stripeEmailMatch) {
+        if (session.role !== "admin") return json({ error: "Only the owner admin can set the Stripe billing email." }, 403);
+        let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); }
+        const id = Number(stripeEmailMatch[1]); const business = await findBusinessById(env, id);
+        if (!business) return json({ error: "Business not found." }, 404);
+        if (!Object.prototype.hasOwnProperty.call(business, "stripe_email")) return json({ error: "Run worker/migration_stripe_email.sql on the shedlr-leads database first." }, 500);
+        const stripeEmail = data.stripe_email ? normEmail(data.stripe_email) : null;
+        if (stripeEmail && !validEmail(stripeEmail)) return json({ error: "Please enter a valid email address." }, 400);
+        if (stripeEmail && stripeEmail === normEmail(business.email)) return json({ error: "That is already this account's portal email, so it matches Stripe without this field." }, 400);
+        if (stripeEmail) {
+          const clash = await env.DB.prepare("SELECT id, company_name, name FROM businesses WHERE id<>? AND (lower(trim(email))=? OR lower(trim(stripe_email))=?) LIMIT 1").bind(id, stripeEmail, stripeEmail).first();
+          if (clash) return json({ error: `${stripeEmail} is already used by another account (ID ${clash.id}${clash.company_name ? `, ${clash.company_name}` : ""}).`, duplicate_business_id: clash.id }, 409);
+        }
+        await env.DB.prepare("UPDATE businesses SET stripe_email=?, updated_at=? WHERE id=?").bind(stripeEmail, new Date().toISOString(), id).run();
+        return json({ success: true, business: safeBusiness(await findBusinessById(env, id)) });
+      }
       /* ── Salesmen + commission credit (owner admin only) ── */
       const salespersonMatch = url.pathname.match(/^\/api\/admin\/salespeople\/(\d+)$/);
       const salespersonAssignMatch = url.pathname.match(/^\/api\/admin\/salespeople\/(\d+)\/assign-emails$/);
@@ -1069,9 +1094,13 @@ export default {
           const result = { credited: [], already_credited: [], reassigned: [], conflicts: [], not_found: [] };
           const updates = []; const logs = [];
           for (const email of emails) {
-            const b = await findBusinessByEmail(env, email);
+            let b = await findBusinessByEmail(env, email); let viaStripeEmail = false;
+            if (!b) {
+              try { b = await env.DB.prepare("SELECT * FROM businesses WHERE lower(trim(stripe_email))=? ORDER BY id ASC LIMIT 1").bind(email).first(); } catch { b = null; }
+              viaStripeEmail = Boolean(b);
+            }
             if (!b) { result.not_found.push({ email }); continue; }
-            const row = { email, business_id: b.id, company_name: b.company_name || b.name || null };
+            const row = { email, business_id: b.id, company_name: b.company_name || b.name || null, matched_by: viaStripeEmail ? "stripe_email" : "portal_email" };
             const prevId = b.salesperson_id ? Number(b.salesperson_id) : null;
             if (prevId === spId) { result.already_credited.push(row); continue; }
             if (prevId && !reassign) { result.conflicts.push({ ...row, current_salesperson: spName.get(prevId) || `ID ${prevId}` }); continue; }

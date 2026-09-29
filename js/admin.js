@@ -1648,13 +1648,13 @@ $('[data-sales-assign-form]')?.addEventListener('submit',async event=>{
   try{
     const res=await api(`/api/admin/salespeople/${spId}/assign-emails`,{method:'POST',body:JSON.stringify({emails:form.emails.value,reassign:form.reassign.checked})});
     applySalespeople(res.salespeople);
-    const biz=(r)=>`${esc(r.email)} → ${esc(r.company_name||'business')} (ID ${r.business_id})`;
+    const biz=(r)=>`${esc(r.email)} → ${esc(r.company_name||'business')} (ID ${r.business_id})${r.matched_by==='stripe_email'?' <span class="row-note" style="display:inline">matched by Stripe billing email</span>':''}`;
     const newly=res.credited.length+res.reassigned.length;
     out.innerHTML=`<p><strong>${esc(res.salesperson.name)}:</strong> checked ${res.emails_checked} email${res.emails_checked===1?'':'s'} — ${newly} newly credited, ${res.already_credited.length} already theirs, ${res.conflicts.length} credited to someone else, ${res.not_found.length} with no Shedlr account.</p>`
       +salesResultList('Newly credited',res.credited,biz)
       +salesResultList('Moved from another salesman',res.reassigned,r=>`${biz(r)} — was ${esc(r.previous_salesperson)}`)
       +salesResultList('Already credited to someone else (not changed)',res.conflicts,r=>`${biz(r)} — currently ${esc(r.current_salesperson)}. Tick “Move businesses already credited…” and run again if this should change.`)
-      +salesResultList('No Shedlr account with this email',res.not_found,r=>`${esc(r.email)} — check the spelling with the BAM, or look it up in Stripe sign-ups. It hasn't been credited.`)
+      +salesResultList('No Shedlr account with this email',res.not_found,r=>`${esc(r.email)} — not a portal login or a saved Stripe billing email. If the client paid in Stripe with this email, open their business, save it as their Stripe billing email, and run the check-in again.`)
       +salesResultList('Already credited to this salesman',res.already_credited,biz);
     if(newly)form.emails.value='';
     await loadBusinesses().catch(()=>{});
@@ -1672,6 +1672,8 @@ function renderBusinessSalesman(b){
   sel.disabled=false;
   const sp=b.salesperson_id?salesmanById(b.salesperson_id):null;
   sel.value=sp?String(sp.id):'';
+  const se=$('[data-business-stripe-email]');if(se)se.value=b.stripe_email||'';
+  const sem=$('[data-business-stripe-email-message]');if(sem){sem.hidden=true;sem.textContent='';}
   state.innerHTML=sp?`Credited to <strong>${esc(sp.name)}</strong>${b.salesperson_assigned_at?` since ${esc(fmt(b.salesperson_assigned_at))}`:''}. Their Stripe payments count toward ${esc(sp.name)}'s sales totals.`:'Not credited to a salesman. Its Stripe payments show under “Unassigned” in the sales totals.';
 }
 $('[data-business-salesman-save]')?.addEventListener('click',async()=>{
@@ -1687,6 +1689,19 @@ $('[data-business-salesman-save]')?.addEventListener('click',async()=>{
     msg.textContent=sel.value?`Credited to ${salesmanById(sel.value)?.name||'salesman'}.`:'Salesman removed.';
     await loadSalespeople();
   }catch(error){msg.hidden=false;msg.className='form-message error';msg.textContent=error.message;}
+});
+
+$('[data-business-stripe-email-save]')?.addEventListener('click',async()=>{
+  if(!activeBusiness)return;
+  const msg=$('[data-business-stripe-email-message]');const input=$('[data-business-stripe-email]');
+  msg.hidden=false;msg.className='form-message';msg.textContent='Saving…';
+  try{
+    const res=await api(`/api/admin/businesses/${activeBusiness.id}/stripe-email`,{method:'POST',body:JSON.stringify({stripe_email:input.value.trim()})});
+    Object.assign(activeBusiness,res.business);
+    if(activeBusinessDetail)activeBusinessDetail.business={...activeBusinessDetail.business,...res.business};
+    input.value=res.business.stripe_email||'';
+    msg.textContent=res.business.stripe_email?`Saved. Stripe payments from ${res.business.stripe_email} now count for this account.`:'Stripe billing email removed.';
+  }catch(error){msg.className='form-message error';msg.textContent=error.message;}
 });
 
 /* Monthly sales totals (same live Stripe data as the Stripe report) */

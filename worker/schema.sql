@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS businesses (
   leads_locked_at TEXT,
   salesperson_id INTEGER,
   salesperson_assigned_at TEXT,
+  stripe_email TEXT,
   stripe_customer_id TEXT,
   activation_nonce TEXT,
   activation_nonce_expires TEXT,

@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=9">
+  <link rel="stylesheet" href="css/admin.css?v=10">
 </head>
 <body class="auth-shell">
   <main class="admin-shell">
@@ -457,6 +457,14 @@
             <button type="button" class="zone-btn" data-business-salesman-save>Save salesman</button>
           </div>
           <p class="form-message" data-business-salesman-message hidden></p>
+
+          <h3>Stripe billing email</h3>
+          <p class="zone-copy">Only needed if the client paid in Stripe with a different email than their portal login. Their Stripe payments and nightly check-in emails then match this account. It does not change how they sign in.</p>
+          <div class="sales-credit-row">
+            <input type="email" data-business-stripe-email placeholder="Email they used in Stripe" aria-label="Stripe billing email">
+            <button type="button" class="zone-btn" data-business-stripe-email-save>Save Stripe email</button>
+          </div>
+          <p class="form-message" data-business-stripe-email-message hidden></p>
         </div>
 
         <div class="danger-zone">
@@ -629,6 +637,6 @@
     </form>
   </dialog>
 
-  <script src="js/admin.js?v=13"></script>
+  <script src="js/admin.js?v=14"></script>
 </body>
 </html>

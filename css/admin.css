@@ -75,5 +75,5 @@ tr.sales-inactive td{color:#8993a0}
 .sales-credit{margin-top:22px;border-top:1px solid #edf0f2;padding-top:6px}
 .sales-credit h3{font:700 20px 'Cormorant Garamond';margin:18px 0 6px}
 .sales-credit-row{display:flex;gap:10px;align-items:stretch;flex-wrap:wrap}
-.sales-credit-row select{flex:1;min-width:200px}
+.sales-credit-row select,.sales-credit-row input{flex:1;min-width:200px;padding:14px;border:1px solid #cfd6da;font:inherit}
 @media(max-width:900px){.sales-add-grid,.sales-assign-grid{grid-template-columns:1fr}.sales-block>h3{margin:18px 18px 6px}.sales-block>.zone-copy{margin:0 18px 12px}}
