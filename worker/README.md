@@ -50,6 +50,7 @@ This worker powers the Shedlr API: admin authentication, business portal auth, l
 - `PATCH /api/admin/salespeople/:id` — `{ "name"?, "email"?, "phone"?, "active"? }` edit / deactivate / reactivate (admin only)
 - `DELETE /api/admin/salespeople/:id` — delete a salesman; their businesses become unassigned (admin only)
 - `POST /api/admin/salespeople/:id/assign-emails` — `{ "emails": "<pasted text>", "reassign": false }` nightly BAM check-in: credits every business whose email appears in the text; returns credited / already credited / conflicts (credited to someone else) / not found (admin only)
+- `POST /api/admin/businesses/:id/stripe-email` — `{ "stripe_email": "..." | null }` the email the client used in Stripe when it differs from their portal login; used for Stripe report matching and the nightly check-in, never for login (admin only; needs `migration_stripe_email.sql`)
 - `POST /api/admin/businesses/:id/salesperson` — `{ "salesperson_id": 3 | null }` credit one business (admin only)
 - The Stripe report response now includes `by_salesperson` (monthly/range sales totals per salesman) and each matched business carries `salesperson_name`. Every credit change is written to `salesperson_assignment_log`.
 - `DELETE /api/admin/businesses/:id` — delete a business account (admin only; leads return to the unassigned pool)
