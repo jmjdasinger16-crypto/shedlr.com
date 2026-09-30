@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=10">
+  <link rel="stylesheet" href="css/admin.css?v=11">
 </head>
 <body class="auth-shell">
   <main class="admin-shell">
@@ -524,6 +524,11 @@
         <section class="business-subsection" data-bam-hide>
           <h3>Assigned leads</h3>
           <p style="color:#5a6a7a;font-size:13px;margin:0 0 8px" data-retention-hide>Click Edit on any lead below to fix the name, type, phone number, or details if it was entered incorrectly.</p>
+          <div class="biz-leads-toolbar" data-admin-only data-business-leads-toolbar hidden>
+            <label class="biz-leads-select-all"><input type="checkbox" data-business-leads-select-all aria-label="Select all assigned leads"> Select all</label>
+            <button type="button" class="zone-btn zone-btn-danger" data-business-leads-delete-selected hidden>Delete selected</button>
+          </div>
+          <p class="filter-status biz-leads-status" data-business-leads-selection-status></p>
           <div data-business-leads-list></div>
         </section>
         <section class="business-subsection" data-admin-only>
@@ -637,6 +642,6 @@
     </form>
   </dialog>
 
-  <script src="js/admin.js?v=14"></script>
+  <script src="js/admin.js?v=15"></script>
 </body>
 </html>
