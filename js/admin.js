@@ -655,18 +655,124 @@ function renderBusinessOrders(orders){
   list.innerHTML=orders.length?orders.map(o=>`<div class="note-item"><strong>${catLabel(o.category)} — ${o.quantity} leads</strong><div>${fmtMoney(o.total_cents)} · Status: ${esc(o.status)} · Fulfilled: ${o.fulfilled_leads||0}/${o.quantity}</div><div class="meta">Submitted ${fmt(o.created_at)}${o.paid_at?` · Paid ${fmt(o.paid_at)}`:''}</div></div>`).join(''):'<p class="empty-hint">No orders yet.</p>';
 }
 
+/* ── Assigned leads inside a business account: owner can tick leads (or Select all,
+      shift-click for a range) and delete them in bulk, same as the main Leads table. ── */
+const selectedBizLeadIds=new Set();
+let renderedBizLeadIds=[];
+let lastClickedBizLeadId=null;
+let bizLeadsForId=null;
+
 function renderBusinessLeads(assignments){
   const list=$('[data-business-leads-list]');
-  const readOnly=document.body.dataset.role==='retention';
-  list.innerHTML=assignments.length?assignments.map(a=>`<div class="note-item"><strong>${esc(a.name)}</strong><div>${esc(a.email||'—')} · ${esc(a.phone||'—')}</div><div>${esc(a.message||'')}</div><div class="meta">${catLabel(a.category)} · ${esc(a.city||'—')}${a.state?', '+esc(a.state):''} · Status: ${esc(a.lead_status||a.assignment_status||'—')} · Assigned ${fmt(a.assigned_at)}</div>${readOnly?'':`<button type="button" data-edit-business-lead="${a.lead_id}" style="margin-top:6px">Edit lead</button>`}</div>`).join(''):'<p class="empty-hint">No leads assigned yet.</p>';
+  const role=document.body.dataset.role;
+  const readOnly=role==='retention';
+  const canBulk=role==='admin';
+  const bizId=activeBusiness?String(activeBusiness.id):null;
+  if(bizLeadsForId!==bizId){selectedBizLeadIds.clear();lastClickedBizLeadId=null;bizLeadsForId=bizId;}
+  const ids=[...new Set(assignments.map(a=>String(a.lead_id)))];
+  renderedBizLeadIds=ids;
+  [...selectedBizLeadIds].forEach(id=>{if(!ids.includes(id))selectedBizLeadIds.delete(id);});
+  list.innerHTML=assignments.length?assignments.map(a=>{
+    const id=String(a.lead_id), on=selectedBizLeadIds.has(id);
+    const box=canBulk?`<label class="biz-lead-check"><input type="checkbox" data-business-lead-select="${esc(id)}"${on?' checked':''} aria-label="Select ${esc(a.name||'lead')}"></label>`:'';
+    return `<div class="note-item${canBulk?' biz-lead-item':''}${on?' row-selected':''}" data-business-lead-row="${esc(id)}">${box}<div class="biz-lead-body"><strong>${esc(a.name)}</strong><div>${esc(a.email||'—')} · ${esc(a.phone||'—')}</div><div>${esc(a.message||'')}</div><div class="meta">${catLabel(a.category)} · ${esc(a.city||'—')}${a.state?', '+esc(a.state):''} · Status: ${esc(a.lead_status||a.assignment_status||'—')} · Assigned ${fmt(a.assigned_at)}</div>${readOnly?'':`<button type="button" data-edit-business-lead="${a.lead_id}" style="margin-top:6px">Edit lead</button>`}</div></div>`;
+  }).join(''):'<p class="empty-hint">No leads assigned yet.</p>';
+  const toolbar=$('[data-business-leads-toolbar]');
+  if(toolbar)toolbar.hidden=!(canBulk&&ids.length);
+  syncBizLeadSelectionUi();
+}
+
+function syncBizLeadSelectionUi(){
+  const count=renderedBizLeadIds.filter(id=>selectedBizLeadIds.has(id)).length;
+  const button=$('[data-business-leads-delete-selected]');
+  const status=$('[data-business-leads-selection-status]');
+  const selectAll=$('[data-business-leads-select-all]');
+  if(button){button.hidden=count===0;button.textContent=count?`Delete ${count} selected`:'Delete selected';}
+  if(status&&!status.dataset.busy){
+    status.textContent=count?`${count} of ${renderedBizLeadIds.length} assigned lead${renderedBizLeadIds.length===1?'':'s'} selected. Shift-click a checkbox to select a range.`:'';
+  }
+  if(selectAll){
+    selectAll.checked=count>0&&count===renderedBizLeadIds.length;
+    selectAll.indeterminate=count>0&&count<renderedBizLeadIds.length;
+  }
+}
+
+function setBizLeadSelected(id,selected){
+  id=String(id);
+  if(selected)selectedBizLeadIds.add(id);else selectedBizLeadIds.delete(id);
+  const list=$('[data-business-leads-list]');
+  list.querySelectorAll(`[data-business-lead-select="${CSS.escape(id)}"]`).forEach(box=>{box.checked=selected;box.closest('[data-business-lead-row]')?.classList.toggle('row-selected',selected);});
 }
 
 $('[data-business-leads-list]').addEventListener('click',event=>{
+  const box=event.target.closest('[data-business-lead-select]');
+  if(box){
+    const id=String(box.dataset.businessLeadSelect);
+    if(event.shiftKey&&lastClickedBizLeadId!==null){
+      const from=renderedBizLeadIds.indexOf(lastClickedBizLeadId), to=renderedBizLeadIds.indexOf(id);
+      if(from!==-1&&to!==-1)renderedBizLeadIds.slice(Math.min(from,to),Math.max(from,to)+1).forEach(rid=>setBizLeadSelected(rid,box.checked));
+    }else setBizLeadSelected(id,box.checked);
+    lastClickedBizLeadId=id;
+    syncBizLeadSelectionUi();
+    return;
+  }
   const button=event.target.closest('[data-edit-business-lead]');
   if(!button)return;
   const assignment=(activeBusinessDetail?.assignments||[]).find(a=>String(a.lead_id)===String(button.dataset.editBusinessLead));
   if(assignment)openBusinessAssignedLead(assignment);
 });
+
+$('[data-business-leads-select-all]')?.addEventListener('change',event=>{
+  renderedBizLeadIds.forEach(id=>setBizLeadSelected(id,event.target.checked));
+  lastClickedBizLeadId=null;
+  syncBizLeadSelectionUi();
+});
+
+async function deleteSelectedBusinessLeads(){
+  const button=$('[data-business-leads-delete-selected]');
+  const status=$('[data-business-leads-selection-status]');
+  if(!button||!status||!activeBusiness)return;
+  const ids=renderedBizLeadIds.filter(id=>selectedBizLeadIds.has(id));
+  if(!ids.length)return;
+  const assignments=activeBusinessDetail?.assignments||[];
+  const nameOf=id=>assignments.find(a=>String(a.lead_id)===id)?.name;
+  const names=ids.slice(0,3).map(nameOf).filter(Boolean).join(', ');
+  const preview=names?`${names}${ids.length>3?` and ${ids.length-3} more`:''}`:`${ids.length} leads`;
+  const bizName=activeBusiness.name||activeBusiness.company_name||activeBusiness.email||'this business';
+  if(!confirm(`Delete ${ids.length} lead${ids.length===1?'':'s'} assigned to ${bizName} (${preview})? The lead${ids.length===1?' is':'s are'} removed from the system entirely, along with notes and assignments, and order fulfillment counts go back down. This can't be undone.`))return;
+  button.disabled=true;
+  status.dataset.busy='1';
+  const failed=[];
+  let done=0;
+  for(const id of ids){
+    status.textContent=`Deleting ${done+failed.length+1} of ${ids.length}…`;
+    try{
+      await api(`/api/admin/leads/${id}`,{method:'DELETE'});
+      selectedBizLeadIds.delete(id);
+      selectedLeadIds.delete(id);
+      leads=leads.filter(l=>String(l.id)!==id);
+      done++;
+    }catch(error){
+      failed.push(`${nameOf(id)||`#${id}`}: ${error.message}`);
+    }
+  }
+  button.disabled=false;
+  delete status.dataset.busy;
+  renderLeads(currentLeadRows());
+  await refreshBusinessLeads();
+  status.textContent=failed.length
+    ? `Deleted ${done} of ${ids.length}. Failed: ${failed.join('; ')}`
+    : `Deleted ${done} lead${done===1?'':'s'}.`;
+  const b=businesses.find(x=>String(x.id)===String(activeBusiness.id));
+  if(b&&typeof b.total_leads==='number'){b.total_leads=Math.max(0,b.total_leads-done);renderBusinesses(businesses);}
+}
+
+$('[data-business-leads-delete-selected]')?.addEventListener('click',()=>{deleteSelectedBusinessLeads().catch(error=>{
+  const status=$('[data-business-leads-selection-status]');
+  if(status){delete status.dataset.busy;status.textContent=error.message;}
+  const button=$('[data-business-leads-delete-selected]');
+  if(button)button.disabled=false;
+});});
 
 businessesTable.addEventListener('click',event=>{const button=event.target.closest('[data-open-business]');if(!button)return;openBusiness(button.dataset.openBusiness);});
 
