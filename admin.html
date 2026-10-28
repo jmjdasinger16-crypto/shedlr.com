@@ -246,6 +246,20 @@
         </div>
       </section>
 
+      <!-- Job applications (owner only) -->
+      <section class="panel" data-admin-only>
+        <div class="panel-head">
+          <div><h2>Job applications</h2><p>Business Account Manager applications from the careers page. Every submission is stored here, even when the email notification fails.</p></div>
+          <div class="panel-actions"><button type="button" class="panel-toggle" data-panel-toggle aria-expanded="true">Minimize</button></div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Name</th><th>Contact</th><th>Role</th><th>Resume</th><th>Email</th><th>Submitted</th><th></th></tr></thead>
+            <tbody data-applications-table></tbody>
+          </table>
+        </div>
+      </section>
+
       <section class="panel" data-staff-only hidden>
         <div class="panel-head">
           <div><h2>Add a lead</h2><p>Enter a new lead you've sourced. An admin will review, verify, and assign it.</p></div>
@@ -642,6 +656,6 @@
     </form>
   </dialog>
 
-  <script src="js/admin.js?v=15"></script>
+  <script src="js/admin.js?v=16"></script>
 </body>
 </html>
