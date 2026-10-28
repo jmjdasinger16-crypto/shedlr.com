@@ -13,6 +13,7 @@ const orderSearch=$('[data-order-search]');
 const search=$('[data-lead-search]');
 const leadCategoryFilter=$('[data-lead-category-filter]');
 const businessSearch=$('[data-business-search]');
+const applicationsTable=$('[data-applications-table]');
 const filterForm=$('[data-dashboard-filter]');
 const filterFrom=$('[data-filter-from]');
 const filterTo=$('[data-filter-to]');
@@ -20,7 +21,7 @@ const filterStatus=$('[data-filter-status]');
 const leadDialog=$('[data-lead-dialog]');
 const businessDialog=$('[data-business-dialog]');
 const orderDialog=$('[data-order-dialog]');
-let orders=[];let leads=[];let businesses=[];
+let orders=[];let leads=[];let businesses=[];let applications=[];
 let activeLead=null;let activeBusiness=null;let activeBusinessDetail=null;let activeOrder=null;
 
 const CATEGORIES=["personal-trainer","life-coach","counseling","mental-health-clinician","maintenance","dog-walker","house-cleaning","landscaping","tutoring","photography","handyman","moving","catering","event-planning","home-insurance","vehicle-insurance","roofing","auto-hail-damage","home-services","hvac","plumbing","garage-door-services","auto-mechanic","pest-control","solar","real-estate","car-sales","cell-phone-sales","internet-cable-sales","tax-prep","gym-sales","home-remodeling","nail-lash-stylist","junk-removal","auto-detailing","auto-commercial-detailing","insurance","meal-prep"];
@@ -48,6 +49,16 @@ function renderMetrics(data){
   const items=[['Visits',data.visits],['Unique visitors',data.unique_visitors],['Orders',data.orders],['Revenue',fmtMoney(data.revenue_cents)],['Paid',fmtMoney(data.paid_cents)]];
   metrics.innerHTML=items.map(([label,value])=>`<article class="metric"><strong>${esc(label==='Visits'||label==='Unique visitors'||label==='Orders'?Number(value||0).toLocaleString():value)}</strong><span>${esc(label)}</span></article>`).join('');
 }
+
+async function loadApplications(){applications=(await api('/api/admin/applications')).applications||[];renderApplications();}
+function renderApplications(){
+  applicationsTable.innerHTML=applications.map(a=>`<tr><td><strong>${esc(a.name)}</strong></td><td>${esc(a.email)}<br>${esc(a.phone)}</td><td>${esc(a.role||'—')}</td><td>${a.resume_filename?(a.resume_too_large?`${esc(a.resume_filename)} <span class="status">not backed up</span>`:`<a href="/api/admin/applications/${a.id}/resume" target="_blank" rel="noopener">${esc(a.resume_filename)}</a>`):'—'}</td><td><span class="status">${esc(a.email_status)}</span></td><td>${fmt(a.created_at)}</td><td><button type="button" class="danger" data-delete-application="${a.id}">Delete</button></td></tr>`).join('')||'<tr><td colspan="7">No applications yet.</td></tr>';
+}
+document.addEventListener('click',async event=>{
+  const btn=event.target.closest('[data-delete-application]');if(!btn)return;
+  if(!confirm('Delete this application permanently?'))return;
+  try{await api(`/api/admin/applications/${btn.dataset.deleteApplication}`,{method:'DELETE'});applications=applications.filter(a=>String(a.id)!==String(btn.dataset.deleteApplication));renderApplications();}catch(error){alert(error.message);}
+});
 
 function renderPages(rows){
   pagesTable.innerHTML=rows.map(page=>`<tr><td><strong>${esc(page.page_path||'—')}</strong></td><td>${Number(page.views||0).toLocaleString()}</td><td>${Number(page.unique_visitors||0).toLocaleString()}</td><td>${fmt(page.last_activity)}</td></tr>`).join('')||'<tr><td colspan="4">No page activity found.</td></tr>';
@@ -1946,6 +1957,7 @@ async function enterDashboard(role){
   if(role==='admin'){
     resetRange();resetReportRange();resetStripeRange();resetSalesRange();populateBulkCategory();
     loadSalespeople().catch(()=>{});
+    loadApplications().catch(()=>{});
     await loadDashboard();
   }else if(role==='retention'){
     await loadRetentionBusinesses();
