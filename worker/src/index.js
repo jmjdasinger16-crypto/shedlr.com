@@ -748,6 +748,13 @@ const CAREERS_TO = "support@shedlr.com";
 const RESUME_MAX_BYTES = 5 * 1024 * 1024;
 const RESUME_TYPES = { pdf: "application/pdf", doc: "application/msword", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", txt: "text/plain", rtf: "application/rtf" };
 
+function base64ToBytes(b64) {
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
 function bytesToBase64(bytes) {
   let binary = "";
   for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
@@ -772,11 +779,25 @@ async function handleCareerApplication(request, env) {
     attachment = { filename: safeName, content: bytesToBase64(new Uint8Array(await file.arrayBuffer())), content_type: RESUME_TYPES[ext] };
   }
 
+  /* Persist first so the application survives any email failure. Resumes are backed up
+     when the base64 fits comfortably in a D1 row; larger files are emailed only and flagged. */
+  let appId = null;
   const submitted = new Date().toISOString();
   const subject = `New application: ${app.role} — ${app.name}`;
   const text = `New ${app.role} application\n\nName: ${app.name}\nPhone: ${app.phone}\nEmail: ${app.email}\nResume: ${attachment ? attachment.filename + " (attached)" : "Not provided"}\nSubmitted: ${submitted}\nIP: ${request.headers.get("CF-Connecting-IP") || "unknown"}`;
   const to = env.CAREERS_EMAIL || CAREERS_TO;
   const details = [];
+  try {
+    const result = await env.DB.prepare(`INSERT INTO career_applications (role, name, phone, email, resume_filename, resume_content_type, resume_data, resume_too_large, email_status, ip_address, user_agent, created_at) VALUES (?,?,?,?,?,?,?,?, 'pending', ?, ?, ?)`)
+      .bind(app.role, app.name, app.phone, app.email, attachment ? attachment.filename : null, attachment ? attachment.content_type : null,
+        attachment && attachment.content.length <= 700000 ? attachment.content : null,
+        attachment && attachment.content.length > 700000 ? 1 : 0,
+        request.headers.get("CF-Connecting-IP"), clean(request.headers.get("User-Agent"), 500), submitted).run();
+    appId = result.meta?.last_row_id ?? null;
+  } catch (error) {
+    console.error("Career application storage failed", error?.message || error);
+    details.push(`db:${error?.message || error}`);
+  }
 
   let sent = false;
   if (env.RESEND_API_KEY) {
@@ -804,7 +825,14 @@ async function handleCareerApplication(request, env) {
     }
   } else if (!sent) details.push("email:not-configured");
 
-  if (!sent) return json({ error: "We could not submit your application right now. Please email support@shedlr.com directly.", detail: details.join(" | ") }, 502);
+  if (appId) {
+    try { await env.DB.prepare("UPDATE career_applications SET email_status=?, email_detail=? WHERE id=?").bind(sent ? "sent" : "failed", clean(details.join(" | "), 500) || null, appId).run(); }
+    catch (error) { console.error("Career application email-status update failed", error?.message || error); }
+  }
+
+  /* Stored counts as received — email is best-effort, the admin dashboard shows its status. */
+  if (sent || appId) return json({ success: true, application_id: appId, message: "Thank you. Your application has been received. Our team will reach out soon." }, 201);
+  return json({ error: "We could not submit your application right now. Please email support@shedlr.com directly.", detail: details.join(" | ") }, 502);
   return json({ success: true, message: "Thank you. Your application has been received. Our team will reach out soon." }, 201);
 }
 
@@ -1076,6 +1104,25 @@ export default {
         return json({ success: true, business: safeBusiness(await findBusinessById(env, id)) });
       }
       /* ── Salesmen + commission credit (owner admin only) ── */
+      const applicationMatch = url.pathname.match(/^\/api\/admin\/applications\/(\d+)$/);
+      const applicationResumeMatch = url.pathname.match(/^\/api\/admin\/applications\/(\d+)\/resume$/);
+      if (url.pathname === "/api/admin/applications" || applicationMatch || applicationResumeMatch) {
+        if (session.role !== "admin") return json({ error: "Only the owner admin can review job applications." }, 403);
+        if (request.method === "GET" && url.pathname === "/api/admin/applications") {
+          const rows = await env.DB.prepare("SELECT id, role, name, phone, email, resume_filename, resume_content_type, resume_too_large, email_status, email_detail, ip_address, created_at FROM career_applications ORDER BY created_at DESC LIMIT 500").all();
+          return json({ applications: rows.results || [] });
+        }
+        if (request.method === "GET" && applicationResumeMatch) {
+          const row = await env.DB.prepare("SELECT resume_filename, resume_content_type, resume_data FROM career_applications WHERE id=?").bind(Number(applicationResumeMatch[1])).first();
+          if (!row) return json({ error: "Application not found." }, 404);
+          if (!row.resume_data) return json({ error: "No backed-up resume file for this application." }, 404);
+          return new Response(base64ToBytes(row.resume_data), { status: 200, headers: { "content-type": row.resume_content_type || "application/octet-stream", "content-disposition": `attachment; filename="${String(row.resume_filename || "resume").replace(/["\\]/g, "")}"`, "cache-control": "no-store" } });
+        }
+        if (request.method === "DELETE" && applicationMatch) {
+          await env.DB.prepare("DELETE FROM career_applications WHERE id=?").bind(Number(applicationMatch[1])).run();
+          return json({ success: true });
+        }
+      }
       const salespersonMatch = url.pathname.match(/^\/api\/admin\/salespeople\/(\d+)$/);
       const salespersonAssignMatch = url.pathname.match(/^\/api\/admin\/salespeople\/(\d+)\/assign-emails$/);
       const businessSalespersonMatch = url.pathname.match(/^\/api\/admin\/businesses\/(\d+)\/salesperson$/);
