@@ -776,6 +776,7 @@ async function handleCareerApplication(request, env) {
   const subject = `New application: ${app.role} — ${app.name}`;
   const text = `New ${app.role} application\n\nName: ${app.name}\nPhone: ${app.phone}\nEmail: ${app.email}\nResume: ${attachment ? attachment.filename + " (attached)" : "Not provided"}\nSubmitted: ${submitted}\nIP: ${request.headers.get("CF-Connecting-IP") || "unknown"}`;
   const to = env.CAREERS_EMAIL || CAREERS_TO;
+  const details = [];
 
   let sent = false;
   if (env.RESEND_API_KEY) {
@@ -785,15 +786,25 @@ async function handleCareerApplication(request, env) {
         headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, "content-type": "application/json" },
         body: JSON.stringify({ from: env.CAREERS_EMAIL_FROM || env.ACTIVATION_EMAIL_FROM || "Shedlr Careers <support@shedlr.com>", to: [to], reply_to: app.email, subject, text, ...(attachment ? { attachments: [{ filename: attachment.filename, content: attachment.content }] } : {}) })
       });
-      sent = res.ok;
-      if (!sent) console.error("Resend careers email failed", res.status, await res.text());
-    } catch (error) { console.error("Resend careers email error", error); }
-  }
+      if (res.ok) sent = true;
+      else details.push(`resend:${res.status} ${(await res.text().catch(() => "")).slice(0, 200)}`);
+    } catch (error) { details.push(`resend:${error?.message || error}`); }
+  } else details.push("resend:not-configured");
+
   if (!sent && env.EMAIL) {
-    try { await env.EMAIL.send({ from: "Shedlr Careers <notifications@liferise.cc>", to, replyTo: app.email, subject, text: text + (attachment ? "\n\n(Resume could not be attached on the fallback path — ask the applicant to resend it.)" : "") }); sent = true; }
-    catch (error) { console.error("Careers fallback email failed", error); }
-  }
-  if (!sent) return json({ error: "We could not submit your application right now. Please email support@shedlr.com directly." }, 502);
+    /* send_email only reaches destination addresses verified in Cloudflare Email Routing.
+       Try the careers inbox first, then the known-good internal inbox so no application is lost. */
+    for (const fallbackTo of [to, env.INTERNAL_ALERT_EMAIL || "support@liferise.cc"]) {
+      if (sent) break;
+      try {
+        await env.EMAIL.send({ from: "Shedlr Careers <notifications@liferise.cc>", to: fallbackTo, replyTo: app.email, subject, text: text + (attachment ? "\n\n(Resume could not be attached on the email-routing path — ask the applicant to resend it.)" : "") });
+        sent = true;
+        if (fallbackTo !== to) details.push(`email:delivered-to-fallback-${fallbackTo}`);
+      } catch (error) { details.push(`email:${fallbackTo}:${error?.message || error}`); }
+    }
+  } else if (!sent) details.push("email:not-configured");
+
+  if (!sent) return json({ error: "We could not submit your application right now. Please email support@shedlr.com directly.", detail: details.join(" | ") }, 502);
   return json({ success: true, message: "Thank you. Your application has been received. Our team will reach out soon." }, 201);
 }
 
