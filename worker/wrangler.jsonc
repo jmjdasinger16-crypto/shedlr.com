@@ -24,7 +24,7 @@
   "send_email": [
     {
       "name": "EMAIL",
-      "allowed_destination_addresses": ["support@liferise.cc"]
+      "allowed_destination_addresses": ["support@liferise.cc", "support@shedlr.com"]
     }
   ]
 }
