@@ -743,6 +743,60 @@ async function buildStripeReport(env, range) {
   };
 }
 
+/* ── Careers: Business Account Manager applications → support@shedlr.com ── */
+const CAREERS_TO = "support@shedlr.com";
+const RESUME_MAX_BYTES = 5 * 1024 * 1024;
+const RESUME_TYPES = { pdf: "application/pdf", doc: "application/msword", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", txt: "text/plain", rtf: "application/rtf" };
+
+function bytesToBase64(bytes) {
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(binary);
+}
+
+async function handleCareerApplication(request, env) {
+  let form; try { form = await request.formData(); } catch { return json({ error: "Invalid submission." }, 400); }
+  if (clean(form.get("website"), 200)) return json({ success: true }, 201); /* honeypot */
+  const app = { name: clean(form.get("name"), 120), phone: clean(form.get("phone"), 40), email: clean(form.get("email"), 254).toLowerCase(), role: "Business Account Manager" };
+  if (!app.name) return json({ error: "Please enter your name." }, 400);
+  if (!validPhone(app.phone)) return json({ error: "Please enter a valid phone number." }, 400);
+  if (!validEmail(app.email)) return json({ error: "Please enter a valid email address." }, 400);
+
+  let attachment = null;
+  const file = form.get("resume");
+  if (file && typeof file === "object" && file.size > 0) {
+    if (file.size > RESUME_MAX_BYTES) return json({ error: "Resume must be 5 MB or smaller." }, 400);
+    const ext = String(file.name || "").split(".").pop().toLowerCase();
+    if (!RESUME_TYPES[ext]) return json({ error: "Resume must be a PDF, Word document, RTF, or text file." }, 400);
+    const safeName = clean(file.name, 120).replace(/[^\w.\- ]+/g, "_") || `resume.${ext}`;
+    attachment = { filename: safeName, content: bytesToBase64(new Uint8Array(await file.arrayBuffer())), content_type: RESUME_TYPES[ext] };
+  }
+
+  const submitted = new Date().toISOString();
+  const subject = `New application: ${app.role} — ${app.name}`;
+  const text = `New ${app.role} application\n\nName: ${app.name}\nPhone: ${app.phone}\nEmail: ${app.email}\nResume: ${attachment ? attachment.filename + " (attached)" : "Not provided"}\nSubmitted: ${submitted}\nIP: ${request.headers.get("CF-Connecting-IP") || "unknown"}`;
+  const to = env.CAREERS_EMAIL || CAREERS_TO;
+
+  let sent = false;
+  if (env.RESEND_API_KEY) {
+    try {
+      const res = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, "content-type": "application/json" },
+        body: JSON.stringify({ from: env.CAREERS_EMAIL_FROM || env.ACTIVATION_EMAIL_FROM || "Shedlr Careers <support@shedlr.com>", to: [to], reply_to: app.email, subject, text, ...(attachment ? { attachments: [{ filename: attachment.filename, content: attachment.content }] } : {}) })
+      });
+      sent = res.ok;
+      if (!sent) console.error("Resend careers email failed", res.status, await res.text());
+    } catch (error) { console.error("Resend careers email error", error); }
+  }
+  if (!sent && env.EMAIL) {
+    try { await env.EMAIL.send({ from: "Shedlr Careers <notifications@liferise.cc>", to, replyTo: app.email, subject, text: text + (attachment ? "\n\n(Resume could not be attached on the fallback path — ask the applicant to resend it.)" : "") }); sent = true; }
+    catch (error) { console.error("Careers fallback email failed", error); }
+  }
+  if (!sent) return json({ error: "We could not submit your application right now. Please email support@shedlr.com directly." }, 502);
+  return json({ success: true, message: "Thank you. Your application has been received. Our team will reach out soon." }, 201);
+}
+
 /* ══════════════════════════════ MAIN HANDLER ══════════════════════════════ */
 
 export default {
@@ -792,6 +846,8 @@ export default {
 
       return json({ received: true });
     }
+
+    if (request.method === "POST" && url.pathname === "/api/careers/apply") return handleCareerApplication(request, env);
 
     if (request.method === "POST" && url.pathname === "/api/orders") {
       let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); }
