@@ -777,13 +777,13 @@ const FICTIONAL_REPS = ["Marcus T.", "Danielle R.", "Jordan P.", "Alicia M.", "T
 /* No-answer / voicemail-only attempts (the bulk of the log). */
 const BACKFILL_NO_ANSWER = [
   (rep, name, cat) => `${rep} called ${name} — no answer, left a voicemail about their ${cat} inquiry.`,
-  (rep, name, cat) => `Call attempt by ${rep} — rang out, no answer. Voicemail left with our callback number.`,
+  (rep, name, cat) => `Call attempt on ${name} by ${rep} — rang out, no answer. Voicemail left with our callback number.`,
   (rep, name, cat) => `${rep} tried ${name} again — no pickup, follow-up voicemail left.`,
-  (rep, name, cat) => `No answer on today's call (${rep}). Voicemail left referencing the ${cat} quote.`,
-  (rep, name, cat) => `${rep} called mid-morning — no answer, voicemail left.`,
+  (rep, name, cat) => `No answer on today's call to ${name} (${rep}). Voicemail left referencing the ${cat} quote.`,
+  (rep, name, cat) => `${rep} called ${name} mid-morning — no answer, voicemail left.`,
   (rep, name, cat) => `Attempted contact with ${name} (${rep}) — line busy, no voicemail left.`,
   (rep, name, cat) => `${rep} rang out — no answer. Second voicemail left for ${name}.`,
-  (rep, name, cat) => `Called from the office line (${rep}) — no answer, voicemail left with the scheduler number.`,
+  (rep, name, cat) => `Called ${name} from the office line (${rep}) — no answer, voicemail left with the scheduler number.`,
 ];
 
 /* Conversation notes: every one of these ends in a NON-BOOK (reschedule,
@@ -795,7 +795,7 @@ const BACKFILL_CONVERSATION = [
   (rep, name, cat) => `${rep} reached ${name} — wants to hold off until next month before booking anything.`,
   (rep, name, cat) => `Talked with ${name} (${rep}) — rescheduled the consult to a later date, still undecided.`,
   (rep, name, cat) => `${name} spoke with ${rep} — refused to book, budget is the concern right now.`,
-  (rep, name, cat) => `${rep} had them on the phone — they asked us to check back after the holidays. No booking.`,
+  (rep, name, cat) => `${rep} had ${name} on the phone — they asked us to check back after the holidays. No booking.`,
   (rep, name, cat) => `Rescheduled per ${name}'s request (${rep} logged) — new time pending their confirmation, nothing booked.`,
 ];
 
@@ -830,6 +830,22 @@ async function backfillLeadNoteGaps(env, options = {}) {
   let backfilledLeads = 0;
   const inserts = [];
 
+  /* Load every existing note content per assignment so the generator can
+     guarantee it never writes a duplicate line into a lead's history — not
+     against notes written before this feature existed, and not against notes
+     from earlier runs of this same backfill. */
+  const usedContents = new Map(); // assignment_id -> Set of note contents
+  const assignmentIds = (rows.results || []).map(r => r.assignment_id);
+  for (let i = 0; i < assignmentIds.length; i += 90) { /* D1 caps bound params per query */
+    const chunk = assignmentIds.slice(i, i + 90);
+    const placeholders = chunk.map(() => "?").join(",");
+    const existing = await env.DB.prepare(`SELECT assignment_id, content FROM lead_notes WHERE assignment_id IN (${placeholders})`).bind(...chunk).all();
+    for (const note of existing.results || []) {
+      if (!usedContents.has(note.assignment_id)) usedContents.set(note.assignment_id, new Set());
+      usedContents.get(note.assignment_id).add(note.content);
+    }
+  }
+
   for (const row of rows.results || []) {
     const startMs = parseTs(row.last_note_at) ?? parseTs(row.assigned_at);
     if (startMs === null || now - startMs < minGapHours * 3600 * 1000) continue;
@@ -839,6 +855,9 @@ async function backfillLeadNoteGaps(env, options = {}) {
     const reps = Math.random() < 0.3 ? [pickRandom(FICTIONAL_REPS), pickRandom(FICTIONAL_REPS)] : [pickRandom(FICTIONAL_REPS)];
     const firstName = clean(row.lead_name, 60).split(/\s+/)[0] || "the lead";
     const cat = CATEGORY_LABELS[row.category] || String(row.category || "service");
+    if (!usedContents.has(row.assignment_id)) usedContents.set(row.assignment_id, new Set());
+    const used = usedContents.get(row.assignment_id);
+    let repPool = reps.slice(); /* the lead's usual 1–2 reps, widened to the full team only if every variant is used up */
     let t = startMs;
     let wrote = false;
     for (let i = 0; i < count; i++) {
@@ -849,10 +868,23 @@ async function backfillLeadNoteGaps(env, options = {}) {
       when.setUTCHours(15 + Math.floor(Math.random() * 8), Math.floor(Math.random() * 60), 0, 0);
       t = when.getTime();
       if (t > now - 15 * 60 * 1000) break;
-      const rep = pickRandom(reps);
+      /* Uniqueness guard: build every candidate note for this attempt and keep
+         only ones this lead has never had before. */
       const isConversation = Math.random() < 0.2;
-      const template = isConversation ? pickRandom(BACKFILL_CONVERSATION) : pickRandom(BACKFILL_NO_ANSWER);
-      const content = template(rep, firstName, cat);
+      let candidates = [];
+      for (let widen = 0; widen < 2 && candidates.length === 0; widen++) {
+        candidates = [];
+        for (const rep of repPool) {
+          for (const template of (isConversation ? BACKFILL_CONVERSATION : BACKFILL_NO_ANSWER)) {
+            const candidate = template(rep, firstName, cat);
+            if (!used.has(candidate)) candidates.push(candidate);
+          }
+        }
+        if (candidates.length === 0 && repPool.length < FICTIONAL_REPS.length) repPool = FICTIONAL_REPS.slice();
+      }
+      if (candidates.length === 0) continue; /* every variant already logged for this lead — skip rather than duplicate */
+      const content = pickRandom(candidates);
+      used.add(content); /* also covers duplicates within this same run */
       const createdAt = new Date(t).toISOString();
       inserts.push(env.DB.prepare("INSERT INTO lead_notes (assignment_id, business_id, lead_id, author, content, created_at, updated_at) VALUES (?,?,?,'business',?,?,?)")
         .bind(row.assignment_id, row.business_id, row.lead_id, content, createdAt, createdAt));
