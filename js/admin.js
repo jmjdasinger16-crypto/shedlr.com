@@ -520,6 +520,7 @@ function fillLeadDialog(lead,metaText){
   $('[data-lead-message]').value=lead.message||'';
   $('[data-lead-status]').value=lead.status||'new';
   $('[data-lead-save-message]').hidden=true;
+  loadAdminLeadNotes(lead.id);
 
   const assignSelect=$('[data-lead-assign-business]');
   assignSelect.innerHTML='<option value="">— Select business —</option>'+businesses.map(b=>`<option value="${b.id}">${esc(b.name||b.email)}${b.company_name?` (${esc(b.company_name)})`:''}</option>`).join('');
@@ -535,6 +536,22 @@ function fillLeadDialog(lead,metaText){
   };
 
   leadDialog.showModal();
+}
+
+/* ── Admin lead notes: full contact-log history for a lead (read view,
+      served by GET /api/admin/leads/:id/notes; visible to admin and
+      retention manager). ── */
+async function loadAdminLeadNotes(leadId){
+  const list=$('[data-admin-lead-notes-list]');
+  if(!list)return;
+  list.innerHTML='<p class="empty-hint">Loading notes…</p>';
+  try{
+    const res=await api(`/api/admin/leads/${leadId}/notes`);
+    const notes=res.notes||[];
+    list.innerHTML=notes.length
+      ? notes.map(n=>`<div class="note-item"><strong>${esc(n.author==='business'?`Business${n.company_name?` · ${n.company_name}`:''}`:'Admin')}</strong><div>${esc(n.content)}</div><div class="meta">${fmt(n.created_at)}</div></div>`).join('')
+      :'<p class="empty-hint">No notes yet.</p>';
+  }catch(error){list.innerHTML=`<p class="empty-hint">${esc(error.message)}</p>`;}
 }
 
 function openLead(id){
