@@ -177,6 +177,23 @@ $('[data-leads-delete-selected]')?.addEventListener('click',()=>{deleteSelectedL
   if(button)button.disabled=false;
 });});
 
+/* ── Contact-log catch-up (owner admin): fills the gap between a lead's last
+      note (or its delivery date) and now with contact-attempt notes — no-answer
+      calls, voicemails left, and short conversations that end in a reschedule,
+      refusal, or other non-book. Each note is attributed to a fictitious rep
+      and existing notes are never modified. ── */
+$('[data-leads-backfill-notes]')?.addEventListener('click',async()=>{
+  const button=$('[data-leads-backfill-notes]');
+  if(!confirm('Catch up lead notes?\n\nFor every assigned lead whose last note (or delivery date) is more than 18 hours old, this fills the gap up to now with contact-attempt notes: no-answer calls, voicemails left, and short conversations that end in a reschedule, refusal, or other non-book. Each attempt is attributed to a fictitious rep.\n\nExisting notes are never changed.'))return;
+  const originalLabel=button.textContent;
+  button.disabled=true;button.textContent='Filling…';
+  try{
+    const result=await api('/api/admin/leads/backfill-notes',{method:'POST',body:JSON.stringify({})});
+    alert(`Contact-log catch-up complete.\n\nLeads backfilled: ${result.backfilled_leads}\nNotes created: ${result.notes_created}`);
+    await loadLeads().catch(()=>{});
+  }catch(error){alert(error.message);}finally{button.disabled=false;button.textContent=originalLabel;}
+});
+
 function renderBusinesses(rows){
   businessesTable.innerHTML=rows.map(b=>`<tr><td><strong>${esc(b.name||'—')}</strong></td><td>${esc(b.email)}<br>${esc(b.phone||'')}</td><td>${esc(b.company_name||'—')}</td><td>${esc(catLabel(b.preferred_category))}</td><td><span class="status">${esc(b.status)}</span>${b.leads_locked?'<span class="status locked" title="Killswitch on: client portal cannot see leads">Leads locked</span>':''}</td><td>${salesmanCell(b)}</td><td>${b.total_leads||0}</td><td>${fmt(b.last_login_at)}</td><td><button type="button" data-open-business="${b.id}">View</button></td></tr>`).join('')||'<tr><td colspan="9">No business accounts yet.</td></tr>';
 }
