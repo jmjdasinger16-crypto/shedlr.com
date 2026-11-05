@@ -763,6 +763,116 @@ function bytesToBase64(bytes) {
   return btoa(binary);
 }
 
+/* ══════════════════════ CONTACT-LOG BACKFILL (owner admin) ══════════════════════
+   Fills empty stretches of a lead's note history: from the last note (or the
+   delivery date, when no note exists) up to now, it appends realistic
+   contact-attempt notes — no-answer calls and voicemails left by a fictitious
+   rep, plus short conversation notes that never end in a booking (reschedules,
+   refusals, and other non-book outcomes). Existing notes are never modified;
+   the generator only fills the gap, so re-running it just extends histories
+   that have fallen behind again. */
+
+const FICTIONAL_REPS = ["Marcus T.", "Danielle R.", "Jordan P.", "Alicia M.", "Trevor K.", "Sofia N.", "Brandon W.", "Kayla H.", "Ethan V.", "Priya S."];
+
+/* No-answer / voicemail-only attempts (the bulk of the log). */
+const BACKFILL_NO_ANSWER = [
+  (rep, name, cat) => `${rep} called ${name} — no answer, left a voicemail about their ${cat} inquiry.`,
+  (rep, name, cat) => `Call attempt by ${rep} — rang out, no answer. Voicemail left with our callback number.`,
+  (rep, name, cat) => `${rep} tried ${name} again — no pickup, follow-up voicemail left.`,
+  (rep, name, cat) => `No answer on today's call (${rep}). Voicemail left referencing the ${cat} quote.`,
+  (rep, name, cat) => `${rep} called mid-morning — no answer, voicemail left.`,
+  (rep, name, cat) => `Attempted contact with ${name} (${rep}) — line busy, no voicemail left.`,
+  (rep, name, cat) => `${rep} rang out — no answer. Second voicemail left for ${name}.`,
+  (rep, name, cat) => `Called from the office line (${rep}) — no answer, voicemail left with the scheduler number.`,
+];
+
+/* Conversation notes: every one of these ends in a NON-BOOK (reschedule,
+   refusal, or a stall) — never a booked appointment. */
+const BACKFILL_CONVERSATION = [
+  (rep, name, cat) => `Spoke with ${name} (call logged by ${rep}) — asked to reschedule the appointment to later in the week. Not booked yet.`,
+  (rep, name, cat) => `${rep} connected with ${name} — they declined to book for now, said the timing isn't right.`,
+  (rep, name, cat) => `Conversation with ${name}: they went with another ${cat} provider. Not booking with us.`,
+  (rep, name, cat) => `${rep} reached ${name} — wants to hold off until next month before booking anything.`,
+  (rep, name, cat) => `Talked with ${name} (${rep}) — rescheduled the consult to a later date, still undecided.`,
+  (rep, name, cat) => `${name} spoke with ${rep} — refused to book, budget is the concern right now.`,
+  (rep, name, cat) => `${rep} had them on the phone — they asked us to check back after the holidays. No booking.`,
+  (rep, name, cat) => `Rescheduled per ${name}'s request (${rep} logged) — new time pending their confirmation, nothing booked.`,
+];
+
+const parseTs = (value) => {
+  if (!value) return null;
+  const raw = String(value);
+  const ts = Date.parse(/\d{4}-\d{2}-\d{2}[T ]\d{2}/.test(raw) ? raw.replace(" ", "T") + (/[zZ+]/.test(raw) ? "" : "Z") : raw);
+  return Number.isNaN(ts) ? null : ts;
+};
+
+const pickRandom = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+async function backfillLeadNoteGaps(env, options = {}) {
+  const now = Date.now();
+  const maxLeads = Math.min(Math.max(Number(options.maxLeads) || 500, 1), 2000);
+  const maxNotesPerLead = Math.min(Math.max(Number(options.maxNotesPerLead) || 12, 1), 25);
+  const minGapHours = Math.min(Math.max(Number(options.minGapHours) || 18, 1), 720);
+  const dryRun = options.dryRun === true;
+
+  /* Assignments whose newest note (or delivery date) is older than the gap
+     threshold, oldest first so repeated runs eventually cover everything. */
+  const rows = await env.DB.prepare(`
+    SELECT la.id AS assignment_id, la.business_id, la.lead_id, la.assigned_at,
+           l.name AS lead_name, l.category,
+           (SELECT MAX(ln.created_at) FROM lead_notes ln WHERE ln.assignment_id = la.id) AS last_note_at
+    FROM lead_assignments la JOIN leads l ON l.id = la.lead_id
+    WHERE (julianday('now') - julianday(COALESCE((SELECT MAX(ln2.created_at) FROM lead_notes ln2 WHERE ln2.assignment_id = la.id), la.assigned_at))) * 24 >= ?
+    ORDER BY la.assigned_at ASC
+    LIMIT ?
+  `).bind(minGapHours, maxLeads).all();
+
+  let backfilledLeads = 0;
+  const inserts = [];
+
+  for (const row of rows.results || []) {
+    const startMs = parseTs(row.last_note_at) ?? parseTs(row.assigned_at);
+    if (startMs === null || now - startMs < minGapHours * 3600 * 1000) continue;
+    const gapDays = (now - startMs) / 86400000;
+    const count = Math.min(maxNotesPerLead, Math.max(1, Math.floor(gapDays / 1.5)));
+    if (count < 1) continue;
+    const reps = Math.random() < 0.3 ? [pickRandom(FICTIONAL_REPS), pickRandom(FICTIONAL_REPS)] : [pickRandom(FICTIONAL_REPS)];
+    const firstName = clean(row.lead_name, 60).split(/\s+/)[0] || "the lead";
+    const cat = CATEGORY_LABELS[row.category] || String(row.category || "service");
+    let t = startMs;
+    let wrote = false;
+    for (let i = 0; i < count; i++) {
+      t += (0.75 + Math.random() * 1.75) * 86400000; /* one attempt every ~1–2.5 days */
+      if (t > now - 15 * 60 * 1000) break; /* never in the last few minutes / future */
+      /* Snap each attempt into US business hours (9am–6pm Central) so the log reads naturally. */
+      const when = new Date(t);
+      when.setUTCHours(15 + Math.floor(Math.random() * 8), Math.floor(Math.random() * 60), 0, 0);
+      t = when.getTime();
+      if (t > now - 15 * 60 * 1000) break;
+      const rep = pickRandom(reps);
+      const isConversation = Math.random() < 0.2;
+      const template = isConversation ? pickRandom(BACKFILL_CONVERSATION) : pickRandom(BACKFILL_NO_ANSWER);
+      const content = template(rep, firstName, cat);
+      const createdAt = new Date(t).toISOString();
+      inserts.push(env.DB.prepare("INSERT INTO lead_notes (assignment_id, business_id, lead_id, author, content, created_at, updated_at) VALUES (?,?,?,'business',?,?,?)")
+        .bind(row.assignment_id, row.business_id, row.lead_id, content, createdAt, createdAt));
+      wrote = true;
+    }
+    if (wrote) backfilledLeads += 1;
+  }
+
+  const totalNotes = inserts.length;
+  if (!dryRun) {
+    for (let i = 0; i < inserts.length; i += 50) await env.DB.batch(inserts.slice(i, i + 50));
+  }
+  return {
+    scanned: (rows.results || []).length,
+    backfilled_leads: backfilledLeads,
+    notes_created: totalNotes,
+    dry_run: dryRun,
+  };
+}
+
 async function handleCareerApplication(request, env) {
   let form; try { form = await request.formData(); } catch { return json({ error: "Invalid submission." }, 400); }
   if (clean(form.get("website"), 200)) return json({ success: true }, 201); /* honeypot */
@@ -1339,6 +1449,14 @@ export default {
       if (request.method === "GET" && url.pathname === "/api/admin/orders") { const status = clean(url.searchParams.get("status"), 30); const clause = status ? " WHERE status = ?" : ""; const bindings = status ? [status] : []; const orders = await env.DB.prepare(`SELECT * FROM lead_orders${clause} ORDER BY submitted_at DESC LIMIT 500`).bind(...bindings).all(); return json({ orders: orders.results || [] }); }
       const orderMatch = url.pathname.match(/^\/api\/admin\/orders\/(\d+)$/);
       if (request.method === "PATCH" && orderMatch) { let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); } const id = Number(orderMatch[1]); const allowedStatuses = ["pending_payment", "paid", "fulfilling", "completed", "canceled", "refunded"]; const status = allowedStatuses.includes(clean(data.status,30)) ? clean(data.status,30) : "pending_payment"; await env.DB.prepare("UPDATE lead_orders SET status=?, updated_at=? WHERE id=?").bind(status, new Date().toISOString(), id).run(); return json({ success: true }); }
+      /* ── Contact-log backfill (owner admin only): fills gaps in lead note histories
+           with no-answer calls, voicemails, and non-book conversation notes, each
+           attributed to a fictitious rep. See backfillLeadNoteGaps for details. ── */
+      if (request.method === "POST" && url.pathname === "/api/admin/leads/backfill-notes") {
+        if (session.role !== "admin") return json({ error: "Only the owner admin can backfill contact-log notes." }, 403);
+        let data = {}; try { data = await request.json(); } catch {}
+        return json(await backfillLeadNoteGaps(env, data));
+      }
       const leadNotesAdminMatch = url.pathname.match(/^\/api\/admin\/leads\/(\d+)\/notes$/);
       if (request.method === "GET" && leadNotesAdminMatch) { const leadId = Number(leadNotesAdminMatch[1]); const notes = await env.DB.prepare(`SELECT ln.id, ln.author, ln.content, ln.created_at, ln.updated_at, b.company_name, b.name AS business_name FROM lead_notes ln LEFT JOIN businesses b ON b.id = ln.business_id WHERE ln.lead_id=? ORDER BY ln.created_at DESC LIMIT 200`).bind(leadId).all(); return json({ notes: notes.results || [] }); }
       return json({ error: "Not found" }, 404);
