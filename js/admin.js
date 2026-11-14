@@ -211,7 +211,7 @@ function populateCategoryFilters(){
   if(leadCat)leadCat.innerHTML=opts;
   const staffLeadCat=$('[data-staff-lead-category]');
   if(staffLeadCat)staffLeadCat.innerHTML='<option value="">Select category</option>'+opts;
-  ['[data-bam-category]','[data-bam-create-category]'].forEach(sel=>{const el=$(sel);if(el)el.innerHTML='<option value="">— None —</option>'+opts;});
+  ['[data-bam-category]'].forEach(sel=>{const el=$(sel);if(el)el.innerHTML='<option value="">— None —</option>'+opts;});
 }
 
 /* ── Role-based view (admin / VA staff / retention manager) ── */
@@ -228,7 +228,7 @@ function applyRole(role){
   document.querySelectorAll('[data-retention-only]').forEach(el=>{el.hidden=!isRetention;});
   document.querySelectorAll('[data-retention-hide]').forEach(el=>{el.hidden=isRetention;});
   /* Owner and retention manager can both generate activation / password-reset links. */
-  document.querySelectorAll('[data-reset-access]').forEach(el=>{el.hidden=!(isAdmin||isRetention||isBam);});
+  document.querySelectorAll('[data-reset-access]').forEach(el=>{el.hidden=!(isAdmin||isRetention);});
   const tag=document.querySelectorAll('.admin-tag');
   const label=isAdmin?'Admin':isStaff?'VA':isBam?'Account Manager':'Retention';
   tag.forEach(el=>{el.textContent=label;});
@@ -1527,29 +1527,24 @@ if(stripeForm){
 /* ══════════════════════════════════════════════════════════════════════
    Business account manager (BAM / sales) portal
    ══════════════════════════════════════════════════════════════════════ */
-let bamSignups=[];let bamSignupData=null;
-const bamFrom=$('[data-bam-from]');const bamTo=$('[data-bam-to]');
+let bamSignups=[];let bamSignupData=null;let bamVisitsData=null;
 const bamSignupsStatus=$('[data-bam-signups-status]');
 const bamSignupsTable=$('[data-bam-signups-table]');
 const bamBusinessesTable=$('[data-bam-businesses-table]');
 
 const portalPill=(b)=>!b?'<span class="status warn">No account yet</span>':b.portal_activated?'<span class="status ok">Activated</span>':'<span class="status warn">Not activated</span>';
-function bamFilteredRows(){return filterBusinessRows($('[data-bam-search]')?.value,$('[data-bam-status-filter]')?.value);}
+/* The server already limits the BAM to today's sign-ups; the search box just filters that list. */
+function bamFilteredRows(){return filterBusinessRows($('[data-bam-search]')?.value,'');}
 
 function renderBamBusinesses(rows){
   if(!bamBusinessesTable)return;
-  bamBusinessesTable.innerHTML=rows.map(b=>`<tr><td><strong>${esc(b.company_name||b.name||'—')}</strong>${b.company_name&&b.name?`<span class="row-note">${esc(b.name)}</span>`:''}</td><td>${esc(b.email||'—')}<br>${esc(b.phone||'—')}</td><td>${esc(catLabel(b.preferred_category))}</td><td>${esc(b.address||'—')}</td><td><span class="status">${esc(statusLabel(b.status))}</span></td><td>${portalPill(b)}</td><td>${fmt(b.created_at)}</td><td><button type="button" data-open-business="${b.id}">View / edit</button></td></tr>`).join('')||'<tr><td colspan="8">No business accounts found.</td></tr>';
+  bamBusinessesTable.innerHTML=rows.map(b=>`<tr><td><strong>${esc(b.company_name||b.name||'—')}</strong>${b.company_name&&b.name?`<span class="row-note">${esc(b.name)}</span>`:''}</td><td>${esc(b.email||'—')}<br>${esc(b.phone||'—')}</td><td>${esc(catLabel(b.preferred_category))}</td><td>${esc(b.address||'—')}</td><td><span class="status">${esc(statusLabel(b.status))}</span></td><td>${portalPill(b)}</td><td>${fmt(b.created_at)}</td><td><button type="button" data-open-business="${b.id}">View / edit</button></td></tr>`).join('')||'<tr><td colspan="8">No sign-ups yet today.</td></tr>';
 }
 
 async function loadBamBusinesses(){
   const data=await api('/api/admin/businesses');
   businesses=data.businesses||[];
   renderBamBusinesses(bamFilteredRows());
-}
-
-function setBamRange(key){
-  if(!bamFrom)return;
-  const [from,to]=quickRange(key);bamFrom.value=from;bamTo.value=to;
 }
 
 function bamSignupRows(){
@@ -1565,86 +1560,60 @@ function renderBamSignups(){
   bamSignupsTable.innerHTML=rows.map(s=>{
     const b=s.business;
     const account=b?`<strong>${esc(b.company_name||b.name||b.email)}</strong><span class="row-note">ID ${b.id} · ${esc(statusLabel(b.status))}</span>`:'<span class="status warn">No account yet</span>';
-    const action=b
-      ?`<button type="button" data-bam-signup-link="${s._i}">${b.portal_activated?'Get reset link':'Get activation link'}</button> <button type="button" data-open-business="${b.id}">View</button>`
-      :`<button type="button" data-bam-signup-link="${s._i}">Create account &amp; link</button>`;
+    const action=b?`<button type="button" data-open-business="${b.id}">View</button>`:'—';
     return `<tr><td>${fmt(s.created_at)}</td><td><strong>${esc(s.name||'—')}</strong><span class="row-note">${esc(s.email||'—')}</span>${s.phone?`<span class="row-note">${esc(s.phone)}</span>`:''}</td><td>${fmtMoney(s.amount_cents)}</td><td>${account}</td><td>${b?portalPill(b):'—'}</td><td>${action}</td></tr>`;
-  }).join('')||'<tr><td colspan="6">No Stripe sign-ups in this date range.</td></tr>';
+  }).join('')||'<tr><td colspan="6">No Stripe sign-ups yet today.</td></tr>';
 }
 
 async function loadBamSignups(){
-  if(!bamFrom.value||!bamTo.value)throw new Error('Please choose a start and end date.');
-  if(bamFrom.value>bamTo.value)throw new Error('The start date must be on or before the end date.');
   bamSignupsStatus.textContent='Checking Stripe…';
-  const data=await api(`/api/admin/stripe-signups?${localRangeParams(bamFrom.value,bamTo.value)}`);
+  /* The server limits BAM results to today, whatever range is requested. */
+  const data=await api('/api/admin/stripe-signups');
   bamSignupData=data;bamSignups=data.signups||[];
   renderBamSignups();
   const t=data.totals||{};
-  bamSignupsStatus.textContent=`${t.signups||0} sign-up${t.signups===1?'':'s'} (${fmtMoney(t.signup_gross_cents)}) from ${fmtDay(bamFrom.value)} through ${fmtDay(bamTo.value)}. ${t.not_activated||0} not activated yet, ${t.without_account||0} without a Shedlr account.${data.truncated?' More sign-ups exist than one list can show; use a shorter range.':''}`;
+  bamSignupsStatus.textContent=`${t.signups||0} sign-up${t.signups===1?'':'s'} (${fmtMoney(t.signup_gross_cents)}) today. ${t.not_activated||0} not activated yet, ${t.without_account||0} without a Shedlr account.${data.truncated?' More sign-ups exist than one list can show.':''}`;
 }
 
-async function requestLinkForEmail(payload){
-  const res=await api('/api/admin/businesses',{method:'POST',body:JSON.stringify(payload)});
-  if(navigator.clipboard)navigator.clipboard.writeText(res.activation_url).catch(()=>{});
-  const kind=res.link_mode==='reset'?'Password-reset link':'Activation link';
-  const lead=res.existing?`Existing account found for ${res.business.email} (ID ${res.business.id}), so no duplicate was created.`:`New account created for ${res.business.email} (ID ${res.business.id}).`;
-  return {res,text:`${lead} ${kind} copied (valid 72 hours): ${res.activation_url}`};
-}
-
-bamSignupsTable?.addEventListener('click',async event=>{
-  const open=event.target.closest('[data-open-business]');
-  if(open){openBusiness(open.dataset.openBusiness);return;}
-  const btn=event.target.closest('[data-bam-signup-link]');
-  if(!btn)return;
-  const s=bamSignups[Number(btn.dataset.bamSignupLink)];
-  if(!s||!s.email){bamSignupsStatus.textContent='That Stripe sign-up has no email address.';return;}
-  btn.disabled=true;bamSignupsStatus.textContent='Generating link…';
-  try{
-    const {text}=await requestLinkForEmail({email:s.email,name:s.name||'',phone:s.phone||''});
-    bamSignupsStatus.textContent=text;
-    await loadBamBusinesses().catch(()=>{});
-    await loadBamSignups().then(()=>{bamSignupsStatus.textContent=text;}).catch(()=>{});
-  }catch(error){bamSignupsStatus.textContent=error.message;}
-  btn.disabled=false;
-});
+bamSignupsTable?.addEventListener('click',event=>{const open=event.target.closest('[data-open-business]');if(open)openBusiness(open.dataset.openBusiness);});
 
 $('[data-bam-signups-form]')?.addEventListener('submit',event=>{event.preventDefault();loadBamSignups().catch(error=>{bamSignupsStatus.textContent=error.message;});});
-document.querySelectorAll('[data-bam-range]').forEach(button=>button.addEventListener('click',()=>{setBamRange(button.dataset.bamRange);loadBamSignups().catch(error=>{bamSignupsStatus.textContent=error.message;});}));
 $('[data-bam-signup-search]')?.addEventListener('input',renderBamSignups);
+
+/* Today's website visits: when the links a BAM sends are being clicked. */
+async function loadBamVisits(){
+  const data=await api('/api/admin/visits');
+  bamVisitsData=data;
+  const t=data.totals||{};
+  const visits=Number(t.visits||0);const visitors=Number(t.unique_visitors||0);
+  const status=$('[data-bam-visits-status]');
+  if(status)status.textContent=`${visits.toLocaleString()} page view${visits===1?'':'s'} from ${visitors.toLocaleString()} visitor${visitors===1?'':'s'} so far today.`;
+  const table=$('[data-bam-visits-table]');
+  if(table)table.innerHTML=(data.events||[]).filter(e=>e.event_name==='page_view').map(e=>`<tr><td>${fmt(e.occurred_at)}</td><td>${esc(e.page_path||'—')}</td><td>${esc(e.referrer||'Direct / none')}</td></tr>`).join('')||'<tr><td colspan="3">No visits yet today.</td></tr>';
+}
+$('[data-bam-visits-refresh]')?.addEventListener('click',()=>{loadBamVisits().catch(error=>{const s=$('[data-bam-visits-status]');if(s)s.textContent=error.message;});});
 
 function bamSignupReportHtml(){
   const rows=bamSignupRows();const t=bamSignupData?.totals||{};
   const cards=[['Sign-ups',String(rows.length)],['Paid at checkout',fmtMoney(rows.reduce((s,r)=>s+Number(r.amount_cents||0),0))],['Portal activated',String(rows.filter(r=>r.business?.portal_activated).length)],['Not activated',String(rows.filter(r=>r.business&&!r.business.portal_activated).length)],['No Shedlr account',String(rows.filter(r=>!r.business).length)]];
   const body=`<h2>Summary</h2><div class="report-cards">${cards.map(([l,v])=>`<div class="report-card"><span>${esc(l)}</span><strong>${esc(v)}</strong></div>`).join('')}</div>
-<h2>Stripe sign-ups</h2>${reportTable(['Signed up','Customer','Email','Phone','Paid','Shedlr account','Portal'],rows.map(s=>[fmt(s.created_at),esc(s.name||'—'),esc(s.email||'—'),esc(s.phone||'—'),fmtMoney(s.amount_cents),esc(accountLabel(s.business)),esc(portalLabel(s.business))]),'No sign-ups in this date range.')}`;
-  return reportPage('Shedlr Stripe sign-up report',[['Date range',`${fmtDay(bamFrom.value)} – ${fmtDay(bamTo.value)}`],['Generated',fmt(new Date().toISOString())],['All sign-ups in range',String(t.signups||0)]],body);
+<h2>Stripe sign-ups</h2>${reportTable(['Signed up','Customer','Email','Phone','Paid','Shedlr account','Portal'],rows.map(s=>[fmt(s.created_at),esc(s.name||'—'),esc(s.email||'—'),esc(s.phone||'—'),fmtMoney(s.amount_cents),esc(accountLabel(s.business)),esc(portalLabel(s.business))]),'No sign-ups today.')}`;
+  return reportPage('Shedlr Stripe sign-up report',[['Day',fmtDay(dateOnly(new Date()))],['Generated',fmt(new Date().toISOString())],['All sign-ups today',String(t.signups||0)]],body);
 }
 
 $('[data-bam-signups-print]')?.addEventListener('click',()=>{
-  if(!bamSignupData){bamSignupsStatus.textContent='Select Show sign-ups first.';return;}
+  if(!bamSignupData){bamSignupsStatus.textContent="Today's sign-ups are still loading.";return;}
   openHtmlWindow(bamSignupReportHtml(),'shedlrSignupReport',false,bamSignupsStatus);
 });
 $('[data-bam-signups-csv]')?.addEventListener('click',()=>{
-  if(!bamSignupData){bamSignupsStatus.textContent='Select Show sign-ups first.';return;}
-  const lines=[['Shedlr Stripe sign-up report'],['From',bamFrom.value,'To',bamTo.value],[],['Signed up','Customer','Email','Phone','Paid','Shedlr business ID','Business','Portal']];
+  if(!bamSignupData){bamSignupsStatus.textContent="Today's sign-ups are still loading.";return;}
+  const lines=[['Shedlr Stripe sign-up report'],['Day',dateOnly(new Date())],[],['Signed up','Customer','Email','Phone','Paid','Shedlr business ID','Business','Portal']];
   bamSignupRows().forEach(s=>lines.push([s.created_at,s.name||'',s.email||'',s.phone||'',dollars(s.amount_cents),s.business?.id||'',s.business?.company_name||'',portalLabel(s.business)]));
-  downloadCsv(lines,`shedlr-signups-${bamFrom.value}-to-${bamTo.value}.csv`);
-});
-
-$('[data-bam-create-form]')?.addEventListener('submit',async event=>{
-  event.preventDefault();
-  const form=event.target;const out=$('[data-bam-create-status]');
-  out.textContent='Checking for an existing account…';
-  try{
-    const {text}=await requestLinkForEmail({email:form.email.value.trim(),company_name:form.company_name.value.trim(),name:form.name.value.trim(),phone:form.phone.value.trim(),address:form.address.value.trim(),preferred_category:form.preferred_category.value||null});
-    out.textContent=text;form.reset();
-    await loadBamBusinesses().catch(()=>{});
-  }catch(error){out.textContent=error.message;}
+  downloadCsv(lines,`shedlr-signups-${dateOnly(new Date())}.csv`);
 });
 
 bamBusinessesTable?.addEventListener('click',event=>{const b=event.target.closest('[data-open-business]');if(b)openBusiness(b.dataset.openBusiness);});
 $('[data-bam-search]')?.addEventListener('input',()=>renderBamBusinesses(bamFilteredRows()));
-$('[data-bam-status-filter]')?.addEventListener('change',()=>renderBamBusinesses(bamFilteredRows()));
 
 function renderBamBusinessDetail(detail){
   const b=detail.business||{};
@@ -1680,9 +1649,9 @@ $('[data-bam-save]')?.addEventListener('click',async()=>{
 });
 
 async function enterBamPortal(){
-  setBamRange('this-month');
   await loadBamBusinesses();
   await loadBamSignups().catch(error=>{bamSignupsStatus.textContent=error.message;});
+  await loadBamVisits().catch(error=>{const s=$('[data-bam-visits-status]');if(s)s.textContent=error.message;});
 }
 
 

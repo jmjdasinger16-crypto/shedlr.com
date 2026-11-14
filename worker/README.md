@@ -19,7 +19,7 @@ This worker powers the Shedlr API: admin authentication, business portal auth, l
    - `ADMIN_PASSWORD` — admin dashboard password (full access)
    - `STAFF_PASSWORD` — optional VA password (view active accounts, add leads only)
    - `RETENTION_PASSWORD` — optional retention manager password (read-only view of every business account in any status, including contact info and notes)
-   - `BAM_PASSWORD` — optional business account manager (sales) password: sees every account and Stripe sign-ups for any date range, creates accounts without duplicates, edits business name/contact/address/type, and generates activation / password-reset links
+   - `BAM_PASSWORD` — optional business account manager (sales) password: sees only the current day's sign-ups (business accounts created today and Stripe checkouts from today, window rolls forward automatically at midnight America/Chicago), today's website visits, and can edit today's sign-ups; cannot create accounts, generate activation / password-reset links, change status, or see leads/reports
    - `STRIPE_REPORT_PAYMENT_LINKS` — optional comma-separated `plink_...` ids; limits the sign-up lists to Shedlr's payment links if the Stripe account is shared
    - `ADMIN_SESSION_SECRET` — random string for signing admin sessions
    - `BUSINESS_SESSION_SECRET` — random string for signing business sessions
@@ -44,7 +44,7 @@ This worker powers the Shedlr API: admin authentication, business portal auth, l
 - `GET  /api/admin/dashboard` — metrics, orders, events, pages
 - `GET  /api/admin/report?from=&to=` — backend report for a date range (admin only; printable/CSV source for the dashboard)
 - `GET  /api/admin/stripe-report?from=&to=` — live Stripe report (admin only): completed sign-ups, gross from sign-ups, payments numbered 1st/2nd/3rd/4th+ per customer, failed payments, refunds, disputes, Stripe fees, gross to net
-- `GET  /api/admin/stripe-signups?from=&to=` — completed Stripe Checkout sign-ups matched to Shedlr accounts (admin + BAM)
+- `GET  /api/admin/stripe-signups?from=&to=` — completed Stripe Checkout sign-ups matched to Shedlr accounts (admin + BAM; the BAM range is always forced to the current day, any requested range is ignored)
 - `GET  /api/admin/salespeople` — list salesmen with how many businesses are credited to each (admin only; needs `migration_salespeople.sql`)
 - `POST /api/admin/salespeople` — `{ "name", "email"?, "phone"? }` add a salesman (admin only; names are unique, case-insensitive)
 - `PATCH /api/admin/salespeople/:id` — `{ "name"?, "email"?, "phone"?, "active"? }` edit / deactivate / reactivate (admin only)
@@ -55,11 +55,12 @@ This worker powers the Shedlr API: admin authentication, business portal auth, l
 - The Stripe report response now includes `by_salesperson` (monthly/range sales totals per salesman) and each matched business carries `salesperson_name`. Every credit change is written to `salesperson_assignment_log`.
 - `DELETE /api/admin/businesses/:id` — delete a business account (admin only; leads return to the unassigned pool)
 - `POST /api/admin/businesses/:id/killswitch` — `{ "enabled": true|false }` block / restore client portal lead access (admin only; needs `migration_killswitch.sql`)
-- `POST /api/admin/businesses` — create an account; if the email already exists (case-insensitive) no duplicate is created and a fresh link for the existing account is returned
-- `GET  /api/admin/businesses` — list businesses
-- `GET  /api/admin/businesses/:id` — business detail with orders and assignments
-- `PATCH /api/admin/businesses/:id` — update business
-- `POST /api/admin/businesses/:id/reset-password` — generate activation link
+- `GET  /api/admin/visits` — today's website visits: page-view totals, top pages, top referrers, and the latest events with timestamps (admin + BAM; window is the current day in America/Chicago)
+- `POST /api/admin/businesses` — create an account; if the email already exists (case-insensitive) no duplicate is created and a fresh link for the existing account is returned (admin only)
+- `GET  /api/admin/businesses` — list businesses (BAM receives only accounts created today; no archive of active/canceled accounts)
+- `GET  /api/admin/businesses/:id` — business detail with orders and assignments (BAM can only open accounts created today)
+- `PATCH /api/admin/businesses/:id` — update business (BAM can only edit accounts created today; only the owner changes status)
+- `POST /api/admin/businesses/:id/reset-password` — generate activation / password-reset link (owner admin + retention manager; not available to BAM)
 - `GET  /api/admin/leads` — list leads (optional `?category=` filter)
 - `POST /api/admin/leads` — create a lead manually
 - `PATCH /api/admin/leads/:id` — update lead status

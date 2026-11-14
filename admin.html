@@ -324,18 +324,12 @@
       <!-- Business account manager (BAM / sales) portal -->
       <section class="panel filter-panel" data-bam-only hidden>
         <div class="panel-head">
-          <div><h2>Stripe sign-ups</h2><p>Businesses that completed checkout in Stripe for any date range. Confirm the business is signed up here before you send an activation or password-reset link.</p></div>
+          <div><h2>Today's Stripe sign-ups</h2><p>Businesses that completed checkout in Stripe today. This list resets automatically each day — sign-ups from earlier days are not visible.</p></div>
         </div>
         <form class="filter-grid stripe-grid" data-bam-signups-form>
-          <label>Start date<input type="date" data-bam-from required></label>
-          <label>End date<input type="date" data-bam-to required></label>
           <label>Search<input type="search" placeholder="Name, email, phone..." data-bam-signup-search></label>
           <div class="filter-actions">
-            <button type="submit">Show sign-ups</button>
-            <button class="secondary" type="button" data-bam-range="today">Today</button>
-            <button class="secondary" type="button" data-bam-range="last-7">Last 7 days</button>
-            <button class="secondary" type="button" data-bam-range="this-month">This month</button>
-            <button class="secondary" type="button" data-bam-range="last-month">Last month</button>
+            <button type="submit">Refresh</button>
             <button class="secondary" type="button" data-bam-signups-print>Print sign-up report</button>
             <button class="secondary" type="button" data-bam-signups-csv>Download CSV</button>
           </div>
@@ -344,45 +338,36 @@
         <div class="table-wrap">
           <table>
             <thead><tr><th>Signed up</th><th>Customer</th><th>Paid</th><th>Shedlr account</th><th>Portal</th><th></th></tr></thead>
-            <tbody data-bam-signups-table><tr><td colspan="6">Choose a date range and select Show sign-ups.</td></tr></tbody>
+            <tbody data-bam-signups-table><tr><td colspan="6">Loading today's sign-ups…</td></tr></tbody>
           </table>
         </div>
       </section>
 
-      <section class="panel filter-panel" data-bam-only hidden>
-        <div class="panel-head">
-          <div><h2>Create account or send link</h2><p>Enter the business email. If an account already uses that email, no duplicate is created and you get a fresh password-reset link for that same account.</p></div>
-        </div>
-        <form class="filter-grid" data-bam-create-form>
-          <label>Email *<input type="email" name="email" required></label>
-          <label>Business name<input name="company_name"></label>
-          <label>Contact name<input name="name"></label>
-          <label>Phone<input type="tel" name="phone"></label>
-          <label>Address<input name="address" placeholder="Street, city, state, ZIP"></label>
-          <label>Business type<select name="preferred_category" data-bam-create-category><option value="">— None —</option></select></label>
-          <div class="filter-actions"><button type="submit">Get activation / reset link</button></div>
-          <p class="filter-status" data-bam-create-status></p>
-        </form>
-      </section>
-
       <section class="panel" data-bam-only hidden>
         <div class="panel-head">
-          <div><h2>Business accounts</h2><p>Every business account. Open one to edit its name, contact info, address, or type, or to send an activation / password-reset link.</p></div>
+          <div><h2>Today's sign-ups</h2><p>Business accounts created today. This list resets automatically each day — accounts from previous days are not visible. Open one to edit its name, contact info, address, or type.</p></div>
           <div class="panel-actions">
             <input type="search" placeholder="Search name, email, company..." data-bam-search>
-            <select data-bam-status-filter style="padding:8px;border:1px solid #cfd6da;font:inherit">
-              <option value="">All statuses</option>
-              <option value="active">Active</option>
-              <option value="past_due">Past due</option>
-              <option value="canceled">Canceled</option>
-              <option value="suspended">Suspended</option>
-            </select>
           </div>
         </div>
         <div class="table-wrap">
           <table>
             <thead><tr><th>Business</th><th>Contact</th><th>Type</th><th>Address</th><th>Status</th><th>Portal</th><th>Created</th><th></th></tr></thead>
             <tbody data-bam-businesses-table></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel" data-bam-only hidden>
+        <div class="panel-head">
+          <div><h2>Website visits</h2><p>Every page view on shedlr.com today, with the time it happened and where the click came from. Use it to see when the links you send are being clicked.</p></div>
+          <div class="panel-actions"><button type="button" class="secondary" data-bam-visits-refresh>Refresh</button></div>
+        </div>
+        <p class="filter-status" data-bam-visits-status></p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Visited</th><th>Page</th><th>Came from</th></tr></thead>
+            <tbody data-bam-visits-table><tr><td colspan="3">Loading today's visits…</td></tr></tbody>
           </table>
         </div>
       </section>
@@ -663,6 +648,6 @@
     </form>
   </dialog>
 
-  <script src="js/admin.js?v=17"></script>
+  <script src="js/admin.js?v=18"></script>
 </body>
 </html>
