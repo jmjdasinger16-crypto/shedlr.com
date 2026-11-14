@@ -643,15 +643,47 @@ async function fetchStripeSignups(env, fromSec, toSec, matchBusiness) {
   return { signups, truncated };
 }
 
+/* ── Attrition / period projection (EFT = recurring billing) ──
+   New sign-up EFT: recurring amount of subscriptions created in the range.
+   Scheduled billing EFT: renewal payments (2nd charge onward) collected in the range.
+   Period projection = new sign-up EFT + scheduled billing EFT.
+   Cancelled EFT: recurring amount of subscriptions canceled in the range.
+   Stripe's list API cannot filter by canceled_at, so canceled subscriptions are paged
+   (most recent first) and filtered locally; truncated.subscriptions flags an incomplete pass. */
+const subscriptionAmountCents = (sub) => (sub.items && Array.isArray(sub.items.data) ? sub.items.data.reduce((sum, item) => sum + Number((item.price && (item.price.unit_amount ?? item.price.amount)) || item.amount || 0) * (item.quantity || 1), 0) : 0);
+
+/* When the Stripe account is shared, STRIPE_REPORT_PAYMENT_LINKS limits sign-ups to Shedlr's
+   own links; the same limit is applied to subscriptions by resolving each link's price IDs. */
+async function loadAllowedPriceIds(env) {
+  const links = String(env.STRIPE_REPORT_PAYMENT_LINKS || "").split(",").map((v) => v.trim()).filter(Boolean);
+  if (!links.length) return null;
+  const ids = new Set();
+  for (const link of links) {
+    try {
+      const res = await stripeApi(env, `payment_links/${link}`);
+      if (!res.ok) continue;
+      const lineItems = res.data && Array.isArray(res.data.line_items) ? res.data.line_items : (res.data && res.data.line_items && Array.isArray(res.data.line_items.data) ? res.data.line_items.data : []);
+      for (const item of lineItems) { const priceId = stripeId(item.price); if (priceId) ids.add(priceId); }
+    } catch { /* one bad link never blocks the report */ }
+  }
+  return ids.size ? ids : null;
+}
+
 async function buildStripeReport(env, range) {
   const { fromSec, toSec } = range;
   const matchBusiness = await loadBusinessMatcher(env, { withSales: true });
   /* Charges are fetched from the start of the account up to the end of the range so every
      payment can be numbered (1st, 2nd, 3rd...) against the customer's full history. */
-  const [signupRes, chargeRes, disputeRes] = await Promise.all([
+  const [signupRes, chargeRes, disputeRes, newSubRes, canceledSubRes, allowedPriceIds] = await Promise.all([
     fetchStripeSignups(env, fromSec, toSec, matchBusiness),
     stripeListAll(env, "charges", [["created[lte]", String(toSec)], ["expand[]", "data.balance_transaction"]], 25),
-    stripeListAll(env, "disputes", [["created[gte]", String(fromSec)], ["created[lte]", String(toSec)], ["expand[]", "data.charge"]], 5)
+    stripeListAll(env, "disputes", [["created[gte]", String(fromSec)], ["created[lte]", String(toSec)], ["expand[]", "data.charge"]], 5),
+    /* Attrition data: subscriptions created in range + all canceled subscriptions (filtered
+       locally by canceled_at). Degrades to empty lists so the report still builds if the
+       subscription endpoints fail. */
+    stripeListAll(env, "subscriptions", [["created[gte]", String(fromSec)], ["created[lte]", String(toSec)], ["expand[]", "data.customer"]], 10).catch(() => ({ items: [], truncated: false, failed: true })),
+    stripeListAll(env, "subscriptions", [["status", "canceled"], ["expand[]", "data.customer"]], 10).catch(() => ({ items: [], truncated: false, failed: true })),
+    loadAllowedPriceIds(env)
   ]);
 
   const chargeEmail = (c) => normEmail((c.billing_details && c.billing_details.email) || c.receipt_email || "");
@@ -727,11 +759,35 @@ async function buildStripeReport(env, range) {
     else lists.fourth_plus.push(p);
   }
 
+  /* ── Attrition totals ──
+     New sign-up EFT + scheduled billing EFT = period projection; cancelled EFT is the
+     recurring revenue removed by cancellations in the range. Subscriptions that never
+     converted (incomplete / incomplete_expired) are excluded from new sign-up EFT. */
+  const subOnAllowedPrice = (sub) => !allowedPriceIds || (sub.items && Array.isArray(sub.items.data) ? sub.items.data : []).some((item) => allowedPriceIds.has(stripeId(item.price)));
+  const convertedStatuses = new Set(["active", "trialing", "past_due", "canceled", "unpaid", "paused"]);
+  const newSubscriptions = newSubRes.items.filter((s) => convertedStatuses.has(s.status) && subOnAllowedPrice(s));
+  const canceledInPeriod = canceledSubRes.items.filter((s) => Number(s.canceled_at || 0) >= fromSec && Number(s.canceled_at || 0) <= toSec && subOnAllowedPrice(s));
+  const newSignupEftCents = sumBy(newSubscriptions, subscriptionAmountCents);
+  const renewalPayments = payments.filter((p) => p.payment_number && p.payment_number >= 2);
+  const scheduledBillingEftCents = sumBy(renewalPayments, (p) => p.amount_cents);
+  const cancelledEftCents = sumBy(canceledInPeriod, subscriptionAmountCents);
+  const toCanceledRow = (s) => {
+    const email = normEmail((s.customer && s.customer.email) || "");
+    const customerId = stripeId(s.customer);
+    return {
+      subscription_id: s.id, canceled_at: isoFromUnix(s.canceled_at), email,
+      name: (s.customer && s.customer.name) || null, customer_id: customerId,
+      amount_cents: subscriptionAmountCents(s), status: s.status,
+      cancel_reason: (s.cancellation_details && s.cancellation_details.reason) || null,
+      business: matchBusiness(customerId, email)
+    };
+  };
+
   return {
     range: { from: range.fromDate.toISOString(), to: range.toDate.toISOString() },
     generated_at: new Date().toISOString(),
     currency: "usd",
-    truncated: { signups: signupRes.truncated, charges: chargeRes.truncated, disputes: disputeRes.truncated },
+    truncated: { signups: signupRes.truncated, charges: chargeRes.truncated, disputes: disputeRes.truncated, subscriptions: Boolean(newSubRes.truncated || canceledSubRes.truncated || newSubRes.failed || canceledSubRes.failed) },
     totals: {
       signups: signupRes.signups.length,
       signup_gross_cents: sumBy(signupRes.signups, (s) => s.amount_cents),
@@ -751,7 +807,16 @@ async function buildStripeReport(env, range) {
       dispute_loss_cents: disputeLoss,
       net_cents: grossCollected - refunds - fees - disputeLoss,
       first_payments: lists.first.length, second_payments: lists.second.length,
-      third_payments: lists.third.length, fourth_plus_payments: lists.fourth_plus.length
+      third_payments: lists.third.length, fourth_plus_payments: lists.fourth_plus.length,
+      /* Attrition / period projection (EFT = recurring billing). */
+      new_signup_eft_cents: newSignupEftCents,
+      new_subscriptions: newSubscriptions.length,
+      scheduled_billing_eft_cents: scheduledBillingEftCents,
+      renewal_payments: renewalPayments.length,
+      period_projection_cents: newSignupEftCents + scheduledBillingEftCents,
+      cancelled_eft_cents: cancelledEftCents,
+      cancelled_subscriptions: canceledInPeriod.length,
+      net_eft_cents: newSignupEftCents + scheduledBillingEftCents - cancelledEftCents
     },
     salespeople_ready: Boolean(matchBusiness.salesReady),
     by_salesperson: buildSalesBySalesperson(matchBusiness, signupRes.signups, payments, disputes),
@@ -759,7 +824,9 @@ async function buildStripeReport(env, range) {
     payments,
     payment_lists: lists,
     failed_payments: failed,
-    disputes
+    disputes,
+    /* Attrition detail: every subscription canceled inside the range, with its recurring amount. */
+    canceled_subscriptions: canceledInPeriod.map(toCanceledRow).sort((a, b) => String(b.canceled_at).localeCompare(String(a.canceled_at)))
   };
 }
 
