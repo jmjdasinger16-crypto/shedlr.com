@@ -250,6 +250,21 @@ const LEADS_LOCKED_MESSAGE = "Lead access for this account is paused. Please con
 
 const normEmail = (value) => clean(value, 254).toLowerCase();
 
+/* BAM visibility window: the start of the current calendar day in the owner's timezone
+   (America/Chicago). Everything the BAM role can read — sign-ups, business accounts,
+   website visits — is cut off at this instant, so the window rolls forward automatically
+   every day and no archive of active or canceled accounts is ever exposed. */
+const BAM_TIMEZONE = "America/Chicago";
+function bamDayStart() {
+  try {
+    const now = new Date();
+    const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: BAM_TIMEZONE, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" }).formatToParts(now).map((p) => [p.type, p.value]));
+    const wallClock = Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day), Number(parts.hour), Number(parts.minute), Number(parts.second));
+    const offsetMs = wallClock - now.getTime();
+    return new Date(Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day)) - offsetMs);
+  } catch { return new Date(new Date().toISOString().slice(0, 10) + "T00:00:00.000Z"); }
+}
+
 /* Never send password hashes or live activation tokens to any browser. */
 function safeBusiness(business) {
   if (!business) return null;
@@ -1148,11 +1163,13 @@ export default {
          Cannot create or edit leads, businesses, orders, or notes. Exception: may generate
          activation / password-reset links for an account, same as admin. */
       const RETENTION_ALLOWED = (request.method === "GET" && url.pathname === "/api/admin/session") || (request.method === "GET" && url.pathname === "/api/admin/businesses") || (request.method === "GET" && /^\/api\/admin\/businesses\/\d+$/.test(url.pathname)) || (request.method === "GET" && /^\/api\/admin\/businesses\/\d+\/notes$/.test(url.pathname)) || (request.method === "GET" && /^\/api\/admin\/leads\/\d+\/notes$/.test(url.pathname)) || (request.method === "POST" && /^\/api\/admin\/businesses\/\d+\/reset-password$/.test(url.pathname));
-      /* Business account manager (BAM / sales): sees every account and Stripe sign-ups for any
-         date range, creates accounts (never duplicates — a matching email returns a fresh link
-         for the existing account), edits name/contact/address/type, and generates activation /
-         password-reset links. Cannot change status, delete, killswitch, or see leads/reports. */
-      const BAM_ALLOWED = (request.method === "GET" && url.pathname === "/api/admin/session") || (request.method === "GET" && url.pathname === "/api/admin/businesses") || (request.method === "POST" && url.pathname === "/api/admin/businesses") || (request.method === "GET" && /^\/api\/admin\/businesses\/\d+$/.test(url.pathname)) || (request.method === "PATCH" && /^\/api\/admin\/businesses\/\d+$/.test(url.pathname)) || (request.method === "POST" && /^\/api\/admin\/businesses\/\d+\/reset-password$/.test(url.pathname)) || (request.method === "GET" && url.pathname === "/api/admin/stripe-signups");
+      /* Business account manager (BAM / sales): today only. Sees the current day's sign-ups
+         (business accounts created today and Stripe checkouts from today) plus today's website
+         visits, and can open/edit today's sign-ups. The window rolls forward automatically at
+         midnight, so there is no archive of active or canceled accounts. Cannot create
+         accounts, generate activation / password-reset links, change status, delete,
+         killswitch, or see leads/reports. */
+      const BAM_ALLOWED = (request.method === "GET" && url.pathname === "/api/admin/session") || (request.method === "GET" && url.pathname === "/api/admin/businesses") || (request.method === "GET" && /^\/api\/admin\/businesses\/\d+$/.test(url.pathname)) || (request.method === "PATCH" && /^\/api\/admin\/businesses\/\d+$/.test(url.pathname)) || (request.method === "GET" && url.pathname === "/api/admin/stripe-signups") || (request.method === "GET" && url.pathname === "/api/admin/visits");
       if (session.role === "bam" && !BAM_ALLOWED) return json({ error: "Your account does not have permission for this action." }, 403);
       if (session.role === "staff" && !STAFF_ALLOWED) return json({ error: "Your account does not have permission for this action." }, 403);
       if (session.role === "retention" && !RETENTION_ALLOWED) return json({ error: "Your account does not have permission for this action." }, 403);
@@ -1221,6 +1238,8 @@ export default {
         if (!env.STRIPE_SECRET_KEY) return json({ error: "Stripe is not configured. Add STRIPE_SECRET_KEY to the shedlr-api Worker." }, 503);
         const range = parseReportRange(url);
         if (range.error) return json({ error: range.error }, 400);
+        /* BAM is limited to today's sign-ups no matter which range was requested. */
+        if (session.role === "bam") { const dayStart = bamDayStart(); range.fromDate = dayStart; range.toDate = new Date(); range.fromSec = Math.floor(dayStart.getTime() / 1000); range.toSec = Math.floor(Date.now() / 1000); }
         try {
           if (url.pathname === "/api/admin/stripe-report") return json(await buildStripeReport(env, range));
           const matchBusiness = await loadBusinessMatcher(env);
@@ -1372,11 +1391,24 @@ export default {
         }
         return json({ error: "Not found." }, 404);
       }
+      /* Today's website visits (BAM + admin): page views since the start of the current day,
+         with the time each one happened and where the click came from, so a BAM can see when
+         the links they send are being clicked. */
+      if (request.method === "GET" && url.pathname === "/api/admin/visits") {
+        const from = bamDayStart().toISOString();
+        const totals = await env.DB.prepare(`SELECT SUM(CASE WHEN event_name='page_view' THEN 1 ELSE 0 END) visits, COUNT(DISTINCT CASE WHEN event_name='page_view' THEN session_id END) unique_visitors FROM site_events WHERE occurred_at >= ?`).bind(from).first();
+        const pages = await env.DB.prepare(`SELECT page_path, SUM(CASE WHEN event_name='page_view' THEN 1 ELSE 0 END) views, COUNT(DISTINCT CASE WHEN event_name='page_view' THEN session_id END) unique_visitors FROM site_events WHERE occurred_at >= ? AND event_name='page_view' AND page_path IS NOT NULL AND page_path <> '' GROUP BY page_path ORDER BY views DESC LIMIT 50`).bind(from).all();
+        const referrers = await env.DB.prepare(`SELECT COALESCE(NULLIF(referrer,''),'Direct / none') referrer, COUNT(*) hits FROM site_events WHERE occurred_at >= ? AND event_name='page_view' GROUP BY referrer ORDER BY hits DESC LIMIT 25`).bind(from).all();
+        const events = await env.DB.prepare(`SELECT id, event_name, page_path, session_id, referrer, occurred_at FROM site_events WHERE occurred_at >= ? ORDER BY occurred_at DESC LIMIT 500`).bind(from).all();
+        return json({ range: { from, to: new Date().toISOString() }, totals: totals || {}, pages: pages.results || [], referrers: referrers.results || [], events: events.results || [] });
+      }
       if (request.method === "GET" && url.pathname === "/api/admin/businesses") {
         /* SELECT b.* keeps this working before and after the killswitch migration; secrets are stripped by safeBusiness. */
         const businesses = await env.DB.prepare(`SELECT b.*, (SELECT COUNT(*) FROM lead_assignments la WHERE la.business_id = b.id) total_leads FROM businesses b ORDER BY b.created_at DESC LIMIT 1000`).all();
         const rows = (businesses.results || []).map(safeBusiness);
         if (session.role === "staff") return json({ businesses: rows.filter(b => !isCanceledBusiness(b)).map(b => ({ id: b.id, name: b.name || b.company_name, company_name: b.company_name, preferred_category: b.preferred_category, address: b.address })) });
+        /* BAM sees only today's sign-ups — the window rolls forward automatically each day. */
+        if (session.role === "bam") { const cutoff = bamDayStart().toISOString(); return json({ businesses: rows.filter(b => b.created_at >= cutoff) }); }
         return json({ businesses: rows });
       }
       /* Create a business account. Never creates a duplicate: if the email already exists (any
@@ -1412,10 +1444,11 @@ export default {
         return json({ success: true, existing: false, link_mode: "activate", business: safeBusiness(await findBusinessById(env, businessId)), activation_url: activationUrl(token) }, 201);
       }
       const businessDetailMatch = url.pathname.match(/^\/api\/admin\/businesses\/(\d+)$/);
-      if (request.method === "GET" && businessDetailMatch) { const id = Number(businessDetailMatch[1]); const business = await findBusinessById(env, id); if (!business) return json({ error: "Business not found." }, 404); const assignments = await env.DB.prepare(`SELECT la.id, la.lead_id, la.status AS assignment_status, la.assigned_at, l.name, l.email, l.phone, l.category, l.message, l.source, l.city, l.state, l.status AS lead_status FROM lead_assignments la JOIN leads l ON l.id = la.lead_id WHERE la.business_id=? ORDER BY la.assigned_at DESC LIMIT 200`).bind(id).all(); if (session.role === "bam") { const bamOrders = await env.DB.prepare("SELECT id, category, quantity, unit_price_cents, total_cents, status, paid_at, created_at, fulfilled_leads FROM lead_orders WHERE lower(email)=? ORDER BY created_at DESC LIMIT 200").bind(normEmail(business.email)).all(); return json({ business: safeBusiness(business), orders: bamOrders.results || [], assignments: [] }); } if (session.role === "staff") { if (isCanceledBusiness(business)) return json({ error: "Business not found." }, 404); return json({ business: { id: business.id, name: business.name, company_name: business.company_name, preferred_category: business.preferred_category, address: business.address }, orders: [], assignments: assignments.results || [] }); } const orders = await env.DB.prepare("SELECT id, category, quantity, unit_price_cents, total_cents, status, paid_at, created_at, fulfilled_leads FROM lead_orders WHERE email=? ORDER BY created_at DESC LIMIT 200").bind(business.email).all(); return json({ business: safeBusiness(business), orders: orders.results || [], assignments: assignments.results || [] }); }
+      if (request.method === "GET" && businessDetailMatch) { const id = Number(businessDetailMatch[1]); const business = await findBusinessById(env, id); if (!business) return json({ error: "Business not found." }, 404); /* BAM can only open today's sign-ups. */ if (session.role === "bam" && business.created_at < bamDayStart().toISOString()) return json({ error: "Business not found." }, 404); const assignments = await env.DB.prepare(`SELECT la.id, la.lead_id, la.status AS assignment_status, la.assigned_at, l.name, l.email, l.phone, l.category, l.message, l.source, l.city, l.state, l.status AS lead_status FROM lead_assignments la JOIN leads l ON l.id = la.lead_id WHERE la.business_id=? ORDER BY la.assigned_at DESC LIMIT 200`).bind(id).all(); if (session.role === "bam") { const bamOrders = await env.DB.prepare("SELECT id, category, quantity, unit_price_cents, total_cents, status, paid_at, created_at, fulfilled_leads FROM lead_orders WHERE lower(email)=? ORDER BY created_at DESC LIMIT 200").bind(normEmail(business.email)).all(); return json({ business: safeBusiness(business), orders: bamOrders.results || [], assignments: [] }); } if (session.role === "staff") { if (isCanceledBusiness(business)) return json({ error: "Business not found." }, 404); return json({ business: { id: business.id, name: business.name, company_name: business.company_name, preferred_category: business.preferred_category, address: business.address }, orders: [], assignments: assignments.results || [] }); } const orders = await env.DB.prepare("SELECT id, category, quantity, unit_price_cents, total_cents, status, paid_at, created_at, fulfilled_leads FROM lead_orders WHERE email=? ORDER BY created_at DESC LIMIT 200").bind(business.email).all(); return json({ business: safeBusiness(business), orders: orders.results || [], assignments: assignments.results || [] }); }
       if (request.method === "PATCH" && businessDetailMatch) {
         let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); }
         const id = Number(businessDetailMatch[1]); const business = await findBusinessById(env, id); if (!business) return json({ error: "Business not found." }, 404);
+        /* BAM can only edit today's sign-ups. */ if (session.role === "bam" && business.created_at < bamDayStart().toISOString()) return json({ error: "Business not found." }, 404);
         const allowedStatuses = ["active", "past_due", "canceled", "suspended"];
         /* Only the owner can change status (e.g. cancel an account). BAM edits details only. */
         const status = session.role === "admin" && allowedStatuses.includes(clean(data.status, 30)) ? clean(data.status, 30) : business.status;
