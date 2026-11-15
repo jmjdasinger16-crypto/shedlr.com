@@ -43,7 +43,7 @@ This worker powers the Shedlr API: admin authentication, business portal auth, l
 - `POST /api/admin/logout` — sign out
 - `GET  /api/admin/dashboard` — metrics, orders, events, pages
 - `GET  /api/admin/report?from=&to=` — backend report for a date range (admin only; printable/CSV source for the dashboard)
-- `GET  /api/admin/stripe-report?from=&to=` — live Stripe report (admin only): completed sign-ups, gross from sign-ups, payments numbered 1st/2nd/3rd/4th+ per customer, failed payments, refunds, disputes, Stripe fees, gross to net
+- `GET  /api/admin/stripe-report?from=&to=` — live Stripe report (admin only): completed sign-ups, gross from sign-ups, payments numbered 1st/2nd/3rd/4th+ per customer, failed payments, refunds, disputes, Stripe fees, gross to net, plus attrition totals — new sign-up EFT (recurring amount of subscriptions created in range) + scheduled billing EFT (renewal payments collected in range) = period projection, cancelled EFT (recurring amount of subscriptions canceled in range), and net EFT after cancellations; includes a canceled-subscriptions detail list
 - `GET  /api/admin/stripe-signups?from=&to=` — completed Stripe Checkout sign-ups matched to Shedlr accounts (admin + BAM; the BAM range is always forced to the current day, any requested range is ignored)
 - `GET  /api/admin/salespeople` — list salesmen with how many businesses are credited to each (admin only; needs `migration_salespeople.sql`)
 - `POST /api/admin/salespeople` — `{ "name", "email"?, "phone"? }` add a salesman (admin only; names are unique, case-insensitive)

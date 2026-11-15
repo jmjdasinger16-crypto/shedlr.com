@@ -1414,6 +1414,7 @@ function truncationNotes(data){
   if(t.charges)notes.push('Stripe returned more charges than one report can load. Totals may be incomplete and 1st/2nd/3rd numbering may start late. Use a shorter date range.');
   if(t.signups)notes.push('More than 1,000 sign-ups in range. The sign-up list is incomplete; use a shorter date range.');
   if(t.disputes)notes.push('More than 500 disputes in range. The dispute list is incomplete.');
+  if(t.subscriptions)notes.push('Subscription data is incomplete or unavailable from Stripe, so the attrition totals (new sign-up EFT, cancelled EFT) may be understated for this range.');
   return notes;
 }
 
@@ -1428,6 +1429,8 @@ function buildStripeReportHtml(data,detailLevel){
     ['Gross from sign-ups',money(t.signup_gross_cents)],
     ['Payments collected',Number(t.payments||0).toLocaleString()],
     ['Gross collected',money(t.gross_collected_cents)],
+    ['Period projection (EFT)',money(t.period_projection_cents)],
+    ['Cancelled EFT',money(t.cancelled_eft_cents)],
     ['Failed, not recovered',`${Number(t.failed_unrecovered_customers||0).toLocaleString()} · ${money(t.failed_unrecovered_cents)}`],
     ['Disputes',`${Number(t.disputes||0).toLocaleString()} · ${money(t.disputed_cents)}`],
     ['Stripe fees',money(t.stripe_fees_cents)],
@@ -1445,6 +1448,14 @@ function buildStripeReportHtml(data,detailLevel){
 <tr><td>Less disputes (${Number(t.disputes||0)} opened; ${money(t.disputed_cents)} disputed incl. ${money(t.dispute_fees_cents)} dispute fees; shown as net loss after any won disputes)</td><td class="num">${neg(t.dispute_loss_cents)}</td></tr>
 <tr><td>Less Stripe processing fees</td><td class="num">${neg(t.stripe_fees_cents)}</td></tr>
 <tr class="total"><td>Net after deductions</td><td class="num">${money(t.net_cents)}</td></tr>
+</tbody></table>`);
+
+  sections.push(`<h2>Attrition &amp; period projection (EFT)</h2><table class="report-table"><tbody>
+<tr><td>New sign-up EFT (${Number(t.new_subscriptions||0).toLocaleString()} new subscription${Number(t.new_subscriptions||0)===1?'':'s'} in range)</td><td class="num">${money(t.new_signup_eft_cents)}</td></tr>
+<tr><td>Scheduled billing EFT (${Number(t.renewal_payments||0).toLocaleString()} renewal payment${Number(t.renewal_payments||0)===1?'':'s'} collected in range)</td><td class="num">${money(t.scheduled_billing_eft_cents)}</td></tr>
+<tr class="total"><td>Period projection (new sign-up EFT + scheduled billing EFT)</td><td class="num">${money(t.period_projection_cents)}</td></tr>
+<tr><td>Less cancelled EFT (${Number(t.cancelled_subscriptions||0).toLocaleString()} cancelled in range)</td><td class="num">${neg(t.cancelled_eft_cents)}</td></tr>
+<tr class="total"><td>Net EFT after cancellations</td><td class="num">${money(t.net_eft_cents)}</td></tr>
 </tbody></table>`);
 
   const lists=data.payment_lists||{};
@@ -1465,8 +1476,11 @@ function buildStripeReportHtml(data,detailLevel){
       (data.failed_payments||[]).map(p=>[fmt(p.created_at),esc(p.business?.company_name||p.name||'—'),esc(p.email||'—'),money(p.amount_cents),esc(p.failure_message||p.failure_code||'—'),p.recovered?'Yes, a retry succeeded':'<strong>No</strong>',esc(accountLabel(p.business))]),'No failed payments in this date range.')}`);
     sections.push(`<h2>Disputes (${(data.disputes||[]).length})</h2>${reportTable(['Opened','Email','Amount','Status','Reason','Dispute fee','Net impact','Evidence due','Shedlr account'],
       (data.disputes||[]).map(d=>[fmt(d.created_at),esc(d.email||'—'),money(d.amount_cents),esc(String(d.status||'—').replace(/_/g,' ')),esc(String(d.reason||'—').replace(/_/g,' ')),money(d.fee_cents),`${d.net_impact_cents<0?'−':''}${fmtMoney(Math.abs(d.net_impact_cents||0))}`,d.evidence_due_by?fmt(d.evidence_due_by):'—',esc(accountLabel(d.business))]),'No disputes opened in this date range.')}`);
+    const canceled=(data.canceled_subscriptions||[]);
+    sections.push(`<h2>Cancelled subscriptions (${canceled.length})</h2>${reportTable(['Cancelled','Customer','Email','Recurring EFT','Reason','Shedlr account'],
+      canceled.map(s=>[fmt(s.canceled_at),esc(s.business?.company_name||s.name||'—'),esc(s.email||'—'),money(s.amount_cents),esc(String(s.cancel_reason||'—').replace(/_/g,' ')),esc(accountLabel(s.business))]),'No subscriptions cancelled in this date range.')}`);
   }
-  return reportPage('Shedlr Stripe report',[['Date range',rangeLabel],['Generated',fmt(data.generated_at)],['Source','Live from Stripe (charges, Checkout sessions, disputes)']],sections.join('\n'));
+  return reportPage('Shedlr Stripe report',[['Date range',rangeLabel],['Generated',fmt(data.generated_at)],['Source','Live from Stripe (charges, subscriptions, Checkout sessions, disputes)']],sections.join('\n'));
 }
 
 async function openStripeReport(autoPrint){
@@ -1489,6 +1503,9 @@ async function downloadStripeCsv(){
     lines.push(['Gross to net','Amount (USD)']);
     [['Total gross billed (collected + unrecovered failed)',t.gross_attempted_cents],['Less failed payments not recovered',-t.failed_unrecovered_cents],['Gross collected',t.gross_collected_cents],['Less refunds',-t.refunds_cents],['Less disputes (net loss)',-t.dispute_loss_cents],['Less Stripe fees',-t.stripe_fees_cents],['Net after deductions',t.net_cents]].forEach(([k,v])=>lines.push([k,dollars(v)]));
     lines.push([]);
+    lines.push(['Attrition & period projection (EFT)','Amount (USD)']);
+    [['New sign-up EFT',t.new_signup_eft_cents],['New subscriptions',t.new_subscriptions],['Scheduled billing EFT',t.scheduled_billing_eft_cents],['Renewal payments',t.renewal_payments],['Period projection (new sign-up EFT + scheduled billing EFT)',t.period_projection_cents],['Cancelled EFT',t.cancelled_eft_cents],['Cancelled subscriptions',t.cancelled_subscriptions],['Net EFT after cancellations',t.net_eft_cents]].forEach(([k,v])=>lines.push([k,typeof v==='number'?dollars(v):v]));
+    lines.push([]);
     lines.push(['Metric','Value']);
     [['Completed sign-ups',t.signups],['Gross from sign-ups',dollars(t.signup_gross_cents)],['Payments collected',t.payments],['Failed payment attempts (incl. retries)',t.failed_payments],['Failed attempts amount (incl. retries)',dollars(t.failed_cents)],['Customers with failed payments',t.failed_customers],['Customers still unrecovered',t.failed_unrecovered_customers],['Disputes opened',t.disputes],['Disputed amount',dollars(t.disputed_cents)],['Dispute fees',dollars(t.dispute_fees_cents)],['1st payments',t.first_payments],['2nd payments',t.second_payments],['3rd payments',t.third_payments],['4th+ payments',t.fourth_plus_payments]].forEach(r=>lines.push(r));
     lines.push([]);
@@ -1509,6 +1526,10 @@ async function downloadStripeCsv(){
     lines.push(['Disputes']);
     lines.push(['Opened','Email','Amount','Status','Reason','Dispute fee','Net impact','Evidence due','Stripe dispute','Stripe charge','Shedlr business ID']);
     (data.disputes||[]).forEach(d=>lines.push([d.created_at,d.email||'',dollars(d.amount_cents),d.status||'',d.reason||'',dollars(d.fee_cents),dollars(d.net_impact_cents),d.evidence_due_by||'',d.dispute_id,d.charge_id||'',d.business?.id||'']));
+    lines.push([]);
+    lines.push(['Cancelled subscriptions']);
+    lines.push(['Cancelled','Customer','Email','Recurring EFT','Reason','Stripe subscription','Stripe customer','Shedlr business ID']);
+    (data.canceled_subscriptions||[]).forEach(s=>lines.push([s.canceled_at,s.business?.company_name||s.name||'',s.email||'',dollars(s.amount_cents),s.cancel_reason||'',s.subscription_id,s.customer_id||'',s.business?.id||'']));
     downloadCsv(lines,`shedlr-stripe-report-${stripeFrom.value}-to-${stripeTo.value}.csv`);
     stripeStatus.textContent='Stripe CSV downloaded.';
   }catch(error){stripeStatus.textContent=error.message;}
