@@ -1456,7 +1456,8 @@ function buildStripeReportHtml(data,detailLevel){
 <tr class="total"><td>Period projection (new sign-up EFT + scheduled billing EFT)</td><td class="num">${money(t.period_projection_cents)}</td></tr>
 <tr><td>Less cancelled EFT (${Number(t.cancelled_subscriptions||0).toLocaleString()} cancelled in range)</td><td class="num">${neg(t.cancelled_eft_cents)}</td></tr>
 <tr class="total"><td>Net EFT after cancellations</td><td class="num">${money(t.net_eft_cents)}</td></tr>
-</tbody></table>`);
+</tbody></table>
+<p class="tiny" style="margin-top:8px">EFT amounts reflect what each subscription actually bills — coupons and discounts included — not list price. Failed payments are counted once per invoice, so Stripe's retries of the same payment never stack into gross billed.</p>`);
 
   const lists=data.payment_lists||{};
   sections.push(`<h2>Payment number breakdown</h2>${reportTable(['Payment #','Payments','Gross','Stripe fees','Net'],
