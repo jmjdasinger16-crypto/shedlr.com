@@ -644,13 +644,48 @@ async function fetchStripeSignups(env, fromSec, toSec, matchBusiness) {
 }
 
 /* ── Attrition / period projection (EFT = recurring billing) ──
-   New sign-up EFT: recurring amount of subscriptions created in the range.
+   New sign-up EFT: what new subscriptions in the range actually bill (first charge, which
+   already reflects any coupon / discount), falling back to discount-aware list prices.
    Scheduled billing EFT: renewal payments (2nd charge onward) collected in the range.
    Period projection = new sign-up EFT + scheduled billing EFT.
-   Cancelled EFT: recurring amount of subscriptions canceled in the range.
+   Cancelled EFT: what each subscription canceled in the range was actually billing
+   (its last charge before cancellation), falling back the same way.
    Stripe's list API cannot filter by canceled_at, so canceled subscriptions are paged
    (most recent first) and filtered locally; truncated.subscriptions flags an incomplete pass. */
-const subscriptionAmountCents = (sub) => (sub.items && Array.isArray(sub.items.data) ? sub.items.data.reduce((sum, item) => sum + Number((item.price && (item.price.unit_amount ?? item.price.amount)) || item.amount || 0) * (item.quantity || 1), 0) : 0);
+
+/* Coupon math for the fallback path: apply a coupon to an amount, in cents. */
+const applyCouponCents = (amount, coupon) => {
+  if (!coupon) return amount;
+  if (coupon.percent_off != null && coupon.percent_off !== "") return Math.max(0, Math.round(amount * (1 - Number(coupon.percent_off) / 100)));
+  if (coupon.amount_off != null) return Math.max(0, amount - Number(coupon.amount_off));
+  return amount;
+};
+
+/* Was the discount still billing at `atSec`? Intro-only ("once") coupons never change the
+   recurring worth; "repeating" coupons count until their end timestamp; "forever" always. */
+const discountActiveAt = (discount, atSec) => {
+  if (!discount || !discount.coupon) return false;
+  const duration = discount.coupon.duration;
+  if (duration === "forever") return true;
+  if (duration === "once") return false;
+  if (discount.end) return Number(discount.end) > atSec;
+  return true;
+};
+
+/* Discount-aware list price: item amounts minus any active coupons (item-level, then
+   subscription-level, which Stripe applies to the invoice subtotal). */
+const subscriptionListAmountCents = (sub, atSec) => {
+  const items = sub.items && Array.isArray(sub.items.data) ? sub.items.data : [];
+  let total = 0;
+  for (const item of items) {
+    let amount = Number((item.price && (item.price.unit_amount ?? item.price.amount)) || item.amount || 0) * (item.quantity || 1);
+    if (item.discount && discountActiveAt(item.discount, atSec)) amount = applyCouponCents(amount, item.discount.coupon);
+    total += amount;
+  }
+  const d = sub.discount;
+  if (d && discountActiveAt(d, atSec)) total = applyCouponCents(total, d.coupon);
+  return Math.max(0, total);
+};
 
 /* When the Stripe account is shared, STRIPE_REPORT_PAYMENT_LINKS limits sign-ups to Shedlr's
    own links; the same limit is applied to subscriptions by resolving each link's price IDs. */
@@ -669,6 +704,26 @@ async function loadAllowedPriceIds(env) {
   return ids.size ? ids : null;
 }
 
+/* Effective EFT for one subscription: prefer what actually billed — the first charge for a
+   new sign-up, the last charge before cancellation — because real charges already include
+   every discount. Falls back to the discount-aware list price when no charge is on file
+   (e.g. a trialing subscription, or a charge list truncated by the page cap). */
+function subscriptionEftCents(sub, atSec, prefer, chargesByCustomer) {
+  const cid = stripeId(sub.customer);
+  const charges = cid ? chargesByCustomer.get(cid) : null;
+  const created = Number(sub.created || 0);
+  if (charges && charges.length) {
+    if (prefer === "first") {
+      const first = charges.find((c) => c.created >= created - 60);
+      if (first) return Number(first.amount || 0);
+    } else {
+      const last = [...charges].reverse().find((c) => c.created <= atSec && c.created >= created);
+      if (last) return Number(last.amount || 0);
+    }
+  }
+  return subscriptionListAmountCents(sub, atSec);
+}
+
 async function buildStripeReport(env, range) {
   const { fromSec, toSec } = range;
   const matchBusiness = await loadBusinessMatcher(env, { withSales: true });
@@ -679,10 +734,11 @@ async function buildStripeReport(env, range) {
     stripeListAll(env, "charges", [["created[lte]", String(toSec)], ["expand[]", "data.balance_transaction"]], 25),
     stripeListAll(env, "disputes", [["created[gte]", String(fromSec)], ["created[lte]", String(toSec)], ["expand[]", "data.charge"]], 5),
     /* Attrition data: subscriptions created in range + all canceled subscriptions (filtered
-       locally by canceled_at). Degrades to empty lists so the report still builds if the
-       subscription endpoints fail. */
-    stripeListAll(env, "subscriptions", [["created[gte]", String(fromSec)], ["created[lte]", String(toSec)], ["expand[]", "data.customer"]], 10).catch(() => ({ items: [], truncated: false, failed: true })),
-    stripeListAll(env, "subscriptions", [["status", "canceled"], ["expand[]", "data.customer"]], 10).catch(() => ({ items: [], truncated: false, failed: true })),
+       locally by canceled_at). Coupons are expanded so the fallback pricing path can see
+       discounts. Degrades to empty lists so the report still builds if the subscription
+       endpoints fail. */
+    stripeListAll(env, "subscriptions", [["created[gte]", String(fromSec)], ["created[lte]", String(toSec)], ["expand[]", "data.customer"], ["expand[]", "data.discount.coupon"]], 10).catch(() => ({ items: [], truncated: false, failed: true })),
+    stripeListAll(env, "subscriptions", [["status", "canceled"], ["expand[]", "data.customer"], ["expand[]", "data.discount.coupon"]], 10).catch(() => ({ items: [], truncated: false, failed: true })),
     loadAllowedPriceIds(env)
   ]);
 
@@ -711,7 +767,7 @@ async function buildStripeReport(env, range) {
       payment_number: paymentNumber.get(c.id) || null,
       failure_code: c.failure_code || null,
       failure_message: c.failure_message || (c.outcome && c.outcome.seller_message) || null,
-      customer_id: customerId, business: matchBusiness(customerId, email)
+      customer_id: customerId, invoice_id: c.invoice || null, business: matchBusiness(customerId, email)
     };
   };
 
@@ -737,15 +793,27 @@ async function buildStripeReport(env, range) {
   const grossCollected = sumBy(payments, (p) => p.amount_cents);
   const failedCents = sumBy(failed, (p) => p.amount_cents);
   /* Stripe retries a declined renewal several times, so raw failed attempts overstate what was
-     lost. "Unrecovered" counts each customer + amount once, and drops it if a later retry for
-     the same customer and amount succeeded. This is what gets deducted from gross billed. */
+     lost. A failed attempt is "recovered" when the same invoice was eventually paid — keying
+     by invoice keeps every retry of one payment from stacking into gross billed, and still
+     works when a discounted retry bills a different amount than the failed attempt. Without an
+     invoice id, fall back to customer + amount. */
+  const latestSuccessByInvoice = new Map();
+  for (const c of succeededAll) if (c.invoice) latestSuccessByInvoice.set(c.invoice, Math.max(latestSuccessByInvoice.get(c.invoice) || 0, c.created));
   const unrecovered = new Map();
   for (const f of failed) {
-    const key = `${f.customer_id || f.email || f.charge_id}|${f.amount_cents}`;
     const failedAt = Date.parse(f.created_at) / 1000;
-    const recovered = succeededAll.some((c) => customerKey(c) === (f.customer_id || f.email || `charge:${f.charge_id}`) && Number(c.amount) === f.amount_cents && c.created >= failedAt);
+    let recovered;
+    if (f.invoice_id) {
+      const paidAt = latestSuccessByInvoice.get(f.invoice_id);
+      recovered = paidAt != null && paidAt >= failedAt;
+    } else {
+      recovered = succeededAll.some((c) => customerKey(c) === (f.customer_id || f.email || `charge:${f.charge_id}`) && Number(c.amount) === f.amount_cents && c.created >= failedAt);
+    }
     f.recovered = recovered;
-    if (!recovered && !unrecovered.has(key)) unrecovered.set(key, f.amount_cents);
+    if (!recovered) {
+      const key = f.invoice_id || `${f.customer_id || f.email || f.charge_id}|${f.amount_cents}`;
+      if (!unrecovered.has(key)) unrecovered.set(key, f.amount_cents);
+    }
   }
   const unrecoveredCents = [...unrecovered.values()].reduce((a, b) => a + b, 0);
   const refunds = sumBy(payments, (p) => p.refunded_cents);
@@ -762,22 +830,31 @@ async function buildStripeReport(env, range) {
   /* ── Attrition totals ──
      New sign-up EFT + scheduled billing EFT = period projection; cancelled EFT is the
      recurring revenue removed by cancellations in the range. Subscriptions that never
-     converted (incomplete / incomplete_expired) are excluded from new sign-up EFT. */
+     converted (incomplete / incomplete_expired) are excluded from new sign-up EFT.
+     EFT amounts are what actually bills (discounts included), not list price. */
   const subOnAllowedPrice = (sub) => !allowedPriceIds || (sub.items && Array.isArray(sub.items.data) ? sub.items.data : []).some((item) => allowedPriceIds.has(stripeId(item.price)));
   const convertedStatuses = new Set(["active", "trialing", "past_due", "canceled", "unpaid", "paused"]);
   const newSubscriptions = newSubRes.items.filter((s) => convertedStatuses.has(s.status) && subOnAllowedPrice(s));
   const canceledInPeriod = canceledSubRes.items.filter((s) => Number(s.canceled_at || 0) >= fromSec && Number(s.canceled_at || 0) <= toSec && subOnAllowedPrice(s));
-  const newSignupEftCents = sumBy(newSubscriptions, subscriptionAmountCents);
+  /* Succeeded charges by customer (ascending) — the source of truth for effective amounts. */
+  const chargesByCustomer = new Map();
+  for (const c of succeededAll) {
+    const cid = stripeId(c.customer);
+    if (!cid) continue;
+    if (!chargesByCustomer.has(cid)) chargesByCustomer.set(cid, []);
+    chargesByCustomer.get(cid).push(c);
+  }
+  const newSignupEftCents = sumBy(newSubscriptions, (s) => subscriptionEftCents(s, Number(s.created || 0), "first", chargesByCustomer));
   const renewalPayments = payments.filter((p) => p.payment_number && p.payment_number >= 2);
   const scheduledBillingEftCents = sumBy(renewalPayments, (p) => p.amount_cents);
-  const cancelledEftCents = sumBy(canceledInPeriod, subscriptionAmountCents);
+  const cancelledEftCents = sumBy(canceledInPeriod, (s) => subscriptionEftCents(s, Number(s.canceled_at || 0), "last", chargesByCustomer));
   const toCanceledRow = (s) => {
     const email = normEmail((s.customer && s.customer.email) || "");
     const customerId = stripeId(s.customer);
     return {
       subscription_id: s.id, canceled_at: isoFromUnix(s.canceled_at), email,
       name: (s.customer && s.customer.name) || null, customer_id: customerId,
-      amount_cents: subscriptionAmountCents(s), status: s.status,
+      amount_cents: subscriptionEftCents(s, Number(s.canceled_at || 0), "last", chargesByCustomer), status: s.status,
       cancel_reason: (s.cancellation_details && s.cancellation_details.reason) || null,
       business: matchBusiness(customerId, email)
     };
