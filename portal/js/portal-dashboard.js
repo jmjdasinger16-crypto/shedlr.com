@@ -5,7 +5,7 @@ const fmtMoney = (cents) => `$${(Number(cents || 0) / 100).toFixed(2)}`;
 
 const CATEGORY_LABELS = {
   "personal-trainer": "Personal Trainer", "life-coach": "Life Coach", "maintenance": "Maintenance",
-  "dog-walker": "Dog Walker", "pet-grooming": "Pet Grooming", "house-cleaning": "House Cleaning", "landscaping": "Landscaping",
+  "dog-walker": "Dog Walker", "pet-grooming": "Pet Grooming", "dog-training": "Dog Training", "house-cleaning": "House Cleaning", "landscaping": "Landscaping",
   "tutoring": "Tutoring", "photography": "Photography", "handyman": "Handyman",
   "moving": "Moving Services", "catering": "Catering", "event-planning": "Event Planning",
   "roofing": "Roofing",
