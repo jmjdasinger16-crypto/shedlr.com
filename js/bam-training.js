@@ -4,7 +4,7 @@ const state = { view: "home", lesson: 0, completed: new Set(), answers: {}, plan
 const promo = { price: "$199", code: "EARNOURBUSINESS" };
 const lessons = [
   {title:"Choose a niche and city",time:5,desc:"Save a market and copy a search prompt to find local businesses."},
-  {title:"Text businesses",time:10,desc:"Use a short, niche-specific inquiry on an approved texting channel."},
+  {title:"Text businesses",time:10,desc:"Send a niche-specific inquiry and wait for your first reply."},
   {title:"Call the replies",time:8,desc:"Open with the text conversation, qualify fit, and offer the program link."},
   {title:"Send the link and follow up",time:5,desc:"Save only the businesses you sent a link to, then follow up if appropriate."},
   {title:"Hand off to Lead Acquisition",time:7,desc:"Verify signup, then draft the internal email and customer update."}
@@ -82,11 +82,11 @@ function lesson(){
   }else if(i===1){
     content=`<p>Use an approved texting channel only where you have permission. Introduce yourself as Shedlr, ask about availability, and honor opt-outs.</p>
       ${copyBox("intro-text","First text",`Hey, this is ${name} with Shedlr. Are you available to ${service} in ${city} this week or next? I’m checking availability for our local provider network. If you’re open to hearing about it, is there a good time for a quick call?`)}
-      <div class="actions">${btn("workflow-done","I’ve sent my first text")}</div>`;
+      <div class="actions">${btn("workflow-done","I’ve gotten my first text response")}</div>`;
   }else if(i===2){
     content=`<p>Call businesses that replied and are open to talking. Confirm fit before sending a link.</p>
       <div class="note"><strong>Roleplay job brief</strong><p>Jim Stanly · ${esc(city)} · Practice site: 100 Example Lane (not a real address)</p><p>${esc(scenario)}</p><p>Use this to illustrate the kind of request Shedlr may match. Share a real address only for a verified lead when authorized.</p></div>
-      ${copyBox("call-script","Phone call flow",`OPEN: Hey, this is ${name} with Shedlr. I was the one texting you about ${niche.toLowerCase()} work in ${city}. Is now a good time for a quick call?\n\nEXAMPLE: Here’s the kind of request we look to match: ${scenario} Is that the kind of work you take?\n\nQUALIFY: Which ZIP codes do you cover? What types or sizes of jobs are a good fit? What’s your availability? Who’s the best person to contact about a new lead?\n\nCLOSE: You sound like a good fit. Can I send you our Shedlr program page? It’s a paid lead service. If it looks right for your business, you can sign up there. I can share a promo code if you’d like.`, "Copy call flow")}
+      ${copyBox("call-script","Phone call flow",`OPENER: Hey, this is ${name} with Shedlr. I was the one texting you about ${niche.toLowerCase()} work in ${city}. I just had a couple questions about your business.\n\nQUALIFY: Which ZIP codes do you cover? What types or sizes of jobs are a good fit? What’s your availability? Who’s the best person to contact about a new lead?\n\nEXAMPLE: Here’s the kind of request we look to match: ${scenario} Is that the kind of work you take?\n\nCLOSE: You sound like a good fit. Can I send you our Shedlr program page? It’s a paid lead service. If it looks right for your business, you can sign up there. I can share a promo code if you’d like.`, "Copy call flow")}
       <div class="actions">${btn("workflow-done","I’ve made a qualifying call")}</div>`;
   }else if(i===3){
     content=`<p>Send the program link only after the conversation went well and the business agreed to receive it.</p>

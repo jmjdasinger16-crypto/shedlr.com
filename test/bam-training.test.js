@@ -106,6 +106,7 @@ test("BAM training uses the existing owner session and persists isolated rep wor
   assert.equal((await bam("progress",{},signed)).answers[1].market,market);
   assert.equal((await bam("hitlist",{},signed)).rows.find(r=>r.business===prospects[0].business).status,"Prospect");
   await bam("workflow_step",{step:1},signed);
+  assert.ok((await bam("team",{},owner)).events.some(e=>e.kind==="First text response confirmed"));
   await bam("workflow_step",{step:2},signed);
   await bam("record_link",{business:prospects[0].business,location:"Dallas",phone:"invalid"},signed,400);
   await bam("record_link",{business:prospects[0].business,location:"Dallas",phone:"806-555-0100"},signed);
