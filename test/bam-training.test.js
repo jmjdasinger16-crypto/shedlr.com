@@ -116,6 +116,13 @@ test("BAM training uses the existing owner session and persists isolated rep wor
   const linked=(await bam("hitlist",{},signed)).rows.filter(r=>r.business===prospects[0].business);
   assert.equal(linked.length,1);assert.equal(linked[0].status,"Link sent");assert.ok(linked[0].last_link);
   await bam("workflow_step",{step:4,id:linked[0].id,verified:true},bob,409);
+  await bam("workflow_step",{step:4,sent:true},null,401);
+  const bobRowsBeforeHandoff=(await bam("hitlist",{},bob)).rows;
+  await bam("workflow_step",{step:4,sent:true},bob);
+  assert.deepEqual((await bam("progress",{},bob)).answers[4],{workflow:2});
+  assert.deepEqual((await bam("hitlist",{},bob)).rows,bobRowsBeforeHandoff);
+  assert.equal((await bam("hitlist",{},signed)).rows.find(r=>r.id===linked[0].id).status,"Link sent");
+  assert.ok((await bam("team",{},owner)).events.some(e=>e.kind==="Handoff email logged"));
   await bam("complete",{lesson:0,answers:{industry:"Junk Removal",city:"Dallas"}},bob);
   await bam("workflow_step",{step:4,id:linked[0].id,verified:true},bob,404);
   await bam("workflow_step",{step:4,id:linked[0].id,verified:false},signed,400);

@@ -200,7 +200,11 @@ export async function handleBamTraining(request, env, auth, categories){
       return response({added,skipped:d.rows.length-added});
     }
     let statement, activity;
-    if(d.action==="workflow_step"||d.action==="record_link"){
+    if(d.action==="workflow_step"&&d.step===4&&d.sent===true){
+      // A rep's email confirmation is a checkpoint, not proof of signup or payment.
+      statement=p("INSERT INTO bam_training_lessons VALUES(?,?,?,?) ON CONFLICT(rep_id,lesson) DO UPDATE SET answers=excluded.answers",id,4,JSON.stringify({workflow:2}),when);
+      activity=event(id,"Handoff email logged","");
+    }else if(d.action==="workflow_step"||d.action==="record_link"){
       const saved=await p("SELECT answers FROM bam_training_lessons WHERE rep_id=? AND lesson=0",id).first();
       const market=saved&&JSON.parse(saved.answers);
       const category=categories.find(c=>c.label.toLowerCase()===String(market?.industry||"").toLowerCase());
