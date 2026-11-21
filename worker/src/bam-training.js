@@ -1,7 +1,16 @@
 const COOKIE = "__Host-shedlr_bam_training";
 const TTL = 8 * 3600;
 const FIELDS = [["industry","city"],["one","two","three"],["discovery","next"],["outcome"],["verify"]];
-const STATUSES = ["Interested","Follow-up agreed","Link sent","Signed up","Closed / not a fit","Do not contact"];
+const STATUSES = ["Prospect","Interested","Follow-up agreed","Link sent","Signed up","Closed / not a fit","Do not contact"];
+const OUTREACH = {text:"Text logged",call:"Call logged",followup:"Follow-up logged"};
+const HITLIST_SQL = `WITH activity AS (
+  SELECT detail, MAX(CASE WHEN kind='Text logged' THEN happened_at END) last_text,
+    MAX(CASE WHEN kind='Call logged' THEN happened_at END) last_call,
+    MAX(CASE WHEN kind='Follow-up logged' THEN happened_at END) last_followup
+  FROM bam_training_events WHERE rep_id=? AND kind IN ('Text logged','Call logged','Follow-up logged') GROUP BY detail
+) SELECT h.id,h.business,h.contact,h.market,h.status,h.followup,h.notes,h.archived,a.last_text,a.last_call,a.last_followup
+  FROM bam_training_hitlist h LEFT JOIN activity a ON a.detail=CAST(h.id AS TEXT)
+  WHERE h.rep_id=? ORDER BY h.archived,h.followup='',h.followup,h.updated_at DESC LIMIT 1000`;
 const TOPICS = ["Picking a market","No replies yet","Nervous about calls","Clicks but no signups","Checkout or activation"];
 const now = () => new Date().toISOString();
 const seconds = () => Math.floor(Date.now()/1000);
@@ -29,19 +38,19 @@ function trainingHandoffs(env){
   return [];
 }
 
-export async function handleBamTraining(request, env, auth){
+export async function handleBamTraining(request, env, auth, categories){
   if(request.method!=="POST")return error("Method not allowed.",405);
   if(request.headers.get("Origin")&&request.headers.get("Origin")!==new URL(request.url).origin)return error("Request origin not allowed.",403);
   if(!/^application\/json(?:\s*;|$)/i.test(request.headers.get("Content-Type")||""))return error("Use JSON.",415);
   try{
-    if(Number(request.headers.get("Content-Length"))>12000)return error("Request too large.",413);
+    if(Number(request.headers.get("Content-Length"))>48000)return error("Request too large.",413);
     const reader=request.body?.getReader();
     let length=0; let text=""; const decoder=new TextDecoder();
     for(;;){
       const chunk=reader&&await reader.read();
       if(!chunk||chunk.done)break;
       length+=chunk.value.byteLength;
-      if(length>12000){await reader.cancel();return error("Request too large.",413);}
+      if(length>48000){await reader.cancel();return error("Request too large.",413);}
       text+=decoder.decode(chunk.value,{stream:true});
     }
     const d=JSON.parse(text+decoder.decode());
@@ -85,7 +94,7 @@ export async function handleBamTraining(request, env, auth){
       }
       if(!Number.isSafeInteger(d.id)||d.id<=0)return error("Select a BAM.");
       if(d.action==="team_hitlist"){
-        const rows=await p("SELECT id,business,contact,market,status,followup,notes,archived FROM bam_training_hitlist WHERE rep_id=? ORDER BY archived,followup='',followup,updated_at DESC LIMIT 1000",d.id).all();
+        const rows=await p(HITLIST_SQL,d.id,d.id).all();
         return response({rows:rows.results});
       }
       if(typeof d.active!=="boolean")return error("Invalid account status.");
@@ -156,14 +165,52 @@ export async function handleBamTraining(request, env, auth){
       ]);
       return response({user:{name:rep.name,email:rep.email},answers:Object.fromEntries(results.map(r=>[r.lesson,JSON.parse(r.answers)])),
         plan:work?.gameplan?JSON.parse(work.gameplan):null,blocker:work?.blocker||null,
-        handoffs:trainingHandoffs(env)});
+        handoffs:trainingHandoffs(env),categories});
     }
     if(d.action==="hitlist"){
-      const rows=await p("SELECT id,business,contact,market,status,followup,notes,archived FROM bam_training_hitlist WHERE rep_id=? ORDER BY archived,followup='',followup,updated_at DESC LIMIT 1000",id).all();
+      const rows=await p(HITLIST_SQL,id,id).all();
       return response({rows:rows.results});
     }
+    if(d.action==="log_outreach"){
+      if(!Number.isSafeInteger(d.id)||d.id<=0||!Object.hasOwn(OUTREACH,d.channel))return error("Select a prospect and outreach action.");
+      const result=await p(`INSERT INTO bam_training_events(rep_id,kind,detail,happened_at)
+          SELECT rep_id,?,CAST(id AS TEXT),? FROM bam_training_hitlist
+          WHERE id=? AND rep_id=? AND archived=0 AND status NOT IN ('Signed up','Closed / not a fit','Do not contact')`,
+          OUTREACH[d.channel],when,d.id,id).run();
+      if(!result.meta.changes)return error("This prospect is not available for outreach.",404);
+      return response({ok:true});
+    }
+    if(d.action==="import_prospects"){
+      if(!Array.isArray(d.rows)||!d.rows.length||d.rows.length>20)return error("Paste 1 to 20 spreadsheet rows.");
+      const market=val(d,"market",120,true);
+      const statements=d.rows.map(row=>{
+        const business=val(row,"business",140,true),contact=val(row,"contact",200,true),notes=val(row,"notes",180);
+        const source=val(row,"source",300,true);
+        let url;try{url=new URL(source);}catch{throw new TypeError("Use a valid source URL.");}
+        if(!["https:","http:"].includes(url.protocol)||url.username||url.password)throw new TypeError("Use a business website URL.");
+        return p(`INSERT INTO bam_training_hitlist(rep_id,business,contact,market,status,followup,notes,updated_at)
+          SELECT ?,?,?,?,'Prospect','',?,? WHERE (SELECT COUNT(*) FROM bam_training_hitlist WHERE rep_id=?)<1000
+          AND NOT EXISTS(SELECT 1 FROM bam_training_hitlist WHERE rep_id=? AND lower(business)=lower(?) AND lower(market)=lower(?))`,
+          id,business,contact,market,[notes,`Source: ${url.href}`].filter(Boolean).join("\n"),when,id,id,business,market);
+      });
+      const results=await db.batch(statements);
+      const added=results.reduce((sum,r)=>sum+r.meta.changes,0);
+      if(added)await event(id,"Prospects imported",String(added)).run();
+      return response({added,skipped:d.rows.length-added});
+    }
     let statement, activity;
-    if(d.action==="complete"){
+    if(d.action==="prospecting_ready"){
+      const market=await p("SELECT answers FROM bam_training_lessons WHERE rep_id=? AND lesson=0",id).first();
+      if(!market)return error("Save your niche and city first.",409);
+      const a=JSON.parse(market.answers);
+      const selected=`${a.industry} · ${a.city}`;
+      const count=await p(`SELECT COUNT(DISTINCT lower(business)) prospect_count FROM bam_training_hitlist
+        WHERE rep_id=? AND lower(market)=lower(?) AND archived=0 AND contact!=''
+        AND status NOT IN ('Signed up','Closed / not a fit','Do not contact')`,id,selected).first();
+      if(count.prospect_count<3)return error("Save three active businesses with contact details in this market first.",409);
+      statement=p("INSERT INTO bam_training_lessons VALUES(?,1,?,?) ON CONFLICT(rep_id,lesson) DO UPDATE SET answers=excluded.answers",id,JSON.stringify({market:selected}),when);
+      activity=event(id,"Checkpoint saved","Step 2");
+    }else if(d.action==="complete"){
       const i=d.lesson;
       if(!Number.isInteger(i)||!FIELDS[i]||!d.answers||typeof d.answers!=="object")return error("Select a training lesson.");
       const answers=Object.fromEntries(FIELDS[i].map(k=>[k,val(d.answers,k,220,true)]));

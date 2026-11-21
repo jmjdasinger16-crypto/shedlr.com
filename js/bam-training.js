@@ -5,17 +5,16 @@ const promo = { price: "$199", code: "EARNOURBUSINESS" };
 const prospectMessage = `Here's the Shedlr program page we discussed: [insert the program link]. Use promo code ${promo.code} at checkout for the ${promo.price} offer. Please review the billing and renewal terms at checkout before signing up. Let me know if you have any questions.`;
 const lessons = [
   {
-    title: "Pick your first market", time: 5, desc: "Choose one industry, one city, and the right Shedlr page.",
+    title: "Choose a niche and city", time: 5, desc: "Pick a supported Shedlr category and the city you’ll work.",
     steps: ["Start with a service you understand. Junk removal, cleaning, or auto detailing are good practice categories.", "Choose one city and open the Shedlr industry page you would share with an interested business owner.", "Know what you’re offering: a paid lead service. It is not a promise of a particular job or sale."],
-    question: "What market will you practice in?",
-    fields: [["industry","Industry","Junk removal"],["city","City","Dallas, TX"]],
-    resource: ["Open the Junk Removal program page","https://shedlr.com/leads/junk-removal.html"]
+    question: "Where will you prospect?",
+    fields: [["industry","Shedlr category",""],["city","City and state","Lubbock, TX"]],
   },
   {
-    title: "Build a prospect list", time: 10, desc: "Find three local businesses and write down why each one fits.",
-    steps: ["Look for independent businesses that offer the target service in your city.", "Use a direct public business source. Look for signs they want more work, such as an active promotion or openings for new customers.", "Check for duplicates and prior outreach in the Hitlist. Use aliases in this checkpoint and keep business contact details in the Hitlist."],
-    question: "What makes each prospect a fit?",
-    fields: [["one","Practice prospect 1","Alias and reason"],["two","Practice prospect 2","Alias and reason"],["three","Practice prospect 3","Alias and reason"]],
+    title: "Build your prospect list", time: 10, desc: "Find local businesses on Google and put your first three in the Hitlist.",
+    steps: ["Use Google Search or Google Maps to discover independent businesses that offer your service in your city.", "Open each business’s own website or official business page. Confirm the service area and published business contact details there before adding it.", "Check for duplicates and prior outreach. Save the business to your Hitlist, then log each call, text, or follow-up after it happens. Use only approved channels and don’t text without permission."],
+    question: "Ready to start outreach?",
+    fields: [],
   },
   {
     title: "Practice the call", time: 8, desc: "Introduce Shedlr, use a job example, and find out what work fits.",
@@ -53,40 +52,51 @@ const head = (eyebrow,title,sub) => `<div class="intro"><div><p class="eyebrow">
 const navBtn = (view,label,cls="secondary") => `<button type="button" class="btn ${cls}" data-view="${view}">${label}</button>`;
 const lessonBtn = (i,label,cls="primary") => `<button type="button" class="btn ${cls}" data-lesson="${i}">${label}</button>`;
 const progress = () => `<section class="panel" aria-label="Progress"><p class="eyebrow">Your progress</p><div class="progress-line"><strong>${state.completed.size}/5</strong><span>steps complete</span></div><progress max="5" value="${state.completed.size}" aria-label="Training steps complete"></progress><p class="muted">Your first win is a qualified conversation with a clear next step.</p></section>`;
+const currentMarket = () => state.answers[0]?.industry&&state.answers[0]?.city?`${state.answers[0].industry} · ${state.answers[0].city}`:"";
+const activeCategory = () => state.categories?.find(c=>c.label.toLowerCase()===String(state.answers[0]?.industry||"").toLowerCase());
+const searchLinks = () => {
+  if(!currentMarket())return lessonBtn(0,"Choose a niche and city","secondary");
+  const q=encodeURIComponent(`${state.answers[0].industry} businesses in ${state.answers[0].city}`);
+  return `<a class="btn secondary" href="https://www.google.com/search?q=${q}" target="_blank" rel="noopener noreferrer">Search Google ↗</a>
+          <a class="btn secondary" href="https://www.google.com/maps/search/?api=1&amp;query=${q}" target="_blank" rel="noopener noreferrer">Search Google Maps ↗</a>`;
+};
 
 function home(){
   const i = lessons.findIndex((_,n)=>!state.completed.has(n));
   const next = lessons[i];
-  return head("BAM field guide","Your training path","Get ready for your first qualified conversation, then build a routine you can repeat.") +
+  return head("BAM workspace","Your next actions","Pick a market, work your prospect list, and keep your follow-ups moving.") +
     `<div class="layout"><div class="stack">
       <section class="banner" data-index="${next ? String(i+1).padStart(2,"0") : "05"}">
-        <p class="eyebrow">${next ? `Your next action / Step ${String(i+1).padStart(2,"0")}` : "Training path complete"}</p>
-        <h2>${next?.title ?? "Plan your next session"}</h2>
-        <p>${next?.desc ?? "Review your follow-ups and choose one concrete action for your next work session."}</p>
-        ${next ? lessonBtn(i,`${i===0?"Start":"Continue"} training <span aria-hidden="true">→</span>`,"gold") : navBtn("plan","Open daily gameplan","gold")}
+        <p class="eyebrow">${next ? `Your next action / Step ${String(i+1).padStart(2,"0")}` : "Setup complete"}</p>
+        <h2>${next?.title ?? "Work your prospect list"}</h2>
+        <p>${next?.desc ?? "Review due follow-ups, contact the next business, or add prospects to your market."}</p>
+        ${next ? lessonBtn(i,`${i===0?"Choose my market":"Continue setup"} <span aria-hidden="true">→</span>`,"gold") : navBtn("hitlist","Work my Hitlist","gold")}
       </section>
       <section><div class="section-head"><h2>Fast Start</h2><span>5 practical steps</span></div>
       <ol class="roadmap">${lessons.map((l,n)=>{
         const d=state.completed.has(n), here=n===i;
         return `<li><button class="row ${d?"done":here?"next":""}" data-lesson="${n}"><span class="number" aria-hidden="true">${d?"✓":String(n+1).padStart(2,"0")}</span><span><strong>${l.title}</strong><small>${l.desc}</small></span><span class="status ${d||here?"":"time"}">${d?"Complete":here?"Up next":`${l.time} min`}</span></button></li>`;
       }).join("")}</ol></section>
-    </div><aside class="stack">${progress()}<section class="panel"><h2>Daily Gameplan</h2><p class="muted">Set a focus, review your Hitlist, and leave yourself a next action.</p>${navBtn("plan","Open gameplan →")}</section><section class="panel"><h2>Need a hand?</h2><p class="muted">Get a next step when a call, follow-up, or signup stalls.</p>${navBtn("coach","I’m blocked →")}</section></aside></div>`;
+    </div><aside class="stack"><section class="panel"><h2>My Hitlist</h2><p class="muted">${esc(currentMarket()||"No market selected yet.")} Use the Hitlist to add prospects, log outreach, or check follow-ups.</p>${navBtn("hitlist","Open Hitlist")}</section>${progress()}<section class="panel"><h2>Daily Gameplan</h2><p class="muted">Set a focus and leave yourself a next action.</p>${navBtn("plan","Open gameplan →")}</section><section class="panel"><h2>Need a hand?</h2><p class="muted">Get a next step when a call, follow-up, or signup stalls.</p>${navBtn("coach","I’m blocked →")}</section></aside></div>`;
 }
 function lesson(){
   const i=state.lesson, l=lessons[i], a=state.answers[i]??{}, done=state.completed.has(i);
-  return `<div class="back">${navBtn("home","← My training")}</div>`+head(`Step ${String(i+1).padStart(2,"0")} / 05 · ${l.time} min`,l.title,l.desc)+
+  const c=activeCategory();
+  const draft=c?.page?prospectMessage.replace("[insert the program link]",`https://shedlr.com${c.page}`):prospectMessage;
+  return `<div class="back">${navBtn("home","← My workspace")}</div>`+head(`Step ${String(i+1).padStart(2,"0")} / 05 · ${l.time} min`,l.title,l.desc)+
     `<div class="layout"><div class="stack"><article class="panel lesson-content"><h2>What to do</h2>
     <ol>${l.steps.map(s=>`<li>${s}</li>`).join("")}</ol>${l.quote?`<blockquote><p class="eyebrow">Practice script</p>${l.quote}</blockquote>`:""}
     ${i===3?navBtn("hitlist","Open my Hitlist"):""}
-    ${i===3||i===4?`<div class="note"><strong>${promo.price} offer · <code>${promo.code}</code></strong><p>Share this with an interested prospect. Replace the placeholder with the matching Shedlr program link before sending.</p><label for="prospect-message">Sample message</label><textarea id="prospect-message" rows="4" readonly>${esc(prospectMessage)}</textarea><div class="actions">${btn("copy-promo","Copy sample message")}</div><p class="message" id="promo-message" role="status"></p></div>`:""}
+    ${i===3||i===4?`<div class="note"><strong>${promo.price} offer · <code>${promo.code}</code></strong><p>${c?.page?"The sample uses the program link for your saved niche. Confirm it matches the prospect before sending.":"Replace the placeholder with the matching Shedlr program link before sending."}</p><label for="prospect-message">Sample message</label><textarea id="prospect-message" rows="4" readonly>${esc(draft)}</textarea><div class="actions">${btn("copy-promo","Copy sample message")}</div><p class="message" id="promo-message" role="status"></p></div>`:""}
     ${i===4?`<div class="note"><strong>Internal handoff only</strong>${state.handoffs?.length?`After verifying payment, send the handoff to both ${state.handoffs.map(esc).join(" and ")}.`:"Ask the owner for the internal handoff contacts after verifying payment."} Don’t include these contacts in the prospect message.</div>`:""}
-    ${l.resource?`<a class="btn quiet-link" href="${l.resource[1]}" target="_blank" rel="noopener">${l.resource[0]} ↗</a>`:""}</article>
+    ${i===0&&c?(c.page?`<a class="btn quiet-link" href="${esc(c.page)}" target="_blank" rel="noopener">Open the ${esc(c.label)} program ↗</a>`:`<p class="muted">No dedicated public page for this category. Confirm the right link with the owner before sharing the offer.</p>`):""}
+    ${i===1?`<div class="actions">${searchLinks()}${navBtn("hitlist","Open my Hitlist","primary")}</div>`:""}</article>
     <section class="panel"><p class="eyebrow">Your checkpoint</p><h2>${l.question}</h2>
-    <form id="lesson-form" class="labels">${l.fields.map(([id,label,placeholder])=>`<label for="${id}">${label}<input id="${id}" name="${id}" required maxlength="220" placeholder="${placeholder}" value="${esc(a[id])}"></label>`).join("")}
+    <form id="lesson-form" class="labels">${i===1?`<p class="muted">${esc(currentMarket()||"Save a niche and city first.")}. Add three active businesses with contact details in this market, then mark the list ready.</p>`:""}${l.fields.map(([id,label,placeholder])=>id==="industry"?`<label for="industry">${label}<select id="industry" name="industry" required><option value="">Choose from ${state.categories?.length||0} categories</option>${(state.categories||[]).map(item=>`<option ${item===c?"selected":""}>${esc(item.label)}</option>`).join("")}</select></label>${!state.categories?.length?'<p class="error">Category picker unavailable. Update the BAM Training Worker to load the list.</p>':""}`:`<label for="${id}">${label}<input id="${id}" name="${id}" required maxlength="${id==="city"?80:220}" placeholder="${placeholder}" value="${esc(a[id])}"></label>`).join("")}
     ${l.quiz?`<label for="quiz">${l.quiz[0]}<select id="quiz" name="quiz" required><option value="">Choose an answer</option>${l.quiz.slice(1).map((opt,n)=>`<option value="${n}" ${a.quiz===String(n)?"selected":""}>${opt}</option>`).join("")}</select></label>`:""}
-    <div class="actions"><button class="btn primary" type="submit">${done?"Save checkpoint":"Complete checkpoint"}</button>${done ? (i<lessons.length-1 ? lessonBtn(i+1,"Next step →","secondary") : navBtn("plan","Open daily gameplan →")) : ""}</div></form>
+    <div class="actions"><button class="btn primary" type="submit">${i===0?"Save market":i===1?"Mark prospect list ready":done?"Save checkpoint":"Complete checkpoint"}</button>${done ? (i<lessons.length-1 ? lessonBtn(i+1,"Next step →","secondary") : navBtn("plan","Open daily gameplan →")) : ""}</div></form>
     <p class="message ${done?"success":""}" role="status" id="message">${done?"Checkpoint complete.":""}</p></section></div>
-    <aside class="stack">${progress()}<div class="note"><strong>Practice checkpoint</strong>Use fictional details here. Saved answers stay with your BAM account.</div></aside></div>`;
+    <aside class="stack">${progress()}<div class="note"><strong>${i<2?"Work your market":"Practice checkpoint"}</strong>${i<2?"Your market and prospect list are saved to your account. Keep public business contact details in the Hitlist.":"Use fictional details in this checkpoint. Saved answers stay with your BAM account."}</div></aside></div>`;
 }
 function plan(){
   const p=state.plan??{};
@@ -107,18 +117,34 @@ function coach(){
     <aside class="stack"><section class="panel"><h2>Coaching note</h2><p class="muted">The owner can see your saved blocker in BAM Training. This does not send an email.</p>${navBtn("home","Back to training →")}</section></aside></div>`;
 }
 const teamMode=new URLSearchParams(location.search).get("view")==="team";
-const statuses=["Interested","Follow-up agreed","Link sent","Signed up","Closed / not a fit","Do not contact"];
+const statuses=["Prospect","Interested","Follow-up agreed","Link sent","Signed up","Closed / not a fit","Do not contact"];
+const terminal=new Set(statuses.slice(-3));
+const localDay=()=>{
+  const today=new Date();
+  return `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}-${String(today.getDate()).padStart(2,"0")}`;
+};
 const date=(value)=>value?new Date(value).toLocaleString():"Not yet";
-const msg=(text,fail=false)=>{
-  let m=document.querySelector("#message");
+const msg=(text,fail=false,target="message")=>{
+  let m=document.getElementById(target);
   if(!m){
-    m=document.createElement("p");m.id="message";m.setAttribute("role","status");main.prepend(m);
+    m=document.createElement("p");m.id=target;m.setAttribute("role","status");main.prepend(m);
   }
   m.textContent=text;m.className=`message ${fail?"error":"success"}`;
 };
 const feedback='<p class="message" id="message" role="status"></p>';
 const btn=(act,label,attrs="")=>`<button type="button" class="btn secondary" data-action="${act}" ${attrs}>${label}</button>`;
 const businessLink='<a class="btn secondary" href="/admin.html">Back to Business</a>';
+function parseProspects(value){
+  let lines=value.split(/\r?\n/).filter(line=>line.trim());
+  if(/^(business|business name)\t/i.test(lines[0]||"")&&/\tsource url(?:\t|$)/i.test(lines[0]))lines=lines.slice(1);
+  if(!lines.length||lines.length>20)throw new Error("Paste 1 to 20 business rows at a time.");
+  return lines.map((line,i)=>{
+    const cells=line.split("\t").map(v=>v.trim());
+    const [business,contact,source,notes=""]=cells;
+    if(cells.length<3||cells.length>4||!business||!contact||!/^https?:\/\/\S+$/i.test(source))throw new Error(`Row ${i+1}: include business, contact, and an https:// or http:// source URL in separate columns.`);
+    return {business,contact,source,notes};
+  });
+}
 async function api(action, values={}){
   let res;
   try{res=await fetch("/api/bam-training",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({...values,action})});}
@@ -132,7 +158,7 @@ async function api(action, values={}){
 }
 async function loadRep(){
   const d=await api("progress");
-  Object.assign(state,{user:d.user,answers:d.answers,completed:new Set(Object.keys(d.answers).map(Number)),plan:d.plan,checks:d.plan?.checks||[],blocker:d.blocker,handoffs:d.handoffs,view:"home",rows:[],editing:null,showArchived:false});
+  Object.assign(state,{user:d.user,answers:d.answers,completed:new Set(Object.keys(d.answers).map(Number)),plan:d.plan,checks:d.plan?.checks||[],blocker:d.blocker,handoffs:d.handoffs,categories:d.categories,view:"home",rows:[],editing:null,hitFilter:"all"});
 }
 function authView(){
   const join=state.view==="join";
@@ -145,24 +171,30 @@ function authView(){
     ${feedback}<p class="muted">Need access? Ask the Shedlr owner for an invite. <a href="/connect">Back to Careers</a>.</p></section>`;
 }
 function table(rows, edit=false){
-  return `<div class="table-scroll" tabindex="0" role="region" aria-label="Hitlist spreadsheet"><table><thead><tr>${["Business","Business contact","Market","Status","Follow-up","Notes",...(edit?["Actions"]:[])].map(x=>`<th scope="col">${x}</th>`).join("")}</tr></thead>
-   <tbody>${rows.map(r=>`<tr><th scope="row">${esc(r.business)}</th><td>${esc(r.contact)}</td><td>${esc(r.market)}</td><td>${esc(r.status)}${r.archived?" · Archived":""}</td><td>${esc(r.followup)}</td><td>${esc(r.notes)}</td>${edit?`<td>${r.archived?"":btn("edit","Edit",`data-id="${r.id}"`)+btn("archive","Archive",`data-id="${r.id}"`)}</td>`:""}</tr>`).join("")||`<tr><td colspan="${edit?7:6}">No businesses to show.</td></tr>`}</tbody></table></div>`;
+  return `<div class="table-scroll" tabindex="0" role="region" aria-label="Hitlist spreadsheet"><table><thead><tr>${["Business","Business contact","Market","Status","Next follow-up","Outreach logged","Notes",...(edit?["Actions"]:[])].map(x=>`<th scope="col">${x}</th>`).join("")}</tr></thead>
+   <tbody>${rows.map(r=>`<tr><th scope="row">${esc(r.business)}</th><td>${esc(r.contact)}</td><td>${esc(r.market)}</td><td>${esc(r.status)}${r.archived?" · Archived":""}</td><td>${esc(r.followup)}</td><td>${[["Text",r.last_text],["Call",r.last_call],["Follow-up",r.last_followup]].filter(([,t])=>t).map(([label,t])=>`<div>${label}: ${esc(date(t))}</div>`).join("")||"None"}</td><td>${esc(r.notes).replaceAll("\n","<br>")}</td>${edit?`<td>${r.archived?"":(!terminal.has(r.status)?["text","call","followup"].map((channel,i)=>btn("log-outreach",["Log text","Log call","Log follow-up"][i],`data-id="${r.id}" data-channel="${channel}"`)).join(""):"")+btn("edit","Edit",`data-id="${r.id}"`)+btn("archive","Archive",`data-id="${r.id}"`)}</td>`:""}</tr>`).join("")||`<tr><td colspan="${edit?8:7}">No businesses to show.</td></tr>`}</tbody></table></div>`;
 }
 function hitlist(){
   const r=state.editing||{};
-  const rows=(state.rows||[]).filter(row=>Boolean(row.archived)===Boolean(state.showArchived));
-  return head("Your pipeline","Hitlist","Track interested businesses and agreed follow-ups. Keep passwords, card numbers, and private customer details out of the sheet.")+
-    `<div class="stack"><section class="panel"><div class="section-head"><h2>${r.id?"Edit business":"Add a business"}</h2><span>${rows.length} ${state.showArchived?"archived":"active"}</span></div>
+  const filters={all:"All active",due:"Due follow-ups",archive:"Archived"};
+  const rows=(state.rows||[]).filter(row=>state.hitFilter==="archive"?row.archived:!row.archived&&(state.hitFilter!=="due"||row.followup&&row.followup<=localDay()&&!terminal.has(row.status)));
+  return head("Your pipeline","Hitlist","Add verified business contacts and log outreach you’ve already done. These buttons do not send texts or place calls.")+
+    `<div class="stack">
+    <section class="panel"><div class="section-head"><h2>${filters[state.hitFilter]||filters.all}</h2><span>${rows.length} businesses</span></div>
+    <div class="actions" aria-label="Filter Hitlist">${Object.entries(filters).map(([k,label])=>btn("hit-filter",label,`data-filter="${k}" aria-pressed="${k===state.hitFilter}"`)).join("")}</div><p class="muted">Due follow-ups include dates through today. Don’t text without permission, and mark opt-outs Do not contact.</p>${feedback}
+    ${table(rows,true)}</section>
+    <section class="panel"><div class="section-head"><h2>${r.id?"Edit business":"Add a business"}</h2><span>${esc(currentMarket()||"No market chosen")}</span></div>
+    <div class="actions">${searchLinks()}</div>
     <form id="hit-form" class="labels"><div class="fields">
     <label>Business<input name="business" required maxlength="140" value="${esc(r.business)}"></label>
     <label>Business contact<input name="contact" maxlength="200" placeholder="Name, work email or business phone" value="${esc(r.contact)}"></label>
-    <label>Market<input name="market" maxlength="120" placeholder="Service and city" value="${esc(r.market)}"></label>
+    <label>Market<input name="market" maxlength="120" placeholder="Service and city" value="${esc(r.id?r.market:currentMarket())}"></label>
     <label>Status<select name="status">${statuses.map(s=>`<option ${s===r.status?"selected":""}>${s}</option>`).join("")}</select></label>
     <label>Agreed follow-up date<input name="followup" type="date" value="${esc(r.followup)}"></label></div>
     <label>Notes<textarea name="notes" maxlength="1000">${esc(r.notes)}</textarea></label>
-    <div class="actions"><button class="btn primary">Save business</button>${r.id?btn("cancel-edit","Cancel edit"):""}</div></form>${feedback}</section>
-    <section class="panel"><div class="section-head"><h2>${state.showArchived?"Archived businesses":"Active businesses"}</h2>${btn("toggle-archived",state.showArchived?"Show active":"Show archived")}</div>
-    ${table(rows,true)}</section></div>`;
+    <div class="actions"><button class="btn primary">Save business</button>${r.id?btn("cancel-edit","Cancel edit"):""}</div></form><p id="hit-form-message" class="message" role="status"></p></section>
+    <section class="panel"><h2>Paste spreadsheet rows</h2><p class="muted">Use business-owned or licensed sources. Copy up to 20 rows at a time: Business, Contact, Source URL, and optional Notes. All rows go into your saved market. Don’t export Google Maps listings into the tracker.</p>
+    <form id="import-form" class="labels"><label>Spreadsheet rows<textarea name="rows" required maxlength="12000" placeholder="Paste tab-separated cells here"></textarea></label><div class="actions"><button class="btn primary" ${!currentMarket()?"disabled":""}>Add rows to Hitlist</button>${!currentMarket()?lessonBtn(0,"Choose a niche and city","secondary"):""}</div></form><p id="import-message" class="message" role="status"></p></section></div>`;
 }
 function team(){
   const d=state.team;
@@ -232,12 +264,18 @@ document.addEventListener("click",(event)=>{
     if(button.id==="sign-out"){await api("signout");location.assign("/bam-training");return;}
     if(action==="copy-promo"){
       const status=document.querySelector("#promo-message");
-      try{await navigator.clipboard.writeText(prospectMessage);status.textContent="Message copied. Replace the link placeholder before sending.";}
+      try{await navigator.clipboard.writeText(document.querySelector("#prospect-message").value);status.textContent=activeCategory()?.page?"Message copied. Confirm the program matches the prospect before sending.":"Message copied. Replace the link placeholder before sending.";}
       catch{const field=document.querySelector("#prospect-message");field.focus();field.select();status.textContent="Copy the selected text, then replace the link placeholder.";}
       return;
     }
     if(action==="resolve"){await api("clear_blocker");state.blocker=null;render();return;}
-    if(action==="toggle-archived"){state.showArchived=!state.showArchived;render();return;}
+    if(action==="hit-filter"){state.hitFilter=button.dataset.filter;render();document.querySelector(`[data-filter="${state.hitFilter}"]`)?.focus();return;}
+    if(action==="log-outreach"){
+      const channel=button.dataset.channel;
+      await api("log_outreach",{id,channel});await loadRows();render();msg("Outreach logged.");
+      document.querySelector(`[data-id="${id}"][data-channel="${channel}"]`)?.focus({preventScroll:true});
+      return;
+    }
     if(action==="edit"){state.editing=state.rows.find(x=>x.id===id);render(true);document.querySelector("#hit-form input").focus();return;}
     if(action==="cancel-edit"){state.editing=null;render(true);return;}
     if(action==="archive"){
@@ -261,7 +299,13 @@ main.addEventListener("submit",(event)=>{
   } else if(form.id==="invite-form"){
     state.invite=await api("invite",values);render();msg("Invite created.");
   } else if(form.id==="hit-form"){
-    await api("save_business",{...values,id:state.editing?.id});state.editing=null;state.showArchived=false;await loadRows();render();msg("Business saved.");
+    try{await api("save_business",{...values,id:state.editing?.id});}catch(e){if(e.status===401)throw e;msg(e.message,true,"hit-form-message");return;}
+    state.editing=null;state.hitFilter="all";await loadRows();render();msg("Business saved.",false,"hit-form-message");
+  } else if(form.id==="import-form"){
+    let output;
+    try{output=await api("import_prospects",{market:currentMarket(),rows:parseProspects(String(fd.get("rows")||""))});}
+    catch(e){if(e.status===401)throw e;msg(e.message,true,"import-message");return;}
+    state.hitFilter="all";await loadRows();render();msg(`${output.added} added. ${output.skipped} skipped (duplicates or Hitlist limit).`,false,"import-message");
   } else if(form.id==="lesson-form"){
     const i=state.lesson,l=lessons[i],message=document.querySelector("#message");
     if(l.fields.some(([key])=>!values[key]) || (l.quiz && values.quiz!==String(l.correct??1))){
@@ -269,7 +313,9 @@ main.addEventListener("submit",(event)=>{
       message.textContent=l.fields.some(([key])=>!values[key])?"Fill in each practice field before continuing.":"Not quite. Review the steps above and try again.";
       return;
     }
-    await api("complete",{lesson:i,answers:values});state.answers[i]=values;state.completed.add(i);render();
+    if(i===1)await api("prospecting_ready");
+    else await api("complete",{lesson:i,answers:values});
+    state.answers[i]=i===1?{market:currentMarket()}:values;state.completed.add(i);render();
     document.querySelector("#message").setAttribute("tabindex","-1");document.querySelector("#message").focus();
   } else if(form.id==="plan-form"){
     if(!values.market||!values.goal||!values.next){const m=document.querySelector("#message");m.className="message error";m.textContent="Enter a market, a goal, and a next action.";return;}
