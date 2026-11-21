@@ -1,4 +1,5 @@
 import { handleBamTraining } from "./bam-training.js";
+import { programs, categoryIds as CATEGORIES, categoryLabels as CATEGORY_LABELS, bamCategories as BAM_CATEGORIES } from "./category-programs.mjs";
 
 const SESSION_COOKIE = "shedlr_admin";
 const SESSION_TTL_SECONDS = 60 * 60 * 8;
@@ -7,147 +8,9 @@ const BUSINESS_SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
 const ACTIVATION_TTL_MS = 72 * 60 * 60 * 1000;
 const LEAD_PRICE_CENTS = 100; // fallback default
 
-const CATEGORY_PRICES = {
-  "nail-lash-stylist": 300,
-  "car-sales": 1000,
-  "cell-phone-sales": 400,
-  "internet-cable-sales": 500,
-  "tax-prep": 600,
-  "gym-sales": 300,
-  "home-remodeling": 900,
-  "personal-trainer": 400,
-  "life-coach": 100,
-  "counseling": 500,
-  "mental-health-clinician": 500,
-  "maintenance": 500,
-  "dog-walker": 200,
-  "pet-grooming": 400,
-  "dog-training": 400,
-  "house-cleaning": 600,
-  "landscaping": 700,
-  "tutoring": 400,
-  "photography": 800,
-  "handyman": 500,
-  "moving": 900,
-  "catering": 700,
-  "event-planning": 1000,
-  "home-insurance": 100,
-  "vehicle-insurance": 100,
-  "roofing": 300,
-  "auto-hail-damage": 1200,
-  "home-services": 600,
-  "hvac": 700,
-  "plumbing": 700,
-  "garage-door-services": 700,
-  "auto-mechanic": 700,
-  "pest-control": 500,
-  "solar": 1000,
-  "real-estate": 800,
-  "junk-removal": 600,
-  "auto-detailing": 400,
-  "auto-commercial-detailing": 800,
-  "insurance": 100,
-  "meal-prep": 400
-};
+const CATEGORY_PRICES = Object.fromEntries(programs.map(({ id, legacyPrice }) => [id, legacyPrice]));
 const getCategoryPriceCents = (slug) => CATEGORY_PRICES[slug] || 500;
-
-const CATEGORIES = [
-  "personal-trainer",
-  "life-coach",
-  "counseling",
-  "mental-health-clinician",
-  "maintenance",
-  "dog-walker",
-  "pet-grooming",
-  "dog-training",
-  "house-cleaning",
-  "landscaping",
-  "tutoring",
-  "photography",
-  "handyman",
-  "moving",
-  "catering",
-  "event-planning",
-  "home-insurance",
-  "vehicle-insurance",
-  "roofing",
-  "auto-hail-damage",
-  "home-services",
-  "hvac",
-  "plumbing",
-  "garage-door-services",
-  "auto-mechanic",
-  "pest-control",
-  "solar",
-  "real-estate",
-  "airbnb",
-  "car-sales",
-  "cell-phone-sales",
-  "internet-cable-sales",
-  "tax-prep",
-  "gym-sales",
-  "home-remodeling",
-  "nail-lash-stylist",
-  "junk-removal",
-  "auto-detailing",
-  "auto-commercial-detailing",
-  "insurance",
-  "meal-prep"];
-
 const LEAD_TYPES = ["appointment-booking", "phone-call-scheduling", "raw-leads"];
-
-const CATEGORY_LABELS = {
-  "personal-trainer": "Personal Trainer",
-  "life-coach": "Life Coach",
-  "counseling": "Counseling",
-  "mental-health-clinician": "Mental Health Clinician",
-  "maintenance": "Maintenance",
-  "dog-walker": "Dog Walker",
-  "pet-grooming": "Pet Grooming",
-  "dog-training": "Dog Training",
-  "house-cleaning": "House Cleaning",
-  "landscaping": "Landscaping",
-  "tutoring": "Tutoring",
-  "photography": "Photography",
-  "handyman": "Handyman",
-  "moving": "Moving Services",
-  "catering": "Catering",
-  "event-planning": "Event Planning",
-  "home-insurance": "Home Insurance",
-  "vehicle-insurance": "Vehicle Insurance",
-  "roofing": "Roofing",
-  "auto-hail-damage": "Auto Hail Damage",
-  "home-services": "Home Services",
-  "hvac": "HVAC",
-  "plumbing": "Plumbing",
-  "garage-door-services": "Garage Door Services",
-  "auto-mechanic": "Auto Mechanic / Auto Repair",
-  "pest-control": "Pest Control",
-  "solar": "Solar",
-  "real-estate": "Real Estate",
-  "airbnb": "Airbnb / Short-Term Rentals",
-  "car-sales": "Car Sales",
-  "cell-phone-sales": "Cell Phone Sales",
-  "internet-cable-sales": "Internet & Cable Sales",
-  "tax-prep": "Tax Preparation",
-  "gym-sales": "Gym Membership Sales",
-  "home-remodeling": "Home Remodeling",
-  "nail-lash-stylist": "Nail & Lash Stylists",
-  "junk-removal": "Junk Removal",
-  "auto-detailing": "Auto Detailing",
-  "auto-commercial-detailing": "Fleet & Commercial Detailing",
-  "insurance": "Insurance (general)",
-  "meal-prep": "Meal Prep"
-};
-
-// Dedicated pages use their existing public URLs. The other supported categories
-// still appear in the BAM picker, without implying a dedicated program page exists.
-const BAM_PROGRAM_SLUGS = new Set("airbnb auto-commercial-detailing auto-detailing auto-hail-damage auto-mechanic car-sales cell-phone-sales cleaning counseling dog-training dog-walking-pet-sitting garage-door-services gym-sales handyman home-remodeling hvac insurance internet-cable-sales junk-removal lawn-care life-coaching meal-prep moving-services nail-lash-stylist personal-training pest-control pet-grooming roofing solar tax-prep".split(" "));
-const BAM_PROGRAM_ALIASES = {"house-cleaning":"cleaning","landscaping":"lawn-care","life-coach":"life-coaching","personal-trainer":"personal-training","dog-walker":"dog-walking-pet-sitting","moving":"moving-services"};
-const BAM_CATEGORIES = CATEGORIES.map(id=>{
-  const slug=BAM_PROGRAM_ALIASES[id]||id;
-  return {id,label:CATEGORY_LABELS[id],page:BAM_PROGRAM_SLUGS.has(slug)?`/leads/${slug}.html`:null};
-}).sort((a,b)=>a.label.localeCompare(b.label));
 
 const json = (body, status = 200, extraHeaders = {}) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", ...extraHeaders } });
 const clean = (value, max = 2000) => String(value ?? "").trim().slice(0, max);

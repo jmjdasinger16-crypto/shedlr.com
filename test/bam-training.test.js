@@ -9,7 +9,8 @@ const ownerPassword="local-owner-test-only";
 const repPassword="local-rep-test-only";
 
 test("BAM training uses the existing owner session and persists isolated rep work",async t=>{
-  const mf=new Miniflare({modules:true,modulesRoot:root,modulesRules:[{type:"ESModule",include:["**/*.js"]}],scriptPath:path.join(root,"worker/src/index.js"),
+  const {programs}=await import("../worker/src/category-programs.mjs");
+  const mf=new Miniflare({modules:true,modulesRoot:root,modulesRules:[{type:"ESModule",include:["**/*.js","**/*.mjs"]}],scriptPath:path.join(root,"worker/src/index.js"),
     compatibilityDate:"2026-04-26",
     d1Databases:{DB:"shedlr-bam-test"},
     bindings:{ADMIN_PASSWORD:ownerPassword,ADMIN_SESSION_SECRET:"local-owner-test-signing-secret",STAFF_PASSWORD:"local-VA",RETENTION_PASSWORD:"local-retention",BAM_PASSWORD:"local-legacy-bam",
@@ -72,11 +73,13 @@ test("BAM training uses the existing owner session and persists isolated rep wor
   const signed=(await bam("signin",{email:a,password:repPassword})).cookie;
   const progress=await bam("progress",{},signed);
   assert.equal(Object.keys(progress.answers).length,5);
-  assert.equal(progress.categories.length,41);
+  assert.equal(progress.categories.length,programs.length);
   assert.equal(new Set(progress.categories.map(c=>c.id)).size,progress.categories.length);
-  for(const c of progress.categories){assert.ok(c.label);if(c.page)assert.ok(fs.existsSync(path.join(root,c.page)));}
+  for(const c of progress.categories){assert.ok(c.label&&c.group&&c.page);assert.ok(fs.existsSync(path.join(root,c.page)));}
   assert.equal(progress.categories.find(c=>c.id==="dog-training").page,"/leads/dog-training.html");
-  assert.equal(progress.categories.find(c=>c.id==="plumbing").page,null);
+  assert.equal(progress.categories.find(c=>c.id==="plumbing").page,"/leads/plumbing.html");
+  assert.match(progress.categories.find(c=>c.id==="fencing").example,/120 linear feet/);
+  assert.equal(progress.categories.find(c=>c.id==="house-cleaning").page,"/leads/cleaning.html");
   assert.deepEqual(progress.plan.checks,["0","2"]);
   assert.equal(progress.blocker,"No replies yet");
   assert.deepEqual(progress.handoffs,["one@example.com","two@example.com"]);
@@ -118,6 +121,21 @@ test("BAM training uses the existing owner session and persists isolated rep wor
   await bam("workflow_step",{step:4,id:linked[0].id,verified:true},signed);
   assert.equal((await bam("hitlist",{},signed)).rows.find(r=>r.id===linked[0].id).status,"Signed up");
   assert.equal((await bam("team",{},owner)).reps.find(r=>r.email===a).completed,5);
+  await bam("complete",{lesson:0,answers:{industry:"Irrigation & Sprinklers",city:"Dallas, TX"}},bob);
+  assert.equal((await bam("progress",{},bob)).answers[0].industry,"Irrigation & Sprinklers");
+  await bam("record_link",{business:"Example Sprinkler Company",location:"Dallas, TX",phone:"806-555-0101"},bob);
+  assert.ok((await bam("hitlist",{},bob)).rows.some(r=>r.market==="Irrigation & Sprinklers · Dallas, TX"));
+
+  const sampleOrder={name:"Local Test",email:"orders@example.com",phone:"806-555-0102",company:"Test Company",lead_type:"raw-leads"};
+  for(const category of ["fencing","irrigation","flooring","plumbing","home-remodeling","home-services","house-cleaning"]){
+    const order=await call("/api/orders",{...sampleOrder,category},null,201);
+    const saved=await db.prepare("SELECT category, unit_price_cents FROM lead_orders WHERE id=?").bind(order.order_id).first();
+    assert.equal(saved.category,category);
+    assert.equal(saved.unit_price_cents,programs.find(p=>p.id===category).legacyPrice??500);
+  }
+  await call("/api/orders",{...sampleOrder,category:"not-a-category"},null,400);
+  const nicheLead=await call("/api/admin/leads",{...sampleOrder,category:"flooring"},owner,201);
+  assert.equal((await db.prepare("SELECT category FROM leads WHERE id=?").bind(nicheLead.lead_id).first()).category,"flooring");
   await bam("save_business",{...prospect,id:row.id,status:"Do not contact"},signed);
   assert.equal((await bam("hitlist",{},signed)).rows.find(r=>r.id===row.id).followup,"");
   await bam("log_outreach",{id:row.id,channel:"call"},signed,404);

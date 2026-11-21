@@ -1,0 +1,15 @@
+/* Category pages extend the existing Shedlr design tokens and components. */
+.program-skip{position:absolute;left:1rem;top:1rem;z-index:100;transform:translateY(-200%);background:white;color:var(--ink);padding:.7rem 1rem}
+.program-skip:focus{transform:none}
+.program-actions{margin-top:24px}
+.program-figure{margin:0;overflow:hidden;border:1px solid rgba(255,255,255,.24);border-radius:var(--r-lg);background:#071320}
+.program-figure img{display:block;width:100%;aspect-ratio:16/9;object-fit:cover}
+.program-figure figcaption{padding:12px 16px;color:var(--gold);font-size:.72rem;letter-spacing:.13em}
+.program-jobs{padding:0;margin:0;list-style:none}
+.program-jobs li{margin:0}
+.program-jump nav,.program-footer nav{display:flex;flex-wrap:wrap;gap:.55rem 1.4rem}
+.program-jump{padding-block:1.25rem}
+.program-jump a,.program-footer nav a{text-decoration:underline;text-underline-offset:.2em}
+.program-footer>.wrap{display:flex;align-items:center;justify-content:space-between;gap:24px;flex-wrap:wrap}
+.program-footer img{display:block;max-width:116px;height:auto}
+.tile:focus-visible,.program-jump a:focus-visible,.program-footer a:focus-visible{outline:2px solid var(--gold);outline-offset:4px}
