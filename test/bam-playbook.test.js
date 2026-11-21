@@ -51,20 +51,25 @@ test("examples fit how the businesses actually accept work or bookings", () => {
   assert.match(playbooks.flooring.example, /vinyl/i);
 });
 
-test("Step 4 uses the selected category link, personalized sign-off and separate promo text", async () => {
-  const { bamCategories } = await import("../worker/src/category-programs.mjs");
+function loadLessonView() {
   const main = { addEventListener() {}, setAttribute() {} };
   const view = createContext({
     document: { querySelector: () => main, addEventListener() {} },
     window: {},
     location: { search: "" },
     URLSearchParams,
-    fetch: () => new Promise(() => {}),
-    bamCategories
+    fetch: () => new Promise(() => {})
   });
   for (const file of ["bam-playbook.js", "bam-training.js"]) {
     runInContext(readFileSync(join(__dirname, "../js", file), "utf8"), view);
   }
+  return view;
+}
+
+test("Step 4 uses the selected category link, personalized sign-off and separate promo text", async () => {
+  const { bamCategories } = await import("../worker/src/category-programs.mjs");
+  const view = loadLessonView();
+  view.bamCategories = bamCategories;
   runInContext('state.user={name:"Patrick Example"};state.lesson=3;state.categories=bamCategories;', view);
   for (const { id, label, page } of bamCategories) {
     view.label = label;
@@ -82,4 +87,15 @@ test("Step 4 uses the selected category link, personalized sign-off and separate
       `${id}: exactly the promo sentence`
     );
   }
+});
+
+test("Step 5 opens a single email to Lead Acquisition without requiring a Hitlist row", () => {
+  const view = loadLessonView();
+  const html = runInContext("state.lesson=4; lesson()", view);
+  const mail = new URL(html.match(/href="(mailto:[^"]+)"/)[1].replaceAll("&amp;", "&"));
+  assert.equal(mail.pathname, "mgarcia@shedlr.com,dhernandez@shedlr.com");
+  assert.equal(mail.searchParams.get("subject"), "Shedlr handoff");
+  assert.equal(mail.searchParams.get("body"), "Hi Lead Acquisition,\r\n\r\nBusiness name:\r\nIndustry:\r\nJobs discussed:\r\n\r\nThanks!");
+  assert.match(html, /I sent the handoff email/);
+  assert.doesNotMatch(html, /<form|checkbox|customer-update|end of business|Business phone/);
 });
