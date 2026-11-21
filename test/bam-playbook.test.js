@@ -66,7 +66,7 @@ function loadLessonView() {
   return view;
 }
 
-test("Step 3 keeps category examples, checks next-week availability and asks before texting the link", async () => {
+test("Step 3 keeps category job examples, checks next-week availability and uses a direct close", async () => {
   const { bamCategories } = await import("../worker/src/category-programs.mjs");
   const view = loadLessonView();
   view.bamCategories = bamCategories;
@@ -77,12 +77,14 @@ test("Step 3 keeps category examples, checks next-week availability and asks bef
     const text = html.match(/id="call-script"[^>]*>([^<]*)<\/textarea>/)?.[1];
     assert.ok(text, `${id}: copyable call flow`);
     const sections = text.split("\n\n");
-    assert.deepEqual(sections.map(s => s.split(":")[0]), ["OPENER", "QUALIFY", "EXAMPLE", "CLOSE", "IF THEY SAY YES"]);
+    assert.deepEqual(sections.map(s => s.split(":")[0]), ["OPENER", "QUALIFY", "EXAMPLE", "CLOSE"]);
     assert.match(sections[0], /I just had a couple questions about your business\.$/);
     assert.ok(sections[2].includes(playbooks[id].example), `${id}: own example`);
-    assert.match(sections[2], /would next week work better/);
-    assert.match(sections[3], /I’m Patrick with Shedlr.*can I text you our website link\?.*promo code/);
-    assert.match(sections[4], /I’ll text you the link right now/);
+    assert.match(sections[2], /kind of job.*would next week work better for a job like this/);
+    assert.match(sections[3], /I’m Patrick with Shedlr\. I’ll send you the website link for you to check out\..*promo code/);
+    assert.doesNotMatch(sections[3], /\?/);
+    assert.doesNotMatch(text, /\brequests?\b/i);
+    assert.doesNotMatch(playbooks[id].answer, /\brequests?\b/i);
   }
 });
 
@@ -94,6 +96,7 @@ test("Step 4 uses the selected category link, personalized sign-off and separate
   for (const { id, label, page } of bamCategories) {
     view.label = label;
     const html = runInContext('state.answers[0]={industry:label,city:"Dallas"};lesson()', view);
+    assert.match(html, /Send the program link after the business agrees to receive it/);
     const text = html.match(/id="send-link"[^>]*>([^<]*)<\/textarea>/)?.[1];
     assert.ok(text?.includes(`https://shedlr.com${page}`), `${id}: matching program page`);
     assert.match(text, /month to month with no long-term commitment/);
