@@ -97,8 +97,8 @@ function lesson(){
       </div>
       <div class="actions">${btn("workflow-done","I’ve made a qualifying call")}</div>`;
   }else if(i===3){
-    content=`<p>Send the program link only after the conversation went well and the business agreed to receive it.</p>
-      ${page?copyBox("send-link","Landing-page text",`Thanks for talking through ${p.focus} with me. Here’s the Shedlr program page we discussed:\nhttps://shedlr.com${page}\nIt explains the paid lead program and how to sign up. Just let me know when you need the promo code.`):'<p class="error">The program link is unavailable for this category. Ask the owner for the approved link.</p>'}
+    content=`<p>Send the program link after the business agrees to receive it. Use your approved number so they can text you back directly.</p>
+      ${page?copyBox("send-link","Landing-page text",`Here’s the link:\nhttps://shedlr.com${page}\n\nIt’s month to month with no long-term commitment. Just enter your business info to sign up. Let me know when you’re ready and I’ll send you the promo code as a thank-you for helping us out. It’ll help lower the cost of getting started.\n\nOnce you’re signed up, I’ll get our Lead Acquisition team set up to send you matching client inquiries. Looking forward to working with you!\n\nIt’s ${name} again. If you need anything, you can text me right here.`):'<p class="error">The program link is unavailable for this category. Ask the owner for the approved link.</p>'}
       ${copyBox("promo-text","When they ask for the code",`Use ${promo.code} at checkout for the ${promo.price} offer. The billing and renewal terms are shown at checkout. If you have questions about ${p.focus}, I’m happy to help.`)}
       ${copyBox("followup-text","Follow-up after about two hours",`Hey, following up on the Shedlr link. ${p.nudge} Happy to answer questions or send the promo code.`)}
       <p class="muted">Follow up once if they agreed to hear from you and haven’t replied after about two hours. Stop if they decline or opt out. Nothing sends automatically.</p>

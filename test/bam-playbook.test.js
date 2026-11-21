@@ -1,9 +1,10 @@
 "use strict";
 
 const assert = require("node:assert/strict");
-const { existsSync } = require("node:fs");
+const { existsSync, readFileSync } = require("node:fs");
 const { join } = require("node:path");
 const test = require("node:test");
+const { createContext, runInContext } = require("node:vm");
 const playbooks = require("../js/bam-playbook.js");
 
 test("every catalog category has an exclusive playbook across the five steps", async () => {
@@ -48,4 +49,33 @@ test("examples fit how the businesses actually accept work or bookings", () => {
   assert.match(playbooks.irrigation.questions.join(" "), /valves and controllers/i);
   assert.match(playbooks.irrigation.example, /zone/i);
   assert.match(playbooks.flooring.example, /vinyl/i);
+});
+
+test("Step 4 uses the selected category link, personalized sign-off and separate promo text", async () => {
+  const { bamCategories } = await import("../worker/src/category-programs.mjs");
+  const main = { addEventListener() {}, setAttribute() {} };
+  const view = createContext({
+    document: { querySelector: () => main, addEventListener() {} },
+    window: {},
+    location: { search: "" },
+    URLSearchParams,
+    fetch: () => new Promise(() => {}),
+    bamCategories
+  });
+  for (const file of ["bam-playbook.js", "bam-training.js"]) {
+    runInContext(readFileSync(join(__dirname, "../js", file), "utf8"), view);
+  }
+  runInContext('state.user={name:"Patrick Example"};state.lesson=3;state.categories=bamCategories;', view);
+  for (const { id, label, page } of bamCategories) {
+    view.label = label;
+    const html = runInContext('state.answers[0]={industry:label,city:"Dallas"};lesson()', view);
+    const text = html.match(/id="send-link"[^>]*>([^<]*)<\/textarea>/)?.[1];
+    assert.ok(text?.includes(`https://shedlr.com${page}`), `${id}: matching program page`);
+    assert.match(text, /month to month with no long-term commitment/);
+    assert.match(text, /I’ll send you the promo code/);
+    assert.match(text, /Once you’re signed up, I’ll get our Lead Acquisition team/);
+    assert.match(text, /It’s Patrick again.*you can text me right here/);
+    assert.doesNotMatch(text, /EARNOURBUSINESS/);
+    assert.match(html, /id="promo-text"[^>]*>Use EARNOURBUSINESS/);
+  }
 });
