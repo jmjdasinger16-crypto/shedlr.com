@@ -1,6 +1,8 @@
 "use strict";
 const main = document.querySelector("main");
 const state = { view: "home", lesson: 0, completed: new Set(), answers: {}, plan: null, checks: [], blocker: null };
+const promo = { price: "$199", code: "EARNOURBUSINESS" };
+const prospectMessage = `Here's the Shedlr program page we discussed: [insert the program link]. Use promo code ${promo.code} at checkout for the ${promo.price} offer. Please review the billing and renewal terms at checkout before signing up. Let me know if you have any questions.`;
 const lessons = [
   {
     title: "Pick your first market", time: 5, desc: "Choose one industry, one city, and the right Shedlr page.",
@@ -25,7 +27,7 @@ const lessons = [
   },
   {
     title: "Work your Hitlist", time: 5, desc: "Give every productive conversation a clear next step.",
-    steps: ["If they’re interested but not ready, use the existing approved Hitlist. Note what work they care about and any agreed follow-up.", "Send the matching program page after they ask for it. Be clear that it’s a paid service before inviting them to sign up.", "A click is not a signup and does not tell you why someone stopped. Ask what was unclear if follow-up was agreed, and honor any opt-out."],
+    steps: ["If they’re interested but not ready, use the existing approved Hitlist. Note what work they care about and any agreed follow-up.", "Send the matching program page and promo code when the prospect asks for details. Be clear that Shedlr is a paid lead service, and replace the placeholder in the sample message with the right program link.", "A click is not a signup and does not tell you why someone stopped. Ask what was unclear if follow-up was agreed, and honor any opt-out."],
     question: "Record a practice outcome in one sentence.",
     fields: [["outcome","Outcome and next action","Interested in light loads; agreed to follow up Thursday."]],
   },
@@ -76,7 +78,8 @@ function lesson(){
     `<div class="layout"><div class="stack"><article class="panel lesson-content"><h2>What to do</h2>
     <ol>${l.steps.map(s=>`<li>${s}</li>`).join("")}</ol>${l.quote?`<blockquote><p class="eyebrow">Practice script</p>${l.quote}</blockquote>`:""}
     ${i===3?navBtn("hitlist","Open my Hitlist"):""}
-    ${i===4?(state.offer?`<div class="note"><strong>Current BAM offer</strong>${esc(state.offer.price)} with <code>${esc(state.offer.code)}</code>. Send the handoff to both ${state.offer.handoffs.map(esc).join(" and ")}.</div>`:`<div class="note"><strong>Confirm with the owner</strong>The offer and handoff details haven’t been configured. Ask for them before quoting an offer or sending a handoff.</div>`):""}
+    ${i===3||i===4?`<div class="note"><strong>${promo.price} offer · <code>${promo.code}</code></strong><p>Share this with an interested prospect. Replace the placeholder with the matching Shedlr program link before sending.</p><label for="prospect-message">Sample message</label><textarea id="prospect-message" rows="4" readonly>${esc(prospectMessage)}</textarea><div class="actions">${btn("copy-promo","Copy sample message")}</div><p class="message" id="promo-message" role="status"></p></div>`:""}
+    ${i===4?`<div class="note"><strong>Internal handoff only</strong>${state.handoffs?.length?`After verifying payment, send the handoff to both ${state.handoffs.map(esc).join(" and ")}.`:"Ask the owner for the internal handoff contacts after verifying payment."} Don’t include these contacts in the prospect message.</div>`:""}
     ${l.resource?`<a class="btn quiet-link" href="${l.resource[1]}" target="_blank" rel="noopener">${l.resource[0]} ↗</a>`:""}</article>
     <section class="panel"><p class="eyebrow">Your checkpoint</p><h2>${l.question}</h2>
     <form id="lesson-form" class="labels">${l.fields.map(([id,label,placeholder])=>`<label for="${id}">${label}<input id="${id}" name="${id}" required maxlength="220" placeholder="${placeholder}" value="${esc(a[id])}"></label>`).join("")}
@@ -129,7 +132,7 @@ async function api(action, values={}){
 }
 async function loadRep(){
   const d=await api("progress");
-  Object.assign(state,{user:d.user,answers:d.answers,completed:new Set(Object.keys(d.answers).map(Number)),plan:d.plan,checks:d.plan?.checks||[],blocker:d.blocker,offer:d.offer,view:"home",rows:[],editing:null,showArchived:false});
+  Object.assign(state,{user:d.user,answers:d.answers,completed:new Set(Object.keys(d.answers).map(Number)),plan:d.plan,checks:d.plan?.checks||[],blocker:d.blocker,handoffs:d.handoffs,view:"home",rows:[],editing:null,showArchived:false});
 }
 function authView(){
   const join=state.view==="join";
@@ -165,7 +168,7 @@ function team(){
   const d=state.team;
   return `<div class="back">${businessLink}</div>`+head("Shedlr owner workspace","BAM Training","Manage rep access and see who’s making progress without mixing training into your Business dashboard.")+
     (d?`<div class="stack">
-    ${d.offerReady?"":'<div class="note"><strong>Offer setup needed</strong>The owner needs to configure the Worker’s BAM_TRAINING_OFFER secret before reps can see the offer and handoff details.</div>'}
+    ${d.handoffsReady?"":'<div class="note"><strong>Internal handoff setup needed</strong>Configure the Worker’s BAM_TRAINING_HANDOFFS secret to show the two internal addresses in Step 5. Reps can see and share the promo code without it.</div>'}
     <section class="panel"><h2>Invite a BAM</h2><p class="muted">Create a one-time code and share it privately. Nothing is emailed automatically.</p>
     <form id="invite-form" class="labels"><div class="fields"><label>Name<input name="name" required maxlength="100"></label><label>Email<input name="email" type="email" required maxlength="254"></label></div><div class="actions"><button class="btn primary">Create invite</button></div></form>${feedback}
     ${state.invite?`<div class="note"><strong>One-time code for ${esc(state.invite.email)}</strong><code>${esc(state.invite.code)}</code><p>Expires in seven days. Send the code with the <a href="/bam-training">BAM sign-in page</a> and ask the rep to choose “Use an invite or reset code.”</p>${btn("copy-code","Copy code")}</div>`:""}</section>
@@ -187,7 +190,7 @@ function render(focus=false){
 }
 function handleError(e){
   if(e.status===401&&state.user&&!teamMode){
-    Object.assign(state,{user:null,view:"signin",rows:[],editing:null,answers:{},offer:null,plan:null,checks:[],blocker:null,completed:new Set()});render(true);
+    Object.assign(state,{user:null,view:"signin",rows:[],editing:null,answers:{},handoffs:null,plan:null,checks:[],blocker:null,completed:new Set()});render(true);
   }
   msg(e.message,true);
 }
@@ -227,6 +230,12 @@ document.addEventListener("click",(event)=>{
     }
     if(!state.user){state.view=button.dataset.view==="join"?"join":"signin";render(true);return;}
     if(button.id==="sign-out"){await api("signout");location.assign("/bam-training");return;}
+    if(action==="copy-promo"){
+      const status=document.querySelector("#promo-message");
+      try{await navigator.clipboard.writeText(prospectMessage);status.textContent="Message copied. Replace the link placeholder before sending.";}
+      catch{const field=document.querySelector("#prospect-message");field.focus();field.select();status.textContent="Copy the selected text, then replace the link placeholder.";}
+      return;
+    }
     if(action==="resolve"){await api("clear_blocker");state.blocker=null;render();return;}
     if(action==="toggle-archived"){state.showArchived=!state.showArchived;render();return;}
     if(action==="edit"){state.editing=state.rows.find(x=>x.id===id);render(true);document.querySelector("#hit-form input").focus();return;}

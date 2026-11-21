@@ -13,7 +13,7 @@ test("BAM training uses the existing owner session and persists isolated rep wor
     compatibilityDate:"2026-04-26",
     d1Databases:{DB:"shedlr-bam-test"},
     bindings:{ADMIN_PASSWORD:ownerPassword,ADMIN_SESSION_SECRET:"local-owner-test-signing-secret",STAFF_PASSWORD:"local-VA",RETENTION_PASSWORD:"local-retention",BAM_PASSWORD:"local-legacy-bam",
-      BAM_TRAINING_OFFER:JSON.stringify({price:"$100",code:"PRACTICEONLY",handoffs:["one@example.com","two@example.com"]})}});
+      BAM_TRAINING_HANDOFFS:JSON.stringify(["one@example.com","two@example.com"])}});
   t.after(()=>mf.dispose());
   const db=await mf.getD1Database("DB");
   for(const file of ["schema.sql","migration_career_applications.sql","migration_bam_training.sql","migration_bam_training.sql"]){
@@ -74,10 +74,11 @@ test("BAM training uses the existing owner session and persists isolated rep wor
   assert.equal(Object.keys(progress.answers).length,5);
   assert.deepEqual(progress.plan.checks,["0","2"]);
   assert.equal(progress.blocker,"No replies yet");
-  assert.equal(progress.offer.code,"PRACTICEONLY");
+  assert.deepEqual(progress.handoffs,["one@example.com","two@example.com"]);
+  assert.equal(progress.offer,undefined);
   assert.equal((await bam("hitlist",{},signed)).rows[0].business,"Alice Business");
   const team=await bam("team",{},owner);
-  assert.equal(team.offerReady,true);
+  assert.equal(team.handoffsReady,true);
   const ar=team.reps.find(r=>r.email===a);
   assert.equal(ar.completed,5);assert.equal(ar.logins,2);assert.equal(ar.businesses,1);assert.ok(ar.last_login_at);
   assert.ok(team.events.some(e=>e.kind==="Coaching requested"));
