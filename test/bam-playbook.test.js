@@ -122,3 +122,23 @@ test("Step 5 opens a single email to Lead Acquisition without requiring a Hitlis
   assert.match(html, /I sent the handoff email/);
   assert.doesNotMatch(html, /<form|checkbox|customer-update|end of business|Business phone/);
 });
+
+test("daily goal shows the remaining links and keeps counting above 50", () => {
+  const view = loadLessonView();
+  assert.match(runInContext('state.linkGoal={sent:17,target:50};dailyLinkGoal(true)',view), /17\/50[\s\S]*33 more[\s\S]*Declines and follow-ups don’t count/);
+  assert.match(runInContext('state.linkGoal={sent:51,target:50};dailyLinkGoal()',view), /51\/50[\s\S]*max="50" value="50"[\s\S]*Daily target reached/);
+});
+
+test("the Central time day resets at local midnight, including DST changes", async () => {
+  const { centralDayWindow } = await import("../worker/src/bam-link-goal.mjs");
+  assert.equal(centralDayWindow(new Date("2026-11-21T05:59:59Z")).day, "2026-11-20");
+  assert.equal(centralDayWindow(new Date("2026-11-21T06:00:00Z")).day, "2026-11-21");
+  for (const [time,start,end] of [
+    ["2026-03-08T15:00:00Z", "2026-03-08T06:00:00.000Z", "2026-03-09T05:00:00.000Z"],
+    ["2026-11-01T15:00:00Z", "2026-11-01T05:00:00.000Z", "2026-11-02T06:00:00.000Z"]
+  ]) {
+    const window=centralDayWindow(new Date(time));
+    assert.equal(window.start,start);
+    assert.equal(window.end,end);
+  }
+});

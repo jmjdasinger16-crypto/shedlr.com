@@ -1,3 +1,5 @@
+import { BAM_LINK_GOAL, centralDayWindow, linkCountSql } from "./bam-link-goal.mjs";
+
 const COOKIE = "__Host-shedlr_bam_training";
 const TTL = 8 * 3600;
 const FIELDS = [["industry","city"],["one","two","three"],["discovery","next"],["outcome"],["verify"]];
@@ -59,6 +61,11 @@ export async function handleBamTraining(request, env, auth, categories){
     const db=env.DB;
     const p=(sql,...args)=>db.prepare(sql).bind(...args);
     const event=(id,kind,detail="")=>p("INSERT INTO bam_training_events(rep_id,kind,detail,happened_at) VALUES(?,?,?,?)",id,kind,detail,now());
+    async function dailyLinks(id){
+      const {day,start,end}=centralDayWindow();
+      const {sent}=await p(`SELECT ${linkCountSql("?")} AS sent`,id,start,end).first();
+      return {day,endsAt:end,target:BAM_LINK_GOAL,sent};
+    }
     async function throttle(key,max){
       const current=seconds(); const bucket=await hash(key);
       const row=await p(`INSERT INTO bam_training_rate VALUES(?,1,?)
@@ -71,17 +78,19 @@ export async function handleBamTraining(request, env, auth, categories){
       const admin=await auth.getAdminSession(request,env);
       if(admin?.role!=="admin")return error("Sign in to the main admin portal as the owner.",admin?403:401);
       if(d.action==="team"){
+        const {start,end}=centralDayWindow();
         const [reps,events]=await db.batch([
           p(`SELECT r.id,r.name,r.email,r.active,r.last_login_at,
              (SELECT COUNT(*) FROM bam_training_lessons l WHERE l.rep_id=r.id AND (l.lesson=0 OR json_extract(l.answers,'$.workflow')=2)) completed,
              (SELECT COUNT(*) FROM bam_training_hitlist h WHERE h.rep_id=r.id AND h.archived=0) businesses,
              (SELECT COUNT(*) FROM bam_training_events e WHERE e.rep_id=r.id AND e.kind IN ('Signed in','Account activated','Access reset')) logins,
              (SELECT w.blocker FROM bam_training_work w WHERE w.rep_id=r.id) blocker,
-             (SELECT MAX(e.happened_at) FROM bam_training_events e WHERE e.rep_id=r.id) last_activity
-             FROM bam_training_reps r ORDER BY last_activity DESC,r.name LIMIT 250`),
+             (SELECT MAX(e.happened_at) FROM bam_training_events e WHERE e.rep_id=r.id) last_activity,
+             ${linkCountSql("r.id")} daily_links
+             FROM bam_training_reps r ORDER BY last_activity DESC,r.name LIMIT 250`,start,end),
           p("SELECT e.kind,e.detail,e.happened_at,r.name FROM bam_training_events e JOIN bam_training_reps r ON r.id=e.rep_id ORDER BY e.id DESC LIMIT 80")
         ]);
-        return response({reps:reps.results,events:events.results,handoffsReady:trainingHandoffs(env).length===2});
+        return response({reps:reps.results,events:events.results,dailyLinkTarget:BAM_LINK_GOAL,handoffsReady:trainingHandoffs(env).length===2});
       }
       if(d.action==="invite"||d.action==="reset"){
         const email=emailOf(d);
@@ -153,21 +162,23 @@ export async function handleBamTraining(request, env, auth, categories){
     const sidHash=sid?await hash(sid):null;
     const rep=sidHash&&await p(`SELECT r.id,r.name,r.email FROM bam_training_sessions s JOIN bam_training_reps r ON r.id=s.rep_id
        WHERE s.token_hash=? AND s.expires_at>? AND r.active=1`,sidHash,seconds()).first();
-    if(!rep)return error("Sign in to BAM Training.",401);
+    if(!rep)return error("Sign in to BAM Workflow.",401);
     const id=rep.id, when=now();
     if(d.action==="signout"){
       await p("DELETE FROM bam_training_sessions WHERE token_hash=?",sidHash).run();
       return response({ok:true},200,cookie("",0));
     }
     if(d.action==="progress"){
-      const [{results},work]=await Promise.all([
+      const [{results},work,linkGoal]=await Promise.all([
         p("SELECT lesson,answers FROM bam_training_lessons WHERE rep_id=?",id).all(),
-        p("SELECT gameplan,blocker FROM bam_training_work WHERE rep_id=?",id).first()
+        p("SELECT gameplan,blocker FROM bam_training_work WHERE rep_id=?",id).first(),
+        dailyLinks(id)
       ]);
       return response({user:{name:rep.name,email:rep.email},answers:Object.fromEntries(results.map(r=>[r.lesson,JSON.parse(r.answers)])),
         plan:work?.gameplan?JSON.parse(work.gameplan):null,blocker:work?.blocker||null,
-        handoffs:trainingHandoffs(env),categories});
+        handoffs:trainingHandoffs(env),categories,linkGoal});
     }
+    if(d.action==="daily_link_goal")return response({linkGoal:await dailyLinks(id)});
     if(d.action==="hitlist"){
       const rows=await p(HITLIST_SQL,id,id).all();
       return response({rows:rows.results});
@@ -212,7 +223,7 @@ export async function handleBamTraining(request, env, auth, categories){
       const step=d.action==="record_link"?3:d.step;
       const checkpoint=p("INSERT INTO bam_training_lessons VALUES(?,?,?,?) ON CONFLICT(rep_id,lesson) DO UPDATE SET answers=excluded.answers",id,step,JSON.stringify({workflow:2}),when);
       if(step===3&&d.action==="record_link"){
-        const business=val(d,"business",140,true),location=val(d,"location",120,true),phone=val(d,"phone",40,true);
+        const business=val(d,"business",140,true),location=val(d,"location",120,true),phone=val(d,"phone",40,true).replace(/\s+/g," ");
         if(!/^[+()\d.\s-]+$/.test(phone)||!/^\d{10,15}$/.test(phone.replace(/\D/g,"")))return error("Enter a valid business phone number.");
         const target=`${category.label} · ${location}`, original=`${market.industry} · ${market.city}`;
         if(target.length>120)return error("Use a shorter business location.");
@@ -222,10 +233,10 @@ export async function handleBamTraining(request, env, auth, categories){
         const row=existing.results[0];
         if(row&&(row.archived||["Signed up","Closed / not a fit","Do not contact"].includes(row.status)))return error("This business is not available for a new link. Review your Hitlist.",409);
         const written=row?await p(`UPDATE bam_training_hitlist SET contact=?,market=?,status='Link sent',updated_at=? WHERE id=? AND rep_id=? AND archived=0 AND status NOT IN ('Signed up','Closed / not a fit','Do not contact')`,phone,target,when,row.id,id).run()
-          :await p(`INSERT INTO bam_training_hitlist(rep_id,business,contact,market,status,followup,notes,updated_at) SELECT ?,?,?,?,'Link sent','','',? WHERE (SELECT COUNT(*) FROM bam_training_hitlist WHERE rep_id=?)<1000 AND NOT EXISTS(SELECT 1 FROM bam_training_hitlist WHERE ${similar})`,id,business,phone,target,when,id,id,business,target,original).run();
-        if(!written.meta.changes)return error("The Hitlist changed or is full. Refresh and try again.",409);
+          :await p(`INSERT INTO bam_training_hitlist(rep_id,business,contact,market,status,followup,notes,updated_at) SELECT ?,?,?,?,'Link sent','','',? WHERE NOT EXISTS(SELECT 1 FROM bam_training_hitlist WHERE ${similar})`,id,business,phone,target,when,id,business,target,original).run();
+        if(!written.meta.changes)return error("The Hitlist changed. Refresh and try again.",409);
         await db.batch([checkpoint,event(id,"Program link sent",String(row?.id??written.meta.last_row_id))]);
-        return response({ok:true});
+        return response({ok:true,linkGoal:await dailyLinks(id)});
       }
       if(d.action!=="workflow_step"||![1,2,4].includes(step))return error("Select a workflow step.");
       if(step===4){
@@ -248,7 +259,7 @@ export async function handleBamTraining(request, env, auth, categories){
       activity=event(id,"Checkpoint saved","Step 2");
     }else if(d.action==="complete"){
       const i=d.lesson;
-      if(!Number.isInteger(i)||!FIELDS[i]||!d.answers||typeof d.answers!=="object")return error("Select a training lesson.");
+      if(!Number.isInteger(i)||!FIELDS[i]||!d.answers||typeof d.answers!=="object")return error("Select a workflow step.");
       const answers=Object.fromEntries(FIELDS[i].map(k=>[k,val(d.answers,k,220,true)]));
       if(i===2||i===4){
         if(d.answers.quiz!==(i===2?"1":"2"))return error("Review the lesson and try again.");
@@ -292,8 +303,8 @@ export async function handleBamTraining(request, env, auth, categories){
     return response({ok:true});
   }catch(e){
     if(e instanceof TypeError||e instanceof SyntaxError)return error("Check the fields and try again.");
-    if(/no such table:\s*bam_training_/i.test(String(e)))return error("BAM Training is not initialized yet. Apply the database migration.",503);
-    console.error("BAM training request failed",e?.name);
-    return error("BAM Training is temporarily unavailable.",503);
+    if(/no such table:\s*bam_training_/i.test(String(e)))return error("BAM Workflow is not initialized yet. Apply the database migration.",503);
+    console.error("BAM Workflow request failed",e?.name);
+    return error("BAM Workflow is temporarily unavailable.",503);
   }
 }

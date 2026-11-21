@@ -1,6 +1,6 @@
-# BAM Training deployment
+# BAM Workflow deployment
 
-The training workspace is a separate view linked from the existing owner dashboard. It uses the same signed owner session as Business. A training invite does not grant access to any part of the Business dashboard. Rep data lives in the existing `shedlr-leads` D1 database, in new `bam_training_*` tables.
+The BAM Workflow workspace is available at `/bam-portal`; existing `/bam-training` links still work. The owner view uses the same signed owner session as Business. A BAM invite does not grant access to the Business dashboard. Rep data remains in the existing `shedlr-leads` D1 database in the `bam_training_*` tables.
 
 ## Check locally
 
@@ -14,20 +14,13 @@ npx wrangler deploy --dry-run --config worker/wrangler.jsonc
 
 ## Publish with authorization
 
-Run these from the checkout containing this feature with authorized Cloudflare access. The migration is additive and can be safely rerun. The $199 offer and `EARNOURBUSINESS` code are built into the lesson, and reps can share them with prospects. Only the internal handoff contacts need private configuration.
+Use a checkout containing this feature with authorized Cloudflare access. The $199 offer and `EARNOURBUSINESS` code are built into the workflow. If D1 has never been set up for BAM, apply the original migration once. The portal name and `/bam-portal` alias do not require a migration.
 
 ```sh
 npx wrangler d1 execute shedlr-leads --remote --file worker/migration_bam_training.sql --config worker/wrangler.jsonc
-npx wrangler secret put BAM_TRAINING_HANDOFFS --config worker/wrangler.jsonc
 ```
 
-At the secret prompt, paste a JSON array with both approved handoff email addresses.
-
-```json
-["first@example.com","second@example.com"]
-```
-
-Deploy the Worker before publishing the frontend through the repository's existing deployment path. The frontend links do not work against an older Worker.
+Deploy the Worker before relying on the daily link counter or simplified handoff checkpoint. The new sign-in URL uses the existing API and sessions.
 
 ```sh
 npx wrangler deploy --config worker/wrangler.jsonc
@@ -35,10 +28,10 @@ npx wrangler deploy --config worker/wrangler.jsonc
 
 ## Smoke test
 
-- **Business:** Sign in at `/admin.html` as the owner. The usual Business dashboard should still open first. Select **BAM Training** and return using **Back to Business**, without a separate owner login.
-- **Rep access:** Create an invite using a controlled test email, then use it from `/connect` in a separate browser window. Save a checkpoint, gameplan, and sample Hitlist business. Sign out and back in to verify they stayed saved. Verify that the test rep cannot load the team view. Disable the test rep when finished.
+- **Business:** Sign in at `/admin.html` as the owner. The usual Business dashboard should still open first. Select **BAM Workflow** and return using **Back to Business**, without a separate owner login.
+- **Rep access:** Create an invite using a controlled test email, then use it from `/bam-portal` in a separate browser window. Save a checkpoint, gameplan, and sample Hitlist business. Open `/bam-training` in another tab and verify the same session and saved progress. Verify the test rep cannot load the team view. Disable the test rep when finished.
 - **Outreach:** Choose a supported niche and city, copy a search query and first text, and verify the call script uses the saved market. Copy the correct landing-page and $199 promo messages in Step 4, then record a practice link and check the business appears in the Hitlist.
-- **Handoff:** Select that practice business in Step 5 and verify signup before drafting an internal email and a separate customer text. Verify the end-of-business wording appears only when confirmed, and both handoff recipients appear when configured. Logging the handoff does not send anything.
+- **Handoff:** In Step 5, verify the email draft names both Lead Acquisition recipients and includes business name, industry, and jobs discussed. Do not send a practice email. Confirm that the handoff checkpoint logs rep progress without changing the Hitlist.
 - **Progress:** The updated workflow keeps previously saved markets and Hitlists. Reps confirm the four new actions as they work them; older lesson answers do not count as completed actions. No additional D1 migration is needed if the original BAM migration ran. Deploy the updated Worker before relying on the updated frontend.
 
 If the frontend must be rolled back, revert or redeploy the previous frontend release. If the Worker must also be rolled back, restore its previous version. Leave the additive database tables in place to preserve rep progress.
