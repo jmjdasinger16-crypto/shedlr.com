@@ -30,7 +30,10 @@
           <div class="admin-brand"><img src="assets/shedlr-logo.png" alt="Shedlr" class="brand-logo"><strong class="admin-tag">Admin</strong></div>
           <p>Lead orders, business management, and analytics</p>
         </div>
-        <button class="secondary" type="button" data-admin-logout>Log out</button>
+        <div class="panel-actions">
+          <button class="secondary" type="button" data-admin-only hidden onclick="location.assign('/bam-training?view=team')">BAM Training</button>
+          <button class="secondary" type="button" data-admin-logout>Log out</button>
+        </div>
       </header>
 
       <section class="panel filter-panel" data-admin-only>

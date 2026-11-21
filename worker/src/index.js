@@ -1,3 +1,5 @@
+import { handleBamTraining } from "./bam-training.js";
+
 const SESSION_COOKIE = "shedlr_admin";
 const SESSION_TTL_SECONDS = 60 * 60 * 8;
 const BUSINESS_SESSION_COOKIE = "shedlr_business";
@@ -1151,6 +1153,7 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if (request.method === "GET" && url.pathname === "/api/health") return json({ ok: true, service: "shedlr-api" });
+    if (url.pathname === "/api/bam-training") return handleBamTraining(request, env, { getAdminSession, hashPassword, verifyPassword });
 
     if (request.method === "POST" && url.pathname === "/api/events") {
       let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); }
