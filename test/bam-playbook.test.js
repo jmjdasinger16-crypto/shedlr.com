@@ -29,10 +29,19 @@ test("every catalog category has an exclusive playbook across the five steps", a
   }
 });
 
+test("every first text is one short question with no brand or call pitch", () => {
+  for (const [id, { text }] of Object.entries(playbooks)) {
+    assert.match(text, /^Hey, [^!?\n.]+\?$/, `${id}: one conversational question`);
+    assert.ok(text.length <= 110, `${id}: short enough for a first text`);
+    assert.doesNotMatch(text, /Shedlr|quick call|hop on a call|https?:|promo code|sign up/i, `${id}: no pitch`);
+  }
+  assert.equal(playbooks["junk-removal"].text, "Hey, do you guys have availability to remove a demolished shed this week?");
+});
+
 test("examples fit how the businesses actually accept work or bookings", () => {
   const airbnb = playbooks.airbnb;
   assert.match(airbnb.target, /hosts or managers/i);
-  assert.match(airbnb.text, /take a guest booking/i);
+  assert.match(airbnb.text, /openings for a guest booking/i);
   assert.match(airbnb.example, /Friday through Sunday.*two bedrooms.*two-night stay/i);
   assert.match(airbnb.handoff, /minimum stay.*guest capacity.*approved booking channel/i);
   assert.match(playbooks["junk-removal"].example, /Jim Stanly.*10×12.*shed/i);

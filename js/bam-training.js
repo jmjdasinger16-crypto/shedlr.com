@@ -84,8 +84,8 @@ function lesson(){
   }else if(i!==4&&!p){
     content=`<p class="error">This playbook did not load. Refresh the page or choose another category.</p>${lessonBtn(0,"Change category","secondary")}`;
   }else if(i===1){
-    content=`<p>Use an approved texting channel only where you have permission. Introduce yourself as Shedlr, ask about availability, and honor opt-outs.</p>
-      ${copyBox("intro-text","First text",`Hi, this is ${name} with Shedlr. I’m checking availability in ${city}. ${p.text} Open to a quick call?`)}
+    content=`<p>On an approved channel, send one short availability question. Introduce yourself and Shedlr when they reply, before discussing the program. Honor opt-outs.</p>
+      ${copyBox("intro-text","First text",p.text)}
       <div class="actions">${btn("workflow-done","I’ve gotten my first text response")}</div>`;
   }else if(i===2){
     content=`<p>Call businesses that replied and are open to talking. Confirm fit before sending a link.</p>
