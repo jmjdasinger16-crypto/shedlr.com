@@ -30,6 +30,8 @@ const htmlHeaders = {
 const server = http.createServer((req, res) => {
   let urlPath = req.url.split('?')[0];
   if (urlPath === '/') urlPath = '/index.html';
+  // New public name; the original URL and API remain available for existing users.
+  if (/^\/bam-portal(?:\/|\.html)?$/.test(urlPath)) urlPath = '/bam-training.html';
 
   // Prevent directory traversal
   const safePath = path.normalize(urlPath).replace(/^(\.\.[/\\])+/, '');
@@ -67,5 +69,5 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(port, () => {
-  console.log(`Shedlr server running on port ${port}`);
+  console.log(`Shedlr server running on port ${server.address().port}`);
 });

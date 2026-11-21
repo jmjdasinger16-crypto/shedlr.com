@@ -162,7 +162,7 @@ export async function handleBamTraining(request, env, auth, categories){
     const sidHash=sid?await hash(sid):null;
     const rep=sidHash&&await p(`SELECT r.id,r.name,r.email FROM bam_training_sessions s JOIN bam_training_reps r ON r.id=s.rep_id
        WHERE s.token_hash=? AND s.expires_at>? AND r.active=1`,sidHash,seconds()).first();
-    if(!rep)return error("Sign in to BAM Training.",401);
+    if(!rep)return error("Sign in to BAM Workflow.",401);
     const id=rep.id, when=now();
     if(d.action==="signout"){
       await p("DELETE FROM bam_training_sessions WHERE token_hash=?",sidHash).run();
@@ -259,7 +259,7 @@ export async function handleBamTraining(request, env, auth, categories){
       activity=event(id,"Checkpoint saved","Step 2");
     }else if(d.action==="complete"){
       const i=d.lesson;
-      if(!Number.isInteger(i)||!FIELDS[i]||!d.answers||typeof d.answers!=="object")return error("Select a training lesson.");
+      if(!Number.isInteger(i)||!FIELDS[i]||!d.answers||typeof d.answers!=="object")return error("Select a workflow step.");
       const answers=Object.fromEntries(FIELDS[i].map(k=>[k,val(d.answers,k,220,true)]));
       if(i===2||i===4){
         if(d.answers.quiz!==(i===2?"1":"2"))return error("Review the lesson and try again.");
@@ -303,8 +303,8 @@ export async function handleBamTraining(request, env, auth, categories){
     return response({ok:true});
   }catch(e){
     if(e instanceof TypeError||e instanceof SyntaxError)return error("Check the fields and try again.");
-    if(/no such table:\s*bam_training_/i.test(String(e)))return error("BAM Training is not initialized yet. Apply the database migration.",503);
-    console.error("BAM training request failed",e?.name);
-    return error("BAM Training is temporarily unavailable.",503);
+    if(/no such table:\s*bam_training_/i.test(String(e)))return error("BAM Workflow is not initialized yet. Apply the database migration.",503);
+    console.error("BAM Workflow request failed",e?.name);
+    return error("BAM Workflow is temporarily unavailable.",503);
   }
 }

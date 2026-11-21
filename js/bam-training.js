@@ -23,7 +23,7 @@ const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({"&":"&am
 const head = (eyebrow,title,sub) => `<div class="intro"><div><p class="eyebrow">${eyebrow}</p><h1>${title}</h1><p class="sub">${sub}</p></div></div>`;
 const navBtn = (view,label,cls="secondary") => `<button type="button" class="btn ${cls}" data-view="${view}">${label}</button>`;
 const lessonBtn = (i,label,cls="primary") => `<button type="button" class="btn ${cls}" data-lesson="${i}">${label}</button>`;
-const progress = () => `<section class="panel" aria-label="Progress"><p class="eyebrow">Your progress</p><div class="progress-line"><strong>${state.completed.size}/5</strong><span>steps complete</span></div><progress max="5" value="${state.completed.size}" aria-label="Training steps complete"></progress><p class="muted">Your first win is a qualified conversation with a clear next step.</p></section>`;
+const progress = () => `<section class="panel" aria-label="Progress"><p class="eyebrow">Your progress</p><div class="progress-line"><strong>${state.completed.size}/5</strong><span>steps complete</span></div><progress max="5" value="${state.completed.size}" aria-label="Workflow steps complete"></progress><p class="muted">Your first win is a qualified conversation with a clear next step.</p></section>`;
 const dailyLinkGoal = (home=false) => {
   const goal=state.linkGoal, sent=goal?.sent, target=goal?.target||50;
   return `<section class="${home?"panel":"note"}" aria-label="Daily link goal" data-link-goal="${home?"home":"step"}">
@@ -145,7 +145,7 @@ function coach(){
     <label for="block">Choose a blocker<select id="block" name="block" required><option value="">Choose an option</option>${Object.keys(blockers).map(s=>`<option ${s===b?"selected":""}>${s}</option>`).join("")}</select></label>
     <div class="actions"><button class="btn primary" type="submit">Save blocker and get a next step</button>${b?'<button type="button" class="btn secondary" data-action="resolve">Mark resolved</button>':""}</div></form>
     ${b?`<div class="note help-result" role="status"><strong>Try this next</strong>${blockers[b]}</div>`:""}</section>
-    <aside class="stack"><section class="panel"><h2>Coaching note</h2><p class="muted">The owner can see your saved blocker in BAM Training. This does not send an email.</p>${navBtn("home","Back to training →")}</section></aside></div>`;
+    <aside class="stack"><section class="panel"><h2>Coaching note</h2><p class="muted">The owner can see your saved blocker in BAM Workflow. This does not send an email.</p>${navBtn("home","Back to workflow →")}</section></aside></div>`;
 }
 const teamMode=new URLSearchParams(location.search).get("view")==="team";
 const statuses=["Prospect","Interested","Follow-up agreed","Link sent","Signed up","Closed / not a fit","Do not contact"];
@@ -171,7 +171,7 @@ async function api(action, values={}){
   catch{throw new Error("Connection failed. Try again.");}
   const data=await res.json().catch(()=>({}));
   if(!res.ok){
-    const err=new Error(data.error||"BAM Training is unavailable. Try again.");
+    const err=new Error((data.error||"BAM Workflow is unavailable. Try again.").replace(/\bBAM Training\b/gi,"BAM Workflow"));
     err.status=res.status;throw err;
   }
   return data;
@@ -190,7 +190,7 @@ async function refreshExpiredGoal(){
 }
 function authView(){
   const join=state.view==="join";
-  return head("Shedlr team access",join?"Activate BAM access":"BAM training sign-in",join?"Use the one-time invite or reset code issued by the Shedlr owner.":"Sign in to pick up your training, gameplan, and follow-ups.")+
+  return head("Shedlr team access",join?"Activate BAM Workflow access":"BAM Workflow sign-in",join?"Use the one-time invite or reset code issued by the Shedlr owner.":"Sign in to pick up your workflow, gameplan, and follow-ups.")+
     `<section class="panel access-card"><form id="auth-form" class="labels">
     <label>Email<input name="email" type="email" autocomplete="username" maxlength="254" required></label>
     ${join?'<label>Invite or reset code<input name="code" maxlength="128" autocomplete="off" required></label>':""}
@@ -223,16 +223,16 @@ function hitlist(){
 }
 function team(){
   const d=state.team;
-  return `<div class="back">${businessLink}</div>`+head("Shedlr owner workspace","BAM Training","Manage rep access and see who’s making progress without mixing training into your Business dashboard.")+
+  return `<div class="back">${businessLink}</div>`+head("Shedlr owner workspace","BAM Workflow","Manage rep access and review activity and progress separately from your Business dashboard.")+
     (d?`<div class="stack">
     <section class="panel"><h2>Invite a BAM</h2><p class="muted">Create a one-time code and share it privately. Nothing is emailed automatically.</p>
     <form id="invite-form" class="labels"><div class="fields"><label>Name<input name="name" required maxlength="100"></label><label>Email<input name="email" type="email" required maxlength="254"></label></div><div class="actions"><button class="btn primary">Create invite</button></div></form>${feedback}
-    ${state.invite?`<div class="note"><strong>One-time code for ${esc(state.invite.email)}</strong><code>${esc(state.invite.code)}</code><p>Expires in seven days. Send the code with the <a href="/bam-training">BAM sign-in page</a> and ask the rep to choose “Use an invite or reset code.”</p>${btn("copy-code","Copy code")}</div>`:""}</section>
+    ${state.invite?`<div class="note"><strong>One-time code for ${esc(state.invite.email)}</strong><code>${esc(state.invite.code)}</code><p>Expires in seven days. Send the code with the <a href="/bam-portal">BAM Workflow sign-in page</a> and ask the rep to choose “Use an invite or reset code.”</p>${btn("copy-code","Copy code")}</div>`:""}</section>
     <section class="panel"><div class="section-head"><h2>Team roster</h2>${btn("refresh-team","Refresh")}</div>
     <div class="table-scroll" tabindex="0" role="region" aria-label="BAM team roster"><table><thead><tr>${["BAM","Access","Checkpoints","Links today (CT)","Sign-ins","Last sign-in","Last activity","Hitlist","Coaching blocker","Actions"].map(s=>`<th scope="col">${s}</th>`).join("")}</tr></thead>
     <tbody>${d.reps.map(r=>`<tr><th scope="row">${esc(r.name)}<br><small>${esc(r.email)}</small></th><td>${r.active?"Active":"Disabled"}</td><td>${r.completed}/5</td><td>${Number.isSafeInteger(r.daily_links)?`${r.daily_links}/${d.dailyLinkTarget||50}`:"Not available"}</td><td>${r.logins}</td><td>${esc(date(r.last_login_at))}</td><td>${esc(date(r.last_activity))}</td><td>${r.businesses}</td><td>${esc(r.blocker||"None")}</td><td>${btn("team-hit", "View Hitlist",`data-id="${r.id}"`)}${r.active?btn("reset", "Reset access",`data-id="${r.id}"`):""}${btn("account",r.active?"Disable":"Enable",`data-id="${r.id}"`)}</td></tr>`).join("")||'<tr><td colspan="10">No BAMs have activated their accounts yet.</td></tr>'}</tbody></table></div></section>
     ${state.teamRows?`<section class="panel" id="team-hit"><h2>${esc(state.teamRows.name)}’s Hitlist</h2>${table(state.teamRows.rows)}</section>`:""}
-    <section class="panel"><h2>Recent activity</h2>${d.events.map(e=>`<div class="mini-item"><strong>${esc(e.name)}</strong> · ${esc(e.kind)}${e.detail?` (${esc(e.detail)})`:""} <span class="meta">${esc(date(e.happened_at))}</span></div>`).join("")||"<p>No training activity yet.</p>"}</section></div>`:`<section class="panel"><h2>Team view unavailable</h2><p class="error">${esc(state.teamError)}</p>${btn("refresh-team","Try again")}</section>`);
+    <section class="panel"><h2>Recent activity</h2>${d.events.map(e=>`<div class="mini-item"><strong>${esc(e.name)}</strong> · ${esc(e.kind)}${e.detail?` (${esc(e.detail)})`:""} <span class="meta">${esc(date(e.happened_at))}</span></div>`).join("")||"<p>No workflow activity yet.</p>"}</section></div>`:`<section class="panel"><h2>Team view unavailable</h2><p class="error">${esc(state.teamError)}</p>${btn("refresh-team","Try again")}</section>`);
 }
 function render(focus=false){
   document.querySelector("#app-nav").hidden=!state.user||teamMode;
@@ -285,7 +285,7 @@ document.addEventListener("click",(event)=>{
       return;
     }
     if(!state.user){state.view=button.dataset.view==="join"?"join":"signin";render(true);return;}
-    if(button.id==="sign-out"){await api("signout");location.assign("/bam-training");return;}
+    if(button.id==="sign-out"){await api("signout");location.assign("/bam-portal");return;}
     if(action==="copy-script"){
       const field=document.getElementById(button.dataset.target), status=document.getElementById(`${button.dataset.target}-feedback`);
       try{await navigator.clipboard.writeText(field.value);status.textContent="Copied.";}
