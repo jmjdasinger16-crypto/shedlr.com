@@ -190,13 +190,13 @@ async function refreshExpiredGoal(){
 }
 function authView(){
   const join=state.view==="join";
-  return head("Shedlr team access",join?"Activate BAM Workflow access":"BAM Workflow sign-in",join?"Use the one-time invite or reset code issued by the Shedlr owner.":"Sign in to pick up your workflow, gameplan, and follow-ups.")+
+  return head("Shedlr team access",join?"Activate BAM Workflow access":"BAM Workflow sign-in",join?"Use the one-time invite or reset code you received.":"Sign in to pick up your workflow, gameplan, and follow-ups.")+
     `<section class="panel access-card"><form id="auth-form" class="labels">
     <label>Email<input name="email" type="email" autocomplete="username" maxlength="254" required></label>
     ${join?'<label>Invite or reset code<input name="code" maxlength="128" autocomplete="off" required></label>':""}
     <label>Password<input name="password" type="password" autocomplete="${join?"new-password":"current-password"}" maxlength="160" ${join?'minlength="12"':""} required></label>
     <div class="actions"><button class="btn primary">${join?"Activate account":"Sign in"}</button>${navBtn(join?"signin":"join",join?"Back to sign-in":"Use an invite or reset code")}</div></form>
-    ${feedback}<p class="muted">Need access? Ask the Shedlr owner for an invite. <a href="/connect">Back to Careers</a>.</p></section>`;
+    ${feedback}<p class="muted">Contact a Shedlr supervisor for access. <a href="/connect">Back to Careers</a>.</p></section>`;
 }
 function table(rows, edit=false){
   return `<div class="table-scroll" tabindex="0" role="region" aria-label="Hitlist spreadsheet"><table><thead><tr>${["Business","Business contact","Market","Status","Next follow-up","Outreach logged","Notes",...(edit?["Actions"]:[])].map(x=>`<th scope="col">${x}</th>`).join("")}</tr></thead>
