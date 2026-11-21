@@ -8,3 +8,5 @@ main{padding-block:35px 56px;min-height:calc(100vh - 160px)}.eyebrow{text-transf
 .access-card{max-width:540px}.table-scroll{overflow:auto}.table-scroll table{width:100%;border-collapse:collapse;font-size:var(--sm);text-align:left}
 .table-scroll th,.table-scroll td{padding:11px 9px;border-bottom:1px solid var(--line);vertical-align:top;overflow-wrap:anywhere;min-width:90px}
 .table-scroll thead th{background:var(--paper);white-space:nowrap}.table-scroll td .btn{white-space:nowrap;margin:0 4px 4px 0}.note code{overflow-wrap:anywhere}.note p{margin-top:9px}
+[data-action="hit-filter"][aria-pressed="true"]{background:var(--navy);color:var(--white);border-color:var(--navy)}
+@media(max-width:630px){.top nav{min-width:0;flex-wrap:wrap;column-gap:4px;row-gap:0}.top nav button{font-size:var(--xs)}}

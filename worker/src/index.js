@@ -140,6 +140,15 @@ const CATEGORY_LABELS = {
   "meal-prep": "Meal Prep"
 };
 
+// Dedicated pages use their existing public URLs. The other supported categories
+// still appear in the BAM picker, without implying a dedicated program page exists.
+const BAM_PROGRAM_SLUGS = new Set("airbnb auto-commercial-detailing auto-detailing auto-hail-damage auto-mechanic car-sales cell-phone-sales cleaning counseling dog-training dog-walking-pet-sitting garage-door-services gym-sales handyman home-remodeling hvac insurance internet-cable-sales junk-removal lawn-care life-coaching meal-prep moving-services nail-lash-stylist personal-training pest-control pet-grooming roofing solar tax-prep".split(" "));
+const BAM_PROGRAM_ALIASES = {"house-cleaning":"cleaning","landscaping":"lawn-care","life-coach":"life-coaching","personal-trainer":"personal-training","dog-walker":"dog-walking-pet-sitting","moving":"moving-services"};
+const BAM_CATEGORIES = CATEGORIES.map(id=>{
+  const slug=BAM_PROGRAM_ALIASES[id]||id;
+  return {id,label:CATEGORY_LABELS[id],page:BAM_PROGRAM_SLUGS.has(slug)?`/leads/${slug}.html`:null};
+}).sort((a,b)=>a.label.localeCompare(b.label));
+
 const json = (body, status = 200, extraHeaders = {}) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", ...extraHeaders } });
 const clean = (value, max = 2000) => String(value ?? "").trim().slice(0, max);
 const validEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
@@ -1153,7 +1162,7 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if (request.method === "GET" && url.pathname === "/api/health") return json({ ok: true, service: "shedlr-api" });
-    if (url.pathname === "/api/bam-training") return handleBamTraining(request, env, { getAdminSession, hashPassword, verifyPassword });
+    if (url.pathname === "/api/bam-training") return handleBamTraining(request, env, { getAdminSession, hashPassword, verifyPassword }, BAM_CATEGORIES);
 
     if (request.method === "POST" && url.pathname === "/api/events") {
       let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); }
