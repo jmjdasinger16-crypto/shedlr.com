@@ -24,9 +24,11 @@ const lessonBtn = (i,label,cls="primary") => `<button type="button" class="btn $
 const progress = () => `<section class="panel" aria-label="Progress"><p class="eyebrow">Your progress</p><div class="progress-line"><strong>${state.completed.size}/5</strong><span>steps complete</span></div><progress max="5" value="${state.completed.size}" aria-label="Training steps complete"></progress><p class="muted">Your first win is a qualified conversation with a clear next step.</p></section>`;
 const currentMarket = () => state.answers[0]?.industry&&state.answers[0]?.city?`${state.answers[0].industry} · ${state.answers[0].city}`:"";
 const activeCategory = () => state.categories?.find(c=>c.label.toLowerCase()===String(state.answers[0]?.industry||"").toLowerCase());
+const searchAudience = (category, label) => category?.audience || `${label.toLowerCase()} businesses`;
 const searchLinks = () => {
   if(!currentMarket())return lessonBtn(0,"Choose a niche and city","secondary");
-  const q=encodeURIComponent(`${state.answers[0].industry} businesses in ${state.answers[0].city}`);
+  const c=activeCategory();
+  const q=encodeURIComponent(`${searchAudience(c,state.answers[0].industry)} in ${state.answers[0].city}`);
   return `<a class="btn secondary" href="https://www.google.com/search?q=${q}" target="_blank" rel="noopener noreferrer">Search Google ↗</a>
           <a class="btn secondary" href="https://www.google.com/maps/search/?api=1&amp;query=${q}" target="_blank" rel="noopener noreferrer">Search Google Maps ↗</a>`;
 };
@@ -60,23 +62,34 @@ const scripts = {
   "hvac":["take an A/C service call","A homeowner’s A/C runs but isn’t cooling and they want a diagnostic visit."],
   "moving":["help with a local move","A resident is moving from a two-bedroom apartment to a nearby house and needs a crew and truck."]
 };
+function marketOptions(categories, selected) {
+  const groups = new Map();
+  for (const item of categories) {
+    const group = item.group || "";
+    if (!groups.has(group)) groups.set(group, []);
+    groups.get(group).push(`<option${item===selected?" selected":""}>${esc(item.label)}</option>`);
+  }
+  return Array.from(groups, ([label, options]) =>
+    label ? `<optgroup label="${esc(label)}">${options.join("")}</optgroup>` : options.join("")
+  ).join("");
+}
 const copyBox=(id,title,value,label="Copy text")=>`<div class="note script-box"><label for="${id}"><strong>${title}</strong></label><textarea id="${id}" rows="${value.split("\n").length>4?9:4}" readonly>${esc(value)}</textarea><div class="actions">${btn("copy-script",label,`data-target="${id}"`)}</div><p class="message" id="${id}-feedback" role="status"></p></div>`;
 const workflowDone=answers=>new Set(Object.keys(answers).map(Number).filter(i=>i===0||answers[i]?.workflow===2));
 const linkedBusinesses=()=> (state.rows||[]).filter(r=>!r.archived&&["Link sent","Signed up"].includes(r.status));
 const followupCandidates=()=>linkedBusinesses().filter(r=>r.status==="Link sent"&&r.last_link&&r.market.startsWith(`${activeCategory()?.label} · `)&&(!r.last_followup||r.last_followup<r.last_link));
 function lesson(){
   const i=state.lesson,l=lessons[i],a=state.answers[0]||{},c=activeCategory(),done=state.completed.has(i);
-  const niche=c?.label||a.industry||"your service",city=a.city||"your city";
-  const [service,scenario]=scripts[c?.id]||[`take on ${niche.toLowerCase()} work`,`Jim is looking for a local ${niche.toLowerCase()} provider, wants a clear quote, and hopes to get started within two weeks.`];
+  const niche=c?.label||a.industry||"your service",city=a.city||"your city",audience=searchAudience(c,niche);
+  const [service,scenario]=c?.service&&c?.example?[c.service,c.example]:scripts[c?.id]||[`take on ${niche.toLowerCase()} work`,`Jim is looking for a local ${niche.toLowerCase()} provider, wants a clear quote, and hopes to get started within two weeks.`];
   const name=String(state.user?.name||"").trim().split(/\s+/)[0]||"[your name]";
   const phoneField='<label>Business phone<input name="phone" type="tel" autocomplete="tel" required maxlength="40" placeholder="Public business number"></label>';
   let content;
   if(i===0){
-    content=`<form id="lesson-form" class="labels"><label for="industry">Shedlr category<select id="industry" name="industry" required><option value="">Choose from ${state.categories?.length||0} categories</option>${(state.categories||[]).map(item=>`<option ${item===c?"selected":""}>${esc(item.label)}</option>`).join("")}</select></label>
+    content=`<form id="lesson-form" class="labels"><label for="industry">Shedlr category<select id="industry" name="industry" required><option value="">Choose from ${state.categories?.length||0} categories</option>${marketOptions(state.categories||[],c)}</select></label>
       ${!state.categories?.length?'<p class="error">Category picker unavailable. Deploy the updated BAM Worker.</p>':""}
       <label for="city">City and state<input id="city" name="city" required maxlength="80" placeholder="Dallas, TX" value="${esc(a.city)}"></label><div class="actions"><button class="btn primary">Save market</button></div></form>
-      ${c&&a.city?`${copyBox("google-query","Google search",`small independent ${niche.toLowerCase()} businesses in ${city}`,"Copy Google search")}
-      ${copyBox("ai-query","AI research prompt",`Find 10 small independent ${niche.toLowerCase()} businesses serving ${city}. Use the businesses’ own websites or official pages. Return business name, city, public business phone, and the source URL in a table. Exclude chains, duplicate listings, and businesses that do not clearly offer the service. Do not guess missing details.`,"Copy AI prompt")}<div class="actions">${searchLinks()}</div>`:""}`;
+      ${c&&a.city?`${copyBox("google-query","Google search",`small independent ${audience} in ${city}`,"Copy Google search")}
+      ${copyBox("ai-query","AI research prompt",`Find 10 small independent ${audience} serving ${city}. Use the businesses’ own websites or official pages. Return business name, city, public business phone, and the source URL in a table. Exclude chains, duplicate listings, and businesses that do not clearly offer the service. Do not guess missing details.`,"Copy AI prompt")}<div class="actions">${searchLinks()}${c.page?`<a class="btn secondary" href="${esc(c.page)}" target="_blank" rel="noopener noreferrer">View program page ↗</a>`:""}</div>`:""}`;
   }else if(!c||!a.city){
     content=`<p>Save a supported category and city to generate your scripts.</p>${lessonBtn(0,"Choose my niche and city")}`;
   }else if(i===1){

@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "start": "node server.js",
-    "test": "node --test"
+    "build:programs": "node scripts/build-service-programs.mjs",
+    "test": "node scripts/build-service-programs.mjs --check && node --test"
   },
   "engines": {
     "node": ">=20"

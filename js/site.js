@@ -45,8 +45,11 @@ track('page_view', { title: document.title, referrer: document.referrer || '' })
   const type = params.get('type');
   const catSelect = document.getElementById('category');
   const typeSelect = document.getElementById('leadType');
-  if (cat && catSelect && catSelect.querySelector(`option[value="${cat}"]`)) catSelect.value = cat;
-  if (type && typeSelect && typeSelect.querySelector(`option[value="${type}"]`)) typeSelect.value = type;
+  if (cat && catSelect) {
+    const option = Array.from(catSelect.options).find(option => option.value === cat || option.dataset.alias === cat);
+    if (option) catSelect.value = option.value;
+  }
+  if (type && typeSelect && Array.from(typeSelect.options).some(option => option.value === type)) typeSelect.value = type;
 })();
 
 /* ── Service-area availability check ── */

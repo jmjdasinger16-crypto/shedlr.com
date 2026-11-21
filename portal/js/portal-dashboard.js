@@ -3,38 +3,7 @@ const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&':
 const fmt = (value) => value ? new Date(value).toLocaleString() : '—';
 const fmtMoney = (cents) => `$${(Number(cents || 0) / 100).toFixed(2)}`;
 
-const CATEGORY_LABELS = {
-  "personal-trainer": "Personal Trainer", "life-coach": "Life Coach", "maintenance": "Maintenance",
-  "dog-walker": "Dog Walker", "pet-grooming": "Pet Grooming", "dog-training": "Dog Training", "house-cleaning": "House Cleaning", "landscaping": "Landscaping",
-  "tutoring": "Tutoring", "photography": "Photography", "handyman": "Handyman",
-  "moving": "Moving Services", "catering": "Catering", "event-planning": "Event Planning",
-  "roofing": "Roofing",
-  "auto-hail-damage": "Auto Hail Damage",
-  "home-services": "Home Services",
-  "hvac": "HVAC",
-  "plumbing": "Plumbing",
-  "garage-door-services": "Garage Door Services",
-  "auto-mechanic": "Auto Mechanic / Auto Repair",
-  "real-estate": "Real Estate",
-  "counseling": "Counseling",
-  "mental-health-clinician": "Mental Health Clinician",
-  "home-insurance": "Home Insurance",
-  "vehicle-insurance": "Vehicle Insurance",
-  "car-sales": "Car Sales",
-  "cell-phone-sales": "Cell Phone Sales",
-  "internet-cable-sales": "Internet & Cable Sales",
-  "pest-control": "Pest Control",
-  "tax-prep": "Tax Preparation",
-  "solar": "Solar",
-  "gym-sales": "Gym Membership Sales",
-  "home-remodeling": "Home Remodeling",
-  "nail-lash-stylist": "Nail & Lash Stylists",
-  "junk-removal": "Junk Removal",
-  "auto-detailing": "Auto Detailing",
-  "auto-commercial-detailing": "Fleet & Commercial Detailing",
-  "insurance": "Insurance (general)",
-  "meal-prep": "Meal Prep"
-};
+const CATEGORY_LABELS = window.SHEDLR_CATEGORY_LABELS;
 const catLabel = (c) => CATEGORY_LABELS[c] || c || '—';
 
 async function api(path, options = {}) {
