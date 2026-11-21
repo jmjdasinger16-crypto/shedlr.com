@@ -66,6 +66,26 @@ function loadLessonView() {
   return view;
 }
 
+test("Step 3 keeps category examples, checks next-week availability and asks before texting the link", async () => {
+  const { bamCategories } = await import("../worker/src/category-programs.mjs");
+  const view = loadLessonView();
+  view.bamCategories = bamCategories;
+  runInContext('state.user={name:"Patrick Example"};state.lesson=2;state.categories=bamCategories;', view);
+  for (const { id, label } of bamCategories) {
+    view.label = label;
+    const html = runInContext('state.answers[0]={industry:label,city:"Dallas"};lesson()', view);
+    const text = html.match(/id="call-script"[^>]*>([^<]*)<\/textarea>/)?.[1];
+    assert.ok(text, `${id}: copyable call flow`);
+    const sections = text.split("\n\n");
+    assert.deepEqual(sections.map(s => s.split(":")[0]), ["OPENER", "QUALIFY", "EXAMPLE", "CLOSE", "IF THEY SAY YES"]);
+    assert.match(sections[0], /I just had a couple questions about your business\.$/);
+    assert.ok(sections[2].includes(playbooks[id].example), `${id}: own example`);
+    assert.match(sections[2], /would next week work better/);
+    assert.match(sections[3], /I’m Patrick with Shedlr.*can I text you our website link\?.*promo code/);
+    assert.match(sections[4], /I’ll text you the link right now/);
+  }
+});
+
 test("Step 4 uses the selected category link, personalized sign-off and separate promo text", async () => {
   const { bamCategories } = await import("../worker/src/category-programs.mjs");
   const view = loadLessonView();

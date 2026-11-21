@@ -88,12 +88,17 @@ function lesson(){
       ${copyBox("intro-text","First text",p.text)}
       <div class="actions">${btn("workflow-done","I’ve gotten my first text response")}</div>`;
   }else if(i===2){
+    const example=`Here’s the kind of request we look to send your way: ${p.example} Would you take something like that? If this week is already full, would next week work better for a request like this?`;
+    const close=`Like I said, I’m ${name} with Shedlr. If those are the kinds of requests you want, can I text you our website link? You can check it out and sign up there if it’s a fit. I’ll send you a promo code as a thank-you for helping us out.`;
+    const send="Thanks, I’ll text you the link right now.";
     content=`<p>Call businesses that replied and are open to talking. Confirm fit before sending a link.</p>
-      ${copyBox("call-script","Phone call flow",`OPENER: Hey, this is ${name} with Shedlr. We texted about ${p.focus} in ${city}. I just had a couple questions about your business.\n\nQUALIFY:\n${p.questions.join("\n")}\n\nEXAMPLE: Say you got a request like this: ${p.example} Would that fit your business?\n\nCLOSE: If those inquiries are a fit, can I send you our Shedlr program page? It’s a paid lead service. You can see how it works and sign up there if it makes sense. I can share a promo code if you’d like.`, "Copy call flow")}
+      ${copyBox("call-script","Phone call flow",`OPENER: Hey, this is ${name} with Shedlr. We texted about ${p.focus} in ${city}. I just had a couple questions about your business.\n\nQUALIFY:\n${p.questions.join("\n")}\n\nEXAMPLE: ${example}\n\nCLOSE: ${close}\n\nIF THEY SAY YES: ${send}`, "Copy call flow")}
       <div class="note"><strong>How the conversation might sound</strong>
-        <p><strong>Rep:</strong> ${esc(p.questions[0])} Suppose this is the request: ${esc(p.example)} Would that fit?</p>
+        <p><strong>Rep:</strong> ${esc(example)}</p>
         <p><strong>Business:</strong> ${esc(p.answer)}</p>
-        <p><strong>Rep:</strong> Thanks, that helps. Can I send the page that explains how we connect you with those inquiries?</p>
+        <p><strong>Rep:</strong> ${esc(close)}</p>
+        <p><strong>Business:</strong> Sure, send it over.</p>
+        <p><strong>Rep:</strong> ${esc(send)}</p>
       </div>
       <div class="actions">${btn("workflow-done","I’ve made a qualifying call")}</div>`;
   }else if(i===3){
