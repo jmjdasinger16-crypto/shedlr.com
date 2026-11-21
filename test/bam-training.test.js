@@ -72,6 +72,8 @@ test("BAM training uses the existing owner session and persists isolated rep wor
   await bam("progress",{},alice,401);
   const signed=(await bam("signin",{email:a,password:repPassword})).cookie;
   const progress=await bam("progress",{},signed);
+  assert.equal(progress.linkGoal.target,50);
+  assert.equal(progress.linkGoal.sent,0);
   assert.equal(Object.keys(progress.answers).length,5);
   assert.equal(progress.categories.length,programs.length);
   assert.equal(new Set(progress.categories.map(c=>c.id)).size,progress.categories.length);
@@ -112,9 +114,20 @@ test("BAM training uses the existing owner session and persists isolated rep wor
   assert.ok((await bam("team",{},owner)).events.some(e=>e.kind==="First text response confirmed"));
   await bam("workflow_step",{step:2},signed);
   await bam("record_link",{business:prospects[0].business,location:"Dallas",phone:"invalid"},signed,400);
-  await bam("record_link",{business:prospects[0].business,location:"Dallas",phone:"806-555-0100"},signed);
+  const record={business:prospects[0].business,location:"Dallas",phone:"806-555-0100"};
+  assert.equal((await bam("record_link",record,signed)).linkGoal.sent,1);
+  assert.equal((await bam("record_link",record,signed)).linkGoal.sent,1);
+  assert.equal((await bam("record_link",{...record,business:"Same company, alternate listing",location:"Plano",phone:"+1 (806) 555-0100"},signed)).linkGoal.sent,1);
+  assert.equal((await bam("daily_link_goal",{},bob)).linkGoal.sent,0);
+  assert.equal((await bam("daily_link_goal",{},null,401)).linkGoal,undefined);
+  const ownerDaily=await bam("team",{},owner);
+  assert.equal(ownerDaily.dailyLinkTarget,50);
+  assert.equal(ownerDaily.reps.find(r=>r.email===a).daily_links,1);
+  assert.equal(ownerDaily.reps.find(r=>r.email===b).daily_links,0);
   const linked=(await bam("hitlist",{},signed)).rows.filter(r=>r.business===prospects[0].business);
   assert.equal(linked.length,1);assert.equal(linked[0].status,"Link sent");assert.ok(linked[0].last_link);
+  await bam("log_outreach",{id:linked[0].id,channel:"followup"},signed);
+  assert.equal((await bam("daily_link_goal",{},signed)).linkGoal.sent,1);
   await bam("workflow_step",{step:4,id:linked[0].id,verified:true},bob,409);
   await bam("workflow_step",{step:4,sent:true},null,401);
   const bobRowsBeforeHandoff=(await bam("hitlist",{},bob)).rows;
@@ -133,6 +146,9 @@ test("BAM training uses the existing owner session and persists isolated rep wor
   assert.equal((await bam("progress",{},bob)).answers[0].industry,"Irrigation & Sprinklers");
   await bam("record_link",{business:"Example Sprinkler Company",location:"Dallas, TX",phone:"806-555-0101"},bob);
   assert.ok((await bam("hitlist",{},bob)).rows.some(r=>r.market==="Irrigation & Sprinklers · Dallas, TX"));
+  const bobId=ownerDaily.reps.find(r=>r.email===b).id;
+  await db.prepare("UPDATE bam_training_events SET happened_at=? WHERE rep_id=? AND kind='Program link sent'").bind("2000-01-01T00:00:00.000Z",bobId).run();
+  assert.equal((await bam("daily_link_goal",{},bob)).linkGoal.sent,0);
 
   const sampleOrder={name:"Local Test",email:"orders@example.com",phone:"806-555-0102",company:"Test Company",lead_type:"raw-leads"};
   for(const category of ["fencing","irrigation","flooring","plumbing","home-remodeling","home-services","house-cleaning"]){

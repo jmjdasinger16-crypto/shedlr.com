@@ -24,6 +24,16 @@ const head = (eyebrow,title,sub) => `<div class="intro"><div><p class="eyebrow">
 const navBtn = (view,label,cls="secondary") => `<button type="button" class="btn ${cls}" data-view="${view}">${label}</button>`;
 const lessonBtn = (i,label,cls="primary") => `<button type="button" class="btn ${cls}" data-lesson="${i}">${label}</button>`;
 const progress = () => `<section class="panel" aria-label="Progress"><p class="eyebrow">Your progress</p><div class="progress-line"><strong>${state.completed.size}/5</strong><span>steps complete</span></div><progress max="5" value="${state.completed.size}" aria-label="Training steps complete"></progress><p class="muted">Your first win is a qualified conversation with a clear next step.</p></section>`;
+const dailyLinkGoal = (home=false) => {
+  const goal=state.linkGoal, sent=goal?.sent, target=goal?.target||50;
+  return `<section class="${home?"panel":"note"}" aria-label="Daily link goal" data-link-goal="${home?"home":"step"}">
+    <p class="eyebrow">Daily minimum · Central time</p><h2>${target} links sent</h2>
+    ${Number.isSafeInteger(sent)&&sent>=0?`<div class="progress-line"><strong>${sent}/${target}</strong><span>businesses logged today</span></div>
+      <progress max="${target}" value="${Math.min(sent,target)}" aria-label="Daily links sent"></progress>
+      <p class="${sent>=target?"success":"muted"}">${sent>=target?"Daily target reached. Keep logging qualified sends.":`${target-sent} more to reach today’s target.`}</p>`:'<p class="muted">Today’s count is unavailable. You can still log links in Step 4.</p>'}
+    <p>Count one per business per day after they agree to receive the link and you send it. Declines and follow-ups don’t count.</p>
+    <div class="actions">${home?lessonBtn(3,"Log a link sent","secondary"):'<a class="btn secondary" href="#link-record-form">Jump to link log</a>'}</div></section>`;
+};
 const currentMarket = () => state.answers[0]?.industry&&state.answers[0]?.city?`${state.answers[0].industry} · ${state.answers[0].city}`:"";
 const activeCategory = () => state.categories?.find(c=>c.label.toLowerCase()===String(state.answers[0]?.industry||"").toLowerCase());
 const playbookFor = (category) => window.SHEDLR_BAM_PLAYBOOKS?.[category?.id];
@@ -44,6 +54,7 @@ function home(){
         <p>${next?.desc ?? "Review due follow-ups, contact the next business, or add prospects to your market."}</p>
         ${next ? lessonBtn(i,`${i===0?"Choose my market":"Continue setup"} <span aria-hidden="true">→</span>`,"gold") : navBtn("hitlist","Work my Hitlist","gold")}
       </section>
+      ${dailyLinkGoal(true)}
       <section><div class="section-head"><h2>Fast Start</h2><span>5 practical steps</span></div>
       <ol class="roadmap">${lessons.map((l,n)=>{
         const d=state.completed.has(n), here=n===i;
@@ -100,13 +111,13 @@ function lesson(){
       </div>
       <div class="actions">${btn("workflow-done","I’ve made a qualifying call")}</div>`;
   }else if(i===3){
-    content=`<p>Send the program link after the business agrees to receive it. Use your approved number so they can text you back directly.</p>
+    content=`${dailyLinkGoal()}<p>Send the program link after the business agrees to receive it. Use your approved number so they can text you back directly.</p>
       ${page?copyBox("send-link","Landing-page text",`Here’s the link:\nhttps://shedlr.com${page}\n\nIt’s month to month with no long-term commitment. Just enter your business info to sign up. Let me know when you’re ready and I’ll send you the promo code as a thank-you for helping us out. It’ll help lower the cost of getting started.\n\nOnce you’re signed up, I’ll get our Lead Acquisition team set up to send you matching client inquiries. Looking forward to working with you!\n\nIt’s ${name} again. If you need anything, you can text me right here.`):'<p class="error">The program link is unavailable for this category. Ask the owner for the approved link.</p>'}
       ${copyBox("promo-text","When they ask for the code",`Use ${promo.code} at checkout for the ${promo.price} offer.`)}
       ${copyBox("followup-text","Follow-up after about two hours",`Hey, following up on the Shedlr link. ${p.nudge} Happy to answer questions or send the promo code.`)}
       <p class="muted">Follow up once if they agreed to hear from you and haven’t replied after about two hours. Stop if they decline or opt out. Nothing sends automatically.</p>
       ${followupCandidates().length?`<div class="note"><strong>Check for replies</strong>${followupCandidates().slice(0,12).map(r=>{const due=new Date(Date.parse(r.last_link)+7200000);return `<div class="mini-item">${esc(r.business)} · ${due.getTime()<=Date.now()?"Review now if no reply":`Review at ${esc(date(due))}`}${due.getTime()<=Date.now()?` <button type="button" class="btn secondary" data-action="log-outreach" data-id="${r.id}" data-channel="followup">Log follow-up sent</button>`:""}</div>`;}).join("")}</div>`:""}
-      <form id="link-record-form" class="labels"><h2>Log a link you sent</h2><label>Business name<input name="business" required maxlength="140"></label><label>Business location<input name="location" required maxlength="${120-niche.length-3}" placeholder="${esc(city)}"></label>${phoneField}<div class="actions"><button class="btn primary">Record link sent</button>${navBtn("hitlist","Open Hitlist")}</div></form>`;
+      <form id="link-record-form" class="labels"><h2>Log a link you sent</h2><p class="muted">Log it only after you’ve sent the link to a business that agreed to receive it.</p><label>Business name<input name="business" required maxlength="140"></label><label>Business location<input name="location" required maxlength="${120-niche.length-3}" placeholder="${esc(city)}"></label>${phoneField}<div class="actions"><button class="btn primary">Record link sent</button>${navBtn("hitlist","Open Hitlist")}</div></form>`;
   }else{
     content=`<div class="note"><strong>Send one email to both</strong><p>${handoffRecipients.join("<br>")}</p>
       <strong>Include these three details</strong><ul><li>Business name</li><li>Industry</li><li>Jobs discussed</li></ul></div>
@@ -167,7 +178,15 @@ async function api(action, values={}){
 }
 async function loadRep(){
   const d=await api("progress");
-  Object.assign(state,{user:d.user,answers:d.answers,completed:workflowDone(d.answers),plan:d.plan,checks:d.plan?.checks||[],blocker:d.blocker,categories:d.categories,view:"home",rows:[],editing:null,hitFilter:"all"});
+  Object.assign(state,{user:d.user,answers:d.answers,completed:workflowDone(d.answers),plan:d.plan,checks:d.plan?.checks||[],blocker:d.blocker,categories:d.categories,linkGoal:d.linkGoal,view:"home",rows:[],editing:null,hitFilter:"all"});
+}
+const expiredGoal=()=>state.linkGoal&&Date.parse(state.linkGoal.endsAt)<=Date.now();
+async function refreshExpiredGoal(){
+  if(!expiredGoal())return;
+  try{state.linkGoal=(await api("daily_link_goal")).linkGoal;}
+  catch(e){state.linkGoal=null;if(e.status===401)throw e;}
+  const section=main.querySelector("[data-link-goal]");
+  if(section)section.outerHTML=dailyLinkGoal(section.dataset.linkGoal==="home");
 }
 function authView(){
   const join=state.view==="join";
@@ -210,8 +229,8 @@ function team(){
     <form id="invite-form" class="labels"><div class="fields"><label>Name<input name="name" required maxlength="100"></label><label>Email<input name="email" type="email" required maxlength="254"></label></div><div class="actions"><button class="btn primary">Create invite</button></div></form>${feedback}
     ${state.invite?`<div class="note"><strong>One-time code for ${esc(state.invite.email)}</strong><code>${esc(state.invite.code)}</code><p>Expires in seven days. Send the code with the <a href="/bam-training">BAM sign-in page</a> and ask the rep to choose “Use an invite or reset code.”</p>${btn("copy-code","Copy code")}</div>`:""}</section>
     <section class="panel"><div class="section-head"><h2>Team roster</h2>${btn("refresh-team","Refresh")}</div>
-    <div class="table-scroll" tabindex="0" role="region" aria-label="BAM team roster"><table><thead><tr>${["BAM","Access","Checkpoints","Sign-ins","Last sign-in","Last activity","Hitlist","Coaching blocker","Actions"].map(s=>`<th scope="col">${s}</th>`).join("")}</tr></thead>
-    <tbody>${d.reps.map(r=>`<tr><th scope="row">${esc(r.name)}<br><small>${esc(r.email)}</small></th><td>${r.active?"Active":"Disabled"}</td><td>${r.completed}/5</td><td>${r.logins}</td><td>${esc(date(r.last_login_at))}</td><td>${esc(date(r.last_activity))}</td><td>${r.businesses}</td><td>${esc(r.blocker||"None")}</td><td>${btn("team-hit", "View Hitlist",`data-id="${r.id}"`)}${r.active?btn("reset", "Reset access",`data-id="${r.id}"`):""}${btn("account",r.active?"Disable":"Enable",`data-id="${r.id}"`)}</td></tr>`).join("")||'<tr><td colspan="9">No BAMs have activated their accounts yet.</td></tr>'}</tbody></table></div></section>
+    <div class="table-scroll" tabindex="0" role="region" aria-label="BAM team roster"><table><thead><tr>${["BAM","Access","Checkpoints","Links today (CT)","Sign-ins","Last sign-in","Last activity","Hitlist","Coaching blocker","Actions"].map(s=>`<th scope="col">${s}</th>`).join("")}</tr></thead>
+    <tbody>${d.reps.map(r=>`<tr><th scope="row">${esc(r.name)}<br><small>${esc(r.email)}</small></th><td>${r.active?"Active":"Disabled"}</td><td>${r.completed}/5</td><td>${Number.isSafeInteger(r.daily_links)?`${r.daily_links}/${d.dailyLinkTarget||50}`:"Not available"}</td><td>${r.logins}</td><td>${esc(date(r.last_login_at))}</td><td>${esc(date(r.last_activity))}</td><td>${r.businesses}</td><td>${esc(r.blocker||"None")}</td><td>${btn("team-hit", "View Hitlist",`data-id="${r.id}"`)}${r.active?btn("reset", "Reset access",`data-id="${r.id}"`):""}${btn("account",r.active?"Disable":"Enable",`data-id="${r.id}"`)}</td></tr>`).join("")||'<tr><td colspan="10">No BAMs have activated their accounts yet.</td></tr>'}</tbody></table></div></section>
     ${state.teamRows?`<section class="panel" id="team-hit"><h2>${esc(state.teamRows.name)}’s Hitlist</h2>${table(state.teamRows.rows)}</section>`:""}
     <section class="panel"><h2>Recent activity</h2>${d.events.map(e=>`<div class="mini-item"><strong>${esc(e.name)}</strong> · ${esc(e.kind)}${e.detail?` (${esc(e.detail)})`:""} <span class="meta">${esc(date(e.happened_at))}</span></div>`).join("")||"<p>No training activity yet.</p>"}</section></div>`:`<section class="panel"><h2>Team view unavailable</h2><p class="error">${esc(state.teamError)}</p>${btn("refresh-team","Try again")}</section>`);
 }
@@ -295,10 +314,10 @@ document.addEventListener("click",(event)=>{
     }
     if(button.dataset.lesson!==undefined){
       const step=Number(button.dataset.lesson);
-      if(step===3)await loadRows();
+      if(step===3)await Promise.all([loadRows(),refreshExpiredGoal()]);
       state.view="lesson";state.lesson=step;
     }
-    else if(button.dataset.view){if(button.dataset.view==="hitlist")await loadRows();state.view=button.dataset.view;}
+    else if(button.dataset.view){if(button.dataset.view==="hitlist")await loadRows();if(button.dataset.view==="home")await refreshExpiredGoal();state.view=button.dataset.view;}
     render(true);
   });
 });
@@ -321,7 +340,9 @@ main.addEventListener("submit",(event)=>{
     await api("complete",{lesson:0,answers:values});
     state.answers[0]=values;state.completed.add(0);render();msg("Market saved. Your search prompts are ready.");
   } else if(form.id==="link-record-form"){
-    await api("record_link",values);await loadRows();state.completed.add(3);render();msg("Business saved as Link sent.");
+    const {linkGoal}=await api("record_link",values);
+    state.linkGoal=linkGoal;state.completed.add(3);
+    await loadRows();render();msg("Business saved as Link sent.");
   } else if(form.id==="plan-form"){
     if(!values.market||!values.goal||!values.next){const m=document.querySelector("#message");m.className="message error";m.textContent="Enter a market, a goal, and a next action.";return;}
     const checks=fd.getAll("task");await api("gameplan",{...values,checks});
@@ -332,6 +353,8 @@ main.addEventListener("submit",(event)=>{
   }
   });
 });
+window.addEventListener?.("focus",()=>{if(state.user&&expiredGoal())void run(refreshExpiredGoal);});
+window.setInterval?.(()=>{if(state.user&&!document.hidden&&expiredGoal())void run(refreshExpiredGoal);},60000);
 void run(async()=>{
   if(teamMode){await loadTeam();render();return;}
   try{await loadRep();render();}catch(e){state.view="signin";render();if(e.status!==401)msg(e.message,true);}
