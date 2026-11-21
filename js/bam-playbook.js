@@ -8,7 +8,7 @@
     // Home services
     "appliance-repair": [
       "independent appliance repair washer dryer service", "Companies that repair major appliances in the home; skip parts stores and warranty-only dispatchers.",
-      "Are you taking new service calls for washers that won’t drain this week?", "in-home washer repair inquiries",
+      "Hey, do you have any openings to look at a washer that won’t drain?", "in-home washer repair inquiries",
       "Which brands do you service?|Do you take stacked units or only freestanding machines?|What are your diagnostic fee and next available visit?",
       "A front-load washer stops before the spin cycle and leaves water in the drum. The owner can send the model number and has space around the machine.",
       "We can look at a freestanding unit Thursday. Send the model first so we can confirm we service that brand.",
@@ -16,7 +16,7 @@
       "Appliance types and brands, stacked-unit policy, diagnostic fee, service ZIPs and first available appointment."],
     "electrical": [
       "licensed residential electrician EV charger installation panel assessment", "Residential electrical contractors that advertise EV charger or panel work; skip charger retailers and commercial-only contractors.",
-      "Could you fit in a quote for a home EV charger installation this week?", "residential EV charger installation inquiries",
+      "Hey, do you have time this week to quote a home EV charger install?", "residential EV charger installation inquiries",
       "Do you install customer-supplied chargers?|When do you need a panel or load assessment before you quote?|Which ZIP codes do you cover for site visits?",
       "A homeowner wants a Level 2 charger in an attached garage. The panel is on the opposite side of the garage, and the owner doesn’t know whether it has capacity.",
       "We can assess the panel first. Ask for a panel photo and the charger model, but don’t quote the circuit over the phone.",
@@ -24,7 +24,7 @@
       "Charger brands, customer-supplied equipment policy, panel assessment process, service ZIPs and estimate availability."],
     "garage-door-services": [
       "local garage door repair torsion spring opener service", "Independent companies offering garage door repair visits; skip door wholesalers and new-build-only installers.",
-      "Do you have room for a garage door repair call if the door won’t open?", "garage door and opener repair inquiries",
+      "Hey, can you fit in a repair for a garage door that won’t open?", "garage door and opener repair inquiries",
       "Do you take spring repairs as well as opener calls?|What door types or opener brands do you handle?|How quickly can you dispatch if a car is stuck inside?",
       "A double garage door rises a few inches and stops. The homeowner has a car inside and wants a diagnosis and repair estimate.",
       "We carry common spring sizes, but need a door photo and ZIP code before offering a time window.",
@@ -32,7 +32,7 @@
       "Door sizes, spring and opener capabilities, brands, travel radius, urgent-call availability and dispatch number."],
     "handyman": [
       "local handyman small repair punch list drywall door hardware", "Owner-operated handyman services showing small repairs and punch lists; skip general contractors with large-project minimums.",
-      "Could you fit in a short punch list, like adjusting a sticking door and patching a wall?", "handyman punch-list inquiries",
+      "Hey, do you have time to fix a sticking door and patch a wall?", "handyman punch-list inquiries",
       "What small jobs can you combine in one visit?|Do you have a minimum visit charge or time block?|What work should we route to a different trade?",
       "A homeowner has a sticking bedroom door, two drywall holes and a loose towel bar. They want one visit and can send photos of all three items.",
       "I can handle all three in a half-day slot if the door just needs adjustment. I don’t take plumbing or wiring.",
@@ -40,7 +40,7 @@
       "Minimum visit or time block, accepted repairs, trade exclusions, photo requirements and service ZIPs."],
     "home-services": [
       "local multi-trade home repair company property upkeep installations", "Businesses that list several home repair and installation services; skip directories and companies that advertise just one trade.",
-      "Are you taking multi-item home repair visits, or do you prefer one service per call?", "multi-service home repair inquiries",
+      "Hey, can you handle a few small house repairs in one visit?", "multi-service home repair inquiries",
       "Which service lines do you handle in-house?|Do you group several repairs under one estimate?|What’s the smallest visit you’ll book?",
       "A homeowner wants a screen door adjusted and the caulking around two exterior windows redone. They’d prefer one visit and can send a list in advance.",
       "We handle both in-house. We’ll need photos of the windows and the height so we can decide who to send.",
@@ -48,7 +48,7 @@
       "In-house services, bundled visit rules, minimum charge, common exclusions and intake contact."],
     "house-cleaning": [
       "local residential cleaning move-out deep clean independent company", "Residential cleaning teams that show move-out or deep cleans; skip janitorial-only companies and hiring pages.",
-      "Could your team take a move-out clean for an empty apartment this week?", "move-out and deep-clean inquiries",
+      "Hey, can you fit in an apartment move-out clean this week?", "move-out and deep-clean inquiries",
       "Do you offer move-out cleans for empty units?|Are ovens, refrigerators and cabinet interiors included or add-ons?|What details do you need for an accurate quote?",
       "A renter turns in the keys Monday. Their empty two-bedroom apartment needs floors, bathrooms, the oven and refrigerator cleaned before the final walkthrough.",
       "We can quote a two-bedroom. Fridge and oven interiors are add-ons, so list those up front.",
@@ -56,7 +56,7 @@
       "Cleaning types, add-ons and exclusions, quote inputs, service ZIPs and available windows."],
     "hvac": [
       "independent residential HVAC no cooling AC repair service", "Residential HVAC shops offering diagnostics and repair; skip equipment suppliers and commercial-only service.",
-      "Are you taking residential A/C diagnostic calls this week for systems that run but don’t cool?", "residential A/C diagnostic inquiries",
+      "Hey, can you look at an A/C that’s running but not cooling?", "residential A/C diagnostic inquiries",
       "Do you take no-cooling calls, tune-ups, or replacement estimates?|Which system types do you service?|What’s your diagnostic window and fee?",
       "The thermostat is set to 72, but the house stays near 80 by afternoon. The outdoor unit runs, and the owner wants a diagnostic visit before discussing replacement.",
       "We can diagnose a central split system. Ask whether it’s cooling at all and get the ZIP before offering a slot.",
@@ -64,7 +64,7 @@
       "System types, repair versus replacement preferences, diagnostic fee, service ZIPs and dispatch availability."],
     "junk-removal": [
       "local junk removal shed demolition debris haul away independent", "Haulers that list shed, construction or bulky debris; skip dumpster-only providers if the crew needs to load.",
-      "Do you have room this week for a pickup of debris from an already-demolished shed?", "shed debris and bulky haul-off inquiries",
+      "Hey, do you guys have availability to remove a demolished shed this week?", "shed debris and bulky haul-off inquiries",
       "Do you take construction debris as well as household junk?|Do you quote from photos, volume, or a site visit?|What materials or access conditions would rule out a pickup?",
       "Jim Stanly has a demolished 10×12 shed in the backyard. He wants wood, roofing and fasteners hauled off before rebuilding; the side gate is about four feet wide.",
       "We can price from photos if there’s no concrete, hazardous material or oversized piece we can’t get through the gate.",
@@ -72,7 +72,7 @@
       "Accepted debris, crew loading, access limits, pricing method, photos needed and disposal exclusions."],
     "maintenance": [
       "property maintenance rental turnover vendor local property managers", "Independent property maintenance vendors that serve landlords; skip management-only firms that don’t perform maintenance.",
-      "Are you taking rental turnover punch lists from property managers this month?", "rental turnover and maintenance inquiries",
+      "Hey, do you have room this month for a few repairs between tenants?", "rental turnover and maintenance inquiries",
       "Do you take vacant-unit turns, recurring inspections, or both?|Can your crew handle lockbox access and send completion photos?|What work needs a separate trade or approval?",
       "A manager has a vacant duplex unit. They need two locks rekeyed, a cabinet hinge fixed and completion photos before new renters move in.",
       "We can work from a lockbox and photo checklist. Any extra work above the approved amount needs the manager’s sign-off.",
@@ -80,7 +80,7 @@
       "Property types, recurring versus turnovers, access, photo reporting, approval limits and service radius."],
     "moving": [
       "independent local residential movers licensed two bedroom apartment stairs", "Residential movers with crews and trucks for local moves; skip brokers, labor-only crews and truck rental companies unless they match the market.",
-      "Do you have a crew and truck available for a local two-bedroom apartment move this month?", "local apartment moving inquiries",
+      "Hey, do you have a crew free this month for a local two-bedroom move?", "local apartment moving inquiries",
       "What move sizes and distances do you handle?|How do stairs, elevators or long carries affect the estimate?|What dates and arrival windows can you usually cover?",
       "A renter is moving a two-bedroom apartment to a house eight miles away. The pickup has one flight of stairs and no elevator; boxes will be packed.",
       "We can send a two-person crew if the inventory is standard. Photos of the stairs and parking help us quote the carry.",
@@ -88,7 +88,7 @@
       "Move range, minimum hours, crew and truck capacity, stairs and access charges, dates and quote process."],
     "pest-control": [
       "independent residential pest control ant rodent inspection local", "Residential pest companies that list treatment or prevention services; skip retail product sellers and wildlife-only specialists.",
-      "Are you taking new residential pest inspections for recurring ants this week?", "residential pest inspection inquiries",
+      "Hey, do you have any openings this week to look at an ant problem?", "residential pest inspection inquiries",
       "Which pests do you treat in-house?|Do you offer one-time treatment, recurring plans, or both?|What pets, access or prep details should the customer share before a visit?",
       "A homeowner keeps finding ants along the kitchen baseboard after cleaning. They have a dog and want the entry points checked and a treatment plan explained.",
       "We can inspect the kitchen and exterior. Have them mention the dog so we can explain any prep before booking.",
@@ -96,7 +96,7 @@
       "Target pests, one-time versus recurring service, prep and pet notes, ZIPs and appointment lead time."],
     "plumbing": [
       "local residential plumber leaking tank water heater repair replacement", "Plumbing companies that show residential service and tank water heater work; skip supplies and commercial-only shops.",
-      "Could you fit in a visit for a residential tank water heater that’s leaking near the base?", "water heater leak and replacement inquiries",
+      "Hey, do you have an opening to look at a leaking water heater?", "water heater leak and replacement inquiries",
       "Do you repair and replace tank heaters, and do you service gas and electric?|What photos or model details help before dispatch?|Do you have urgent appointments or only scheduled estimates?",
       "A homeowner finds a small puddle beside a 50-gallon gas water heater in the garage. They want the source identified and repair or replacement options.",
       "We handle gas tanks. Ask for a photo of the model plate and the area around the tank, then send us the ZIP.",
@@ -104,7 +104,7 @@
       "Heater types, repair or replacement scope, photos, diagnostic charges, urgent slots and ZIP coverage."],
     "pool-service": [
       "independent weekly pool cleaning in-ground pool equipment diagnostics", "Residential pool maintenance companies with recurring routes; skip pool builders and pool supply shops.",
-      "Do you have room on your weekly route for another in-ground pool?", "weekly pool maintenance inquiries",
+      "Hey, do you have room for another pool on your weekly cleaning route?", "weekly pool maintenance inquiries",
       "Which neighborhoods are already on your weekly route?|Do you service saltwater and chlorine pools?|Do you handle equipment diagnostics or only cleaning and chemistry?",
       "A homeowner has an in-ground saltwater pool and wants weekly brushing, skimming and chemistry checks. The pump has also started making noise.",
       "We can add saltwater accounts on our west route. Equipment diagnosis is a separate visit, so list the pump make if they have it.",
@@ -112,7 +112,7 @@
       "Route days and neighborhoods, pool types, maintenance scope, separate equipment visit policy and start dates."],
     "pressure-washing": [
       "independent pressure washing concrete driveway house soft wash local", "Exterior cleaning companies with residential surface examples; skip equipment rental and commercial-only fleet washing.",
-      "Could you fit in a residential driveway and front walkway wash this week?", "driveway and exterior washing inquiries",
+      "Hey, could you pressure wash a driveway and front walk this week?", "driveway and exterior washing inquiries",
       "Which surfaces do you pressure wash versus soft wash?|Is access to a customer water spigot required?|What size, staining or minimum charge should we screen for?",
       "A homeowner wants a two-car concrete drive and walkway washed before listing. The drive has light oil staining and there’s a spigot near the garage.",
       "Those surfaces fit. We can treat the oil but can’t promise it disappears; photos help us give a range.",
@@ -120,7 +120,7 @@
       "Surface types, size minimum, water access, stain limitations, service ZIPs and quote inputs."],
     "water-damage-restoration": [
       "independent water mitigation extraction structural drying stopped leak", "Water mitigation contractors with residential drying capacity; skip carpet-cleaning-only and reconstruction-only businesses.",
-      "Are you accepting new water mitigation calls when the leak has already been shut off?", "post-leak drying and mitigation inquiries",
+      "Hey, how soon could you look at water damage once the leak’s shut off?", "post-leak drying and mitigation inquiries",
       "Do you handle extraction, drying, or reconstruction as well?|How far can you dispatch and what response window can you confirm?|What water source and materials do you need to know before accepting?",
       "A supply line leaked into a hallway and spare room. The water is shut off, but carpet and baseboards are wet and the owner wants drying assessed.",
       "We can assess clean-water losses in that area. Get the affected rooms and when the leak stopped before routing the call.",
@@ -130,7 +130,7 @@
     // Exterior and outdoor trades
     "concrete": [
       "independent concrete flatwork driveway tear out replacement contractor", "Flatwork crews showing residential driveways and patios; skip ready-mix suppliers and slab-foundation-only crews.",
-      "Are you booking estimates for residential driveway tear-outs and new pours?", "concrete driveway replacement inquiries",
+      "Hey, are you giving estimates on tearing out and replacing concrete driveways?", "concrete driveway replacement inquiries",
       "Do you handle demolition and haul-off as well as the pour?|What is your minimum square footage?|What access, grade or finish details do you need before quoting?",
       "A homeowner wants a cracked 20-by-24-foot driveway torn out and replaced with a broom-finish slab. The side access is limited, but trucks can reach the street.",
       "That meets our minimum. We’d want to check the grade and confirm the path for equipment before pricing demolition.",
@@ -138,7 +138,7 @@
       "Minimum pour size, finishes, demolition and haul-off, equipment access, estimate area and lead time."],
     "deck-building": [
       "local deck builder composite replacement stairs rails deck repair", "Deck builders showing composite or wood projects; skip deck staining-only businesses and materials sellers.",
-      "Are you taking estimates for deck rebuilds with new stairs and railings?", "composite deck rebuild inquiries",
+      "Hey, do you have time to look at a deck that needs rebuilding?", "composite deck rebuild inquiries",
       "Do you rebuild framing or only resurface sound decks?|What materials and railing systems do you install?|How do height, stairs and permits affect your estimate process?",
       "A homeowner wants a 12-by-16-foot wood deck rebuilt in composite with a new stair run and railing. The condition of the old framing is unknown.",
       "We can quote the rebuild, but we’d inspect the framing before suggesting any reuse.",
@@ -146,7 +146,7 @@
       "Build versus resurfacing, materials, minimum size, framing inspection, stairs or rails, and project lead time."],
     "exterior-doors": [
       "local exterior door installer sliding patio door frame replacement", "Installers who replace entry or patio doors in existing homes; skip door-only retailers and garage-door shops.",
-      "Could you take an estimate for replacing a sliding patio door and checking the frame?", "sliding patio door replacement inquiries",
+      "Hey, are you available to quote replacing a sliding patio door?", "sliding patio door replacement inquiries",
       "Which exterior door types do you install?|Do you replace the frame or repair the opening if there’s water damage?|Do you measure and supply the unit or install customer-purchased doors?",
       "A six-foot patio slider sticks and lets water in at the threshold. The owner wants the existing frame checked and a replacement option measured.",
       "We supply and install sliders. If there’s rot under the threshold, we’d address that separately after inspecting.",
@@ -154,7 +154,7 @@
       "Door types, supply and measure policy, threshold and frame repair scope, photos and estimate schedule."],
     "fencing": [
       "local fence contractor wood privacy fence replacement gates haul off", "Fence installers showing residential replacements and gates; skip material suppliers and invisible pet-fence companies.",
-      "Do you have room to quote a backyard wood privacy fence with a walk gate?", "wood privacy fence and gate inquiries",
+      "Hey, do you have time to quote a wood privacy fence with a gate?", "wood privacy fence and gate inquiries",
       "What fence materials and minimum footage do you take?|Do you remove and haul off the old fence and posts?|Can you include gates, and what access do you need to measure?",
       "A homeowner wants about 120 linear feet of six-foot cedar privacy fence replaced, with one walk gate and haul-off of the old posts and panels.",
       "We take cedar jobs over 80 feet and handle haul-off. Ask if both sides are accessible and whether the gate can stay in the same spot.",
@@ -162,7 +162,7 @@
       "Materials and footage minimum, gate types, tear-out and haul-off, access, ZIPs and estimate availability."],
     "foundation-repair": [
       "local foundation repair slab pier and beam assessment contractor", "Foundation companies showing residential assessment and repair; skip cosmetic crack sealing and concrete supply companies.",
-      "Are you booking foundation assessments for homes with sticking doors and new wall cracks?", "residential foundation assessment inquiries",
+      "Hey, are you booking foundation inspections for houses with new wall cracks?", "residential foundation assessment inquiries",
       "Do you work on slab foundations, pier-and-beam, or both?|Do you start with an inspection, and is there an assessment fee?|Which photos, access details and property locations are useful before a visit?",
       "A homeowner notices a diagonal drywall crack over a door that started sticking. The house is on a slab, and the owner wants an assessment before deciding on repairs.",
       "We assess slabs in that area. We’d ask when the cracking appeared and inspect on site before recommending anything.",
@@ -170,7 +170,7 @@
       "Foundation types, inspection fee and process, ZIPs, symptoms required for intake and assessment availability."],
     "gutter-services": [
       "local seamless gutter installer repair downspout second story", "Gutter teams that handle repair or new installation; skip roofers that don’t do standalone gutters and cleaning-only services.",
-      "Could you quote replacement of a leaking second-story gutter and downspout?", "gutter replacement and drainage inquiries",
+      "Hey, do you have time to look at a leaking second-story gutter?", "gutter replacement and drainage inquiries",
       "Do you take small sections or only whole-house jobs?|Which gutter profiles and maximum working heights do you handle?|Can you replace downspouts and change where runoff discharges?",
       "A second-story gutter overflows at a seam and the downspout discharges by the foundation. The owner wants one section replaced and runoff redirected.",
       "We can quote a second-story section if ladder access is clear. We’d need photos of the existing profile and discharge area.",
@@ -178,7 +178,7 @@
       "Section versus whole-house minimum, height, gutter profile, downspout scope, photos and service ZIPs."],
     "irrigation": [
       "local lawn sprinkler repair irrigation zone valve controller independent", "Irrigation companies that diagnose existing lawn sprinkler systems; skip landscape crews that only offer mowing.",
-      "Do you have a slot this week to diagnose a lawn sprinkler zone that won’t come on?", "sprinkler zone and controller repair inquiries",
+      "Hey, can you look at a sprinkler zone that won’t turn on?", "sprinkler zone and controller repair inquiries",
       "Do you repair existing systems as well as install them?|Do you handle valves and controllers or just sprinkler heads?|What’s your diagnostic charge and service area?",
       "One sprinkler zone won’t run and a second leaves a wet spot by the driveway. The controller still powers on, and the homeowner can show where the valve boxes are.",
       "We troubleshoot valves and controllers. Have them send the controller brand and tell us how many zones are affected.",
@@ -186,7 +186,7 @@
       "Existing systems versus new work, valves and controllers, zone limits, diagnostic charges, service ZIPs and schedule."],
     "landscaping": [
       "independent residential lawn care recurring mowing edging cleanup", "Local lawn-care crews showing recurring routes and seasonal cleanup; skip irrigation-only and design-only providers.",
-      "Are you adding any weekly mowing and edging customers to your route?", "recurring lawn care and yard cleanup inquiries",
+      "Hey, do you have room on your route for another weekly mowing job?", "recurring lawn care and yard cleanup inquiries",
       "Which neighborhoods can you add to your route?|Do you take weekly, biweekly or one-time service?|Do you handle overgrowth, bagging and haul-off, and what lot sizes fit?",
       "A homeowner wants weekly mowing and edging for a quarter-acre corner lot. The lawn is overgrown now and needs a first-visit cleanup.",
       "We can add weekly visits on Thursdays. Overgrowth and bagging would be priced separately on the first cut.",
@@ -194,7 +194,7 @@
       "Route ZIPs and days, lot minimum/maximum, recurring cadence, cleanup and bagging policy."],
     "pavers-hardscaping": [
       "local paver patio hardscape installer drainage grading retaining walls", "Hardscape installers showing paver work and base prep; skip landscape maintenance crews and stone suppliers.",
-      "Would you take an estimate for a paver patio that needs some slope and drainage work?", "paver patio and grading inquiries",
+      "Hey, are you available to quote a paver patio with some drainage work?", "paver patio and grading inquiries",
       "What patio sizes, paver types and retaining wall scopes fit your crew?|Do you handle excavation, base prep and drainage?|How wide does access need to be for your equipment?",
       "A homeowner wants a 300-square-foot paver patio. The yard slopes toward the house, and access is through a narrow gate.",
       "We can assess the slope and drainage. Gate width determines whether we can use a compact machine or need to price hand work.",
@@ -202,7 +202,7 @@
       "Patio sizes, materials, grading and drainage scope, equipment clearance, ZIPs and project timing."],
     "roofing": [
       "local residential roofer leak inspection asphalt shingle repair replacement", "Residential roofing companies that offer leak or storm inspections; skip shingle retailers and commercial membrane-only contractors.",
-      "Could you fit in a roof inspection for a homeowner who noticed a ceiling stain after rain?", "residential roof leak inspection inquiries",
+      "Hey, do you have time this week to check a roof for a leak?", "residential roof leak inspection inquiries",
       "Do you take small repairs, full replacements, or both?|Which roofing materials and roof heights do you handle?|What symptoms and photos do you want before scheduling an inspection?",
       "A homeowner saw a ceiling stain after heavy rain. The roof is asphalt shingle and about 15 years old; they want an inspection before deciding on repairs.",
       "We inspect shingle roofs and do repairs. Ask how many stories it is and when they first saw the stain.",
@@ -210,7 +210,7 @@
       "Materials, repairs versus replacements, roof height, inspection availability, area and photos requested."],
     "siding": [
       "local siding contractor vinyl fiber cement partial repair replacement", "Siding installers showing repair or replacement projects; skip material-only sellers and interior remodelers.",
-      "Are you taking estimates to replace damaged vinyl siding on one elevation?", "siding repair and replacement inquiries",
+      "Hey, do you take small jobs replacing damaged vinyl siding?", "siding repair and replacement inquiries",
       "Do you handle one-elevation repairs and color matching?|Which cladding materials do you install?|Do you assess underlying sheathing and trim before quoting?",
       "Several vinyl panels on the back of a two-story home are damaged. The owner wants to compare a color-matched repair with replacing the whole elevation.",
       "We’ll try to match material on a small repair; if the profile is discontinued, we can price the entire wall.",
@@ -218,7 +218,7 @@
       "Cladding types, repair minimum, match policy, height and sheathing scope, schedule and measurement needs."],
     "tree-service": [
       "local arborist tree trimming stump grinding residential crew", "Tree services with trimming, removal or stump equipment; skip lawn crews that only trim shrubs.",
-      "Could your crew quote branches over a roof and a separate stump by a side gate?", "tree trimming and stump grinding inquiries",
+      "Hey, do you have time to quote trimming some branches over a roof?", "tree trimming and stump grinding inquiries",
       "Which tree heights and work near structures do you handle?|Do you grind stumps and haul away debris?|What clearance or utility-line details do you need before sending a crew?",
       "Two branches hang over a one-story roof, and there’s an old stump near a side gate. The homeowner wants both priced and doesn’t see lines in the work area.",
       "We can measure access and look at the tree first. Send gate width and photos of the branch over the roof.",
@@ -226,7 +226,7 @@
       "Tree height and restrictions, stump grinding, haul-off, clearance, utility-line screening and estimate schedule."],
     "window-replacement": [
       "local residential replacement windows insert full frame measurement installer", "Companies that measure and replace windows in existing homes; skip new-construction supply only and glass repair only.",
-      "Are you scheduling estimates for replacing six drafty residential windows?", "multi-window replacement inquiries",
+      "Hey, are you available to give an estimate on replacing a few drafty windows?", "multi-window replacement inquiries",
       "What’s your minimum opening count?|Do you quote both inserts and full-frame replacements?|Do you supply units, and what window measurements or photos help?",
       "Six double-hung windows are drafty. The homeowner wants to compare replacement inserts with full-frame units and asks whether trim work is included.",
       "Six openings meets our minimum. We’ll look at the frames before recommending inserts and list exterior trim separately if needed.",
@@ -236,7 +236,7 @@
     // Remodeling and interior trades
     "basement-remodeling": [
       "local basement finishing contractor family room half bath egress", "Remodelers with finished-basement projects; skip waterproofing-only and furnishing-only companies.",
-      "Are you booking walkthroughs for an unfinished basement that needs a family room and possible half bath?", "basement finishing and layout inquiries",
+      "Hey, are you giving estimates on turning an unfinished basement into a family room?", "basement finishing and layout inquiries",
       "Do you handle framing through finish, or just parts of the project?|Can you coordinate a bathroom and assess egress requirements?|What moisture issues, scope or budget put a project outside your range?",
       "A family wants to finish 650 square feet for a TV room and add a half bath if plumbing allows. The basement is unfinished and access is through the house.",
       "We can look at bath feasibility on the walkthrough. If there are recurring moisture issues, we address those before final scope.",
@@ -244,7 +244,7 @@
       "Project minimum and budget, finish level, moisture or egress limits, bath coordination, access and walkthrough schedule."],
     "bathroom-remodeling": [
       "local bathroom remodeler tub to shower conversion vanity contractor", "Bathroom remodelers showing tub-to-shower conversions; skip fixture retailers and full-home-only contractors.",
-      "Could you take a walkthrough for a hall-bath tub-to-shower conversion?", "tub-to-shower and bathroom remodeling inquiries",
+      "Hey, do you have time to quote replacing a bathtub with a walk-in shower?", "tub-to-shower and bathroom remodeling inquiries",
       "Do you take conversions without a full gut remodel?|Can you coordinate plumbing, waterproofing and glass?|What accessibility options or minimum budgets do you work with?",
       "A homeowner wants a tub swapped for a walk-in shower in the same footprint, with a low threshold and a new vanity if the budget allows.",
       "We take conversions and can add blocking for grab bars. We’d confirm the drain position and price the vanity separately.",
@@ -252,7 +252,7 @@
       "Conversion versus full bath, threshold and accessibility options, trades covered, budget minimum and walkthrough timing."],
     "cabinetry": [
       "local kitchen cabinet refacing custom cabinet doors installation", "Cabinet shops that install or reface, not supply-only box stores; check which service they actually list.",
-      "Do you quote kitchen cabinet refacing when the homeowner wants to keep the existing layout?", "cabinet refacing and installation inquiries",
+      "Hey, are you taking on kitchen cabinet refacing jobs?", "cabinet refacing and installation inquiries",
       "Do you reface existing boxes, build custom cabinets, or both?|What condition do the boxes need to be in for refacing?|Do you supply fronts and hardware and handle installation?",
       "A homeowner has 18 cabinet doors and 7 drawers and wants new shaker fronts and hardware without changing the kitchen layout.",
       "We can reface sound boxes. If there’s water damage under the sink, we’ll price that box separately.",
@@ -260,7 +260,7 @@
       "Refacing/custom scope, box condition, door count and style, hardware, supply/install and photo requirements."],
     "countertops": [
       "local quartz countertop fabricator installer templating sink cutout", "Fabricators that template and install residential counters; skip slab yards that don’t provide installation.",
-      "Could you quote quartz for a kitchen with two counter runs and an island?", "quartz countertop templating and install inquiries",
+      "Hey, do you have time to quote quartz countertops for a kitchen and island?", "quartz countertop templating and install inquiries",
       "Which materials do you fabricate and install?|Do you remove existing tops and handle sink or cooktop cutouts?|What measurements do you need for a first price range?",
       "A homeowner wants about 45 square feet of quartz on two runs and an island, with an undermount sink cutout and old laminate removal.",
       "We template after the cabinets are ready. We can include tear-out, and we need the sink model before cutting.",
@@ -268,7 +268,7 @@
       "Material, square footage minimum, sink and cooktop details, tear-out, templating requirements and timing."],
     "drywall": [
       "local drywall repair ceiling patches texture matching contractor", "Crews that show small interior patches and texture matching; skip drywall suppliers and large-build-only installers.",
-      "Can you fit in two ceiling drywall patches and match the existing texture?", "ceiling patch and texture matching inquiries",
+      "Hey, can you fit in a ceiling drywall patch that needs the texture matched?", "ceiling patch and texture matching inquiries",
       "Do you take small patch jobs or mainly new hanging?|Which textures and ceiling heights can you match?|Does your quote include primer or paint, and do you need proof the leak is resolved?",
       "A repaired plumbing leak left two soft drywall areas on an eight-foot ceiling. The owner wants the patches blended into existing orange-peel texture.",
       "We can patch and match orange peel once everything is dry. We include primer, not a full ceiling repaint.",
@@ -276,7 +276,7 @@
       "Patch minimum, texture and ceiling height, dry substrate, primer/paint scope, photo needs and booking window."],
     "finish-carpentry": [
       "local finish carpenter baseboards door casing interior trim built-ins", "Finish carpenters showing trim or built-ins; skip framing-only crews and millwork suppliers that don’t install.",
-      "Are you quoting baseboards and door casing for rooms that just got new flooring?", "baseboard and interior trim inquiries",
+      "Hey, do you have time to quote new baseboards and door trim?", "baseboard and interior trim inquiries",
       "What trim profiles and built-ins do you install?|Do you supply material and include caulk, paint or stain?|What linear footage or job minimum makes sense for your crew?",
       "After new flooring, a homeowner wants about 180 linear feet of taller baseboard and seven matching door casings in four rooms.",
       "We can supply primed trim and caulk it. Final painting is separate, so we’d clarify that before quoting.",
@@ -284,7 +284,7 @@
       "Trim profiles, linear feet, casing count, materials, painting and caulk scope, and job minimum."],
     "flooring": [
       "local flooring installer luxury vinyl plank carpet removal subfloor prep", "Independent flooring installers who handle removal and prep; skip floor-covering retailers without an installation crew.",
-      "Could you quote about 650 square feet of luxury vinyl plank with old carpet removal?", "luxury vinyl plank and subfloor prep inquiries",
+      "Hey, are you quoting jobs to pull up carpet and put down vinyl plank?", "luxury vinyl plank and subfloor prep inquiries",
       "Which floors do you install or refinish?|Do you remove carpet, move furniture, and level subfloor if needed?|What area, square footage or product details do you need before estimating?",
       "A homeowner wants roughly 650 square feet of carpet replaced with luxury vinyl plank in the living room and hallway. One area by the entry may need leveling.",
       "We handle removal. We’d check the entry and price any leveling separately once we can see the subfloor.",
@@ -292,7 +292,7 @@
       "Floor materials, square-footage minimum, tear-out and disposal, prep and leveling, furniture and measurement schedule."],
     "home-remodeling": [
       "local general contractor multi-room residential remodeling design build", "Residential GCs showing multi-room renovations and trade coordination; skip single-trade companies or new-build-only firms.",
-      "Are you booking walkthroughs for multi-room renovations with one contractor coordinating the trades?", "multi-room residential renovation inquiries",
+      "Hey, are you taking on remodels that cover a few rooms at once?", "multi-room residential renovation inquiries",
       "What scope or budget qualifies for a walkthrough?|Do you coordinate design, permits and subcontractors?|How soon can you estimate and when could a project start?",
       "A family wants to open their kitchen to the living room and update the adjacent dining area. They need a GC to assess the wall and coordinate the trades.",
       "We take multi-room projects. We’d start with a walkthrough and refer the wall question for structural review before firm pricing.",
@@ -300,7 +300,7 @@
       "Project minimum, rooms and structure in scope, design and permitting, trade coordination, budget and schedule."],
     "insulation": [
       "local attic insulation contractor blown-in insulation air sealing assessment", "Residential insulation contractors with attic and air-sealing work; skip material distributors and attic-cleaning-only vendors.",
-      "Could you assess attic insulation and air sealing for a home where the upstairs won’t stay cool?", "attic insulation and air-sealing inquiries",
+      "Hey, do you have any openings to look at adding attic insulation?", "attic insulation and air-sealing inquiries",
       "Do you assess existing insulation and air leaks before quoting?|Which materials and spaces do you service?|What access or moisture issues would stop the work?",
       "A two-story home has uneven upstairs temperatures. The homeowner can access the attic through a hallway hatch and wants existing insulation checked before adding more.",
       "We look at depth and obvious bypasses first. We won’t cover moisture damage or ventilation problems without addressing them.",
@@ -308,7 +308,7 @@
       "Materials and spaces, attic access, existing insulation, air-sealing scope, moisture exclusions and assessment window."],
     "painting": [
       "local interior house painters trim drywall prep three room repaint", "Local residential painters who show prep and trim finishes; skip paint stores and commercial-only crews.",
-      "Do you have room for an estimate to repaint the walls and trim in three rooms?", "interior repainting and trim inquiries",
+      "Hey, can you give an estimate for painting walls and trim in a few rooms?", "interior repainting and trim inquiries",
       "Do you take occupied-home repaints and partial interiors?|What patching, caulking and furniture moving do you include?|Do you supply paint, and what is your project minimum?",
       "A homeowner wants walls and baseboards repainted in three bedrooms. There are a few nail holes and the rooms will still have furniture.",
       "We include light patching and can shift smaller pieces. We’ll ask them to move valuables before the job.",
@@ -316,7 +316,7 @@
       "Interior/exterior scopes, prep and furniture policy, paint supply, minimum size, ZIPs and estimate availability."],
     "kitchen-remodeling": [
       "local kitchen remodeler island layout cabinet sink relocation contractor", "Kitchen remodelers showing layout changes and coordinated trades; skip countertop- or cabinet-only firms.",
-      "Are you scheduling consultations for kitchens that need a new island and might move the sink?", "kitchen layout and island remodeling inquiries",
+      "Hey, are you doing estimates for kitchen remodels that add an island?", "kitchen layout and island remodeling inquiries",
       "Do you take layout changes as well as cosmetic updates?|Can you coordinate cabinet design, plumbing and electrical?|What budget or start window should we check before a consultation?",
       "A homeowner wants a larger island and more storage. They’re considering moving the sink off the island and want pricing for both layout options.",
       "We can price both layouts after design. We’d check the drain route before assuming the sink can move easily.",
@@ -324,7 +324,7 @@
       "Cosmetic versus layout scope, design and trade coordination, budget minimum, sink or island changes and consultation availability."],
     "tile-installation": [
       "local tile setter shower tile replacement waterproofing backsplash", "Tile installers that show shower or backsplash work; skip tile retailers and flooring companies that don’t handle wet areas.",
-      "Could you take an estimate to replace shower wall tile and check the backing first?", "shower tile and waterproofing inquiries",
+      "Hey, do you have time to look at replacing tile on a shower wall?", "shower tile and waterproofing inquiries",
       "Do you take shower walls, backsplashes, or floors?|Can you remove tile and handle substrate and waterproofing?|What tile format, area or site photos do you need?",
       "A homeowner wants a three-wall shower retiled in porcelain. They don’t know whether the existing backing is sound and want a scope before choosing grout.",
       "We can quote after inspecting. We won’t set new tile over compromised backing, and waterproofing is a separate scope item.",
@@ -335,7 +335,7 @@
     "auto-detailing": [
       "independent mobile auto detailing interior extraction pet hair",
       "Local shops or mobile detailers that list interior deep cleaning; skip automated car washes and fleet-only vendors.",
-      "Could you fit in an SUV interior detail this week, including cloth seats and pet hair?",
+      "Hey, can you fit in an SUV interior detail with some pet hair this week?",
       "SUV interior detail inquiries",
       "Do you work mobile, in-shop, or both?|What’s included in an interior detail, and how do you price pet hair?|What water, power, photos or vehicle details do you need?",
       "An SUV needs cloth-seat cleaning, pet hair removal and a wash before a weekend trip. The owner has a driveway but isn’t sure about outdoor power.",
@@ -345,7 +345,7 @@
     "auto-hail-damage": [
       "independent auto hail repair paintless dent repair hail inspection",
       "Auto hail repair or paintless dent repair shops that inspect storm damage; skip home roofing and scratch-only detailers.",
-      "Do you have room to inspect hail dents on a vehicle’s hood and roof this week?",
+      "Hey, do you have time this week to look at hail dents on a car?",
       "vehicle hail inspection and paintless dent repair inquiries",
       "Do you assess paintless repair eligibility before quoting?|Do you document damage for customers to share with their insurer?|What vehicles, damage types and appointment windows can you cover?",
       "A sedan has shallow hood and roof dents after a hailstorm. The owner hasn’t opened a claim and wants a repair assessment and photos first.",
@@ -355,7 +355,7 @@
     "auto-mechanic": [
       "independent auto repair shop brake diagnostics pads rotors local",
       "Repair shops that show diagnostics and mechanical service; skip parts stores, oil-change-only bays and body shops.",
-      "Are you taking brake inspection appointments for a car that squeals and shakes when slowing down?",
+      "Hey, do you have any openings to look at squeaky brakes this week?",
       "brake diagnosis and repair inquiries",
       "Which makes and vehicle sizes can you service?|Do you charge separately for a brake inspection?|Can you schedule diagnosis before quoting pads or rotors?",
       "A commuter’s compact sedan squeals at low speed and the steering wheel shakes when slowing off the highway. The owner wants the brakes checked before authorizing work.",
@@ -365,7 +365,7 @@
     "car-sales": [
       "independent used car dealership compact SUV test drive trade in",
       "Local dealers with inventory and appointment contacts; skip private sellers, auctions and vehicle transport businesses.",
-      "Do you have anyone available this week for used compact SUV test-drive appointments?",
+      "Hey, do you have any used compact SUVs available to test-drive this week?",
       "used SUV buyer and test-drive inquiries",
       "Which price ranges and inventory types are you looking to sell?|Do you take trade-ins or work with outside financing?|What info should we confirm before booking a test drive?",
       "A buyer wants a used compact SUV under $22,000, has a trade-in and can visit Saturday. They’ll compare mileage and out-the-door pricing before deciding.",
@@ -375,7 +375,7 @@
     "auto-commercial-detailing": [
       "mobile fleet washing commercial vehicle detailing work vans independent",
       "Detailers advertising fleet accounts and on-site multi-vehicle work; skip consumer-only car washes.",
-      "Could your crew handle six work vans on-site across two mornings?",
+      "Hey, do you have room to detail a few work vans on-site?",
       "on-site work van fleet detailing inquiries",
       "What vehicle counts and sizes fit your crew?|Can you split service before crews head out, and what site access do you need?|Do you bring water and power, and do you take recurring fleets?",
       "A plumbing company wants six work vans cleaned inside and out in its yard. Three vans are available each morning before they leave for service calls.",
@@ -387,7 +387,7 @@
     "airbnb": [
       "independent vacation rental hosts short-term rental direct booking management",
       "Look for hosts or managers who control an active rental and publish a business contact on their own site. Skip cleaners, vendors and traveler-facing contact forms.",
-      "Could you take a guest booking this week if the dates and group size are a fit?",
+      "Hey, do you have any openings for a guest booking this week?",
       "guest booking inquiries for open dates",
       "What dates or nights are you trying to fill right now?|What’s your minimum stay and maximum guest count?|Who confirms availability and what booking channel should guests use?",
       "Jim Stanly and two relatives are coming to town Friday through Sunday for a family event. They need two bedrooms, parking for one car and a place that accepts a two-night stay.",
@@ -397,7 +397,7 @@
     "home-insurance": [
       "local independent homeowners insurance agency new home purchase closing quotes",
       "Agencies that write homeowners coverage in the prospect’s state; skip carrier job listings and auto-only offices.",
-      "Are you taking new homeowners quote requests for buyers with a closing date coming up?",
+      "Hey, do you have time to quote homeowners insurance before a closing?",
       "homebuyer insurance quote inquiries",
       "Which states and property types can your agency write?|Do you work with new purchases, renewals, or both?|What basic property details and effective dates do you need before a quote?",
       "A buyer closes on a single-family home in three weeks and needs coverage effective on closing day. They want to compare deductible options before choosing.",
@@ -407,7 +407,7 @@
     "insurance": [
       "local independent multi-line insurance brokerage personal commercial coverage reviews",
       "Independent agencies advertising multiple lines; skip single-product sales pages and unlicensed referral directories.",
-      "Are you taking consultations for customers who want to review more than one type of coverage?",
+      "Hey, are you taking new clients who want to compare bundled insurance options?",
       "multi-line insurance coverage review inquiries",
       "Which lines and states can your agency handle?|Can one producer review more than one policy, or should we split the inquiry?|What renewal timing and basics should we confirm before an introduction?",
       "A small-business owner wants to review their general liability policy and their personal auto renewal. The renewal dates are a month apart and they want one point of contact.",
@@ -417,7 +417,7 @@
     "real-estate": [
       "local residential real estate agent listing consultation seller neighborhood brokerage",
       "Independent agents or small teams actively taking seller consultations; skip rental-only firms and property listing portals.",
-      "Are you taking listing consultations for homeowners looking to sell in the next couple of months?",
+      "Hey, do you have time this week to talk about listing a home?",
       "home seller and listing consultation inquiries",
       "Which neighborhoods and property types do you work with?|Do you prefer seller consultations, buyer inquiries, or both?|What timeline and existing representation details should we confirm first?",
       "A homeowner plans to move in about two months and wants a pricing conversation before deciding whether to repaint. They haven’t hired an agent.",
@@ -427,7 +427,7 @@
     "solar": [
       "local residential solar installer rooftop battery consultation owned home independent",
       "Installers showing residential rooftop work in the service area; skip equipment retailers and companies that don’t handle local installation.",
-      "Are you booking rooftop solar consultations for homeowners who are also considering battery backup?",
+      "Hey, are you taking appointments to look at rooftop solar with battery backup?",
       "residential rooftop solar and battery consultation inquiries",
       "Which utility territories and roof types do you serve?|Can you quote rooftop solar with and without batteries?|What roof age, shade or usage information helps before a consult?",
       "A homeowner with a five-year-old shingle roof wants to compare panels alone with a battery option for outages. They can share recent power usage during the consult.",
@@ -437,7 +437,7 @@
     "vehicle-insurance": [
       "independent auto insurance agent multi car quote renewal local",
       "Licensed agencies that write personal auto policies in the state; skip dealerships and home-only agents.",
-      "Are you available to quote two personal vehicles before an upcoming policy renewal?",
+      "Hey, do you have time this week to quote car insurance for two vehicles?",
       "multi-vehicle personal auto quote inquiries",
       "Which states and personal vehicle types can you quote?|Do you take two-car households or specialty vehicles?|What renewal timing and preferred intake channel should we confirm?",
       "A driver’s personal auto policy renews next month. They want to compare coverage for a financed crossover and an older paid-off sedan.",
@@ -449,7 +449,7 @@
     "catering": [
       "local independent corporate lunch catering buffet vegetarian delivery",
       "Caterers with office lunch packages and delivery information; skip venues and restaurant takeout counters without catering.",
-      "Could you cater a weekday office lunch for around 35 people with vegetarian options?",
+      "Hey, are you available to cater a weekday office lunch for about 35 people?",
       "corporate lunch catering inquiries",
       "What’s your minimum headcount or order size?|Do you offer buffet drop-off, staffed service, or both?|Which dietary requests, venues and notice periods can you handle?",
       "An office needs a buffet lunch for 35 people next Thursday with vegetarian options and a delivery window between 11:15 and 11:45.",
@@ -459,7 +459,7 @@
     "cell-phone-sales": [
       "local wireless store authorized retailer family plan switch bring your own device",
       "Wireless stores that activate lines and handle in-person consultations; skip phone repair and accessory-only sellers.",
-      "Could someone at your store meet with a family thinking about switching four wireless lines?",
+      "Hey, can someone help with switching four phone lines to a family plan?",
       "family wireless plan and line-switch inquiries",
       "Which carriers and plans can your store activate?|Do you support unlocked bring-your-own devices and number transfers?|Should a customer book a store appointment or walk in?",
       "A family with four lines wants to compare switching costs. Two phones are unlocked, one may need upgrading, and they’d like to keep their numbers.",
@@ -469,7 +469,7 @@
     "event-planning": [
       "independent event planner day-of coordination private party vendors",
       "Local planners offering coordination packages; skip venue-only and entertainment-only companies.",
-      "Do you take day-of coordination for an event with the venue already booked?",
+      "Hey, are you taking bookings for day-of event coordination?",
       "day-of event coordination inquiries",
       "Do you offer day-of, month-of, or full-service planning?|What event size, venue radius and dates fit your team?|Do you coordinate outside vendors and build the event timeline?",
       "A client has booked a venue for a 60-person private celebration and already has catering. They need vendor arrivals, setup and speeches coordinated.",
@@ -479,7 +479,7 @@
     "gym-sales": [
       "local independent gym memberships facility tour strength training no classes only",
       "Gyms that sell memberships and offer prospective member tours; skip home trainers and class-only studios without a gym membership.",
-      "Do you have room for new member tours this week for people looking for a strength-training gym?",
+      "Hey, do you have any openings for a gym tour this week?",
       "gym tour and membership inquiries",
       "Which membership options are you prioritizing?|What hours can prospects tour, and what access hours do members get?|Do you offer a trial, and what facilities should we highlight?",
       "A prospective member wants squat racks and evening access after work. They’d like a tour before choosing between monthly and annual options.",
@@ -489,7 +489,7 @@
     "internet-cable-sales": [
       "local authorized residential internet sales fiber broadband installation provider",
       "Official provider storefronts or authorized sales teams for residential service; skip comparison sites and repair-only businesses.",
-      "Do you take availability checks for households moving in and needing home internet set up?",
+      "Hey, how soon are you booking home internet installs for new move-ins?",
       "move-in home internet availability and installation inquiries",
       "Which providers and service areas can you quote?|How do you check availability before discussing speed or price?|Do you book installation, self-install, or both?",
       "A household moves in next Friday and both adults work from home. They want to check fiber availability and compare the earliest install with self-install.",
@@ -499,7 +499,7 @@
     "photography": [
       "local event photographer corporate event candid edited gallery independent",
       "Photographers with real event or business galleries and an inquiry page; skip equipment rentals and wedding-only teams.",
-      "Could you cover two hours of a small business event and deliver edited photos?",
+      "Hey, are you taking bookings for a couple hours of event photography?",
       "small business event photography inquiries",
       "Which event and photography types do you take?|What’s your minimum coverage and gallery turnaround?|Do you quote commercial usage and travel separately?",
       "A local business needs two hours of candid event photography and a few team photos for its website. The event is indoors on a weekday evening.",
@@ -509,7 +509,7 @@
     "tax-prep": [
       "independent tax preparation firm W-2 1099 Schedule C appointment local",
       "Tax practices that prepare individual and self-employed returns; skip software resellers and bookkeeping-only firms.",
-      "Are you accepting consultations for individual filers with a W-2 and some self-employment income?",
+      "Hey, are you taking new tax prep clients with both W-2 and freelance income?",
       "mixed W-2 and self-employment tax preparation inquiries",
       "Do you take W-2 plus self-employment returns or only straightforward filings?|Do you offer virtual appointments or in-person intake?|What dates, forms and basic complexity should we screen for before referral?",
       "A filer has one W-2 and drove for a delivery app on weekends. They want a prep quote and a checklist of records to gather before an appointment.",
@@ -521,7 +521,7 @@
     "counseling": [
       "local counseling practice evening individual counseling intake availability",
       "Counseling practices with a public office intake contact and current appointment information; skip referral directories and crisis lines.",
-      "Are you accepting general inquiries for new adult counseling appointments with evening availability?",
+      "Hey, are you taking new adult counseling clients for evening appointments?",
       "adult counseling appointment availability inquiries",
       "Do you have an open intake for adult clients?|Do you offer evening sessions and telehealth or in-person visits?|How should someone contact your office to check scheduling and payment options?",
       "An adult looking for individual counseling works until 5 p.m. and wants to ask about evening appointments and intake before choosing a practice.",
@@ -531,7 +531,7 @@
     "dog-training": [
       "local dog trainer private leash manners basic obedience sessions",
       "Independent trainers offering private behavior or obedience sessions; skip boarding-only facilities and pet supply stores.",
-      "Do you have availability for a dog that needs help with leash pulling and door manners?",
+      "Hey, do you have openings for dog training focused on leash pulling?",
       "private dog training and leash manners inquiries",
       "Do you do private sessions, group classes, or both?|What behavior issues and dog ages do you take?|Do you start with a consult, and can you train at the client’s home?",
       "An owner has an 18-month-old dog that pulls on walks and rushes the front door. They want private sessions and can practice between visits.",
@@ -541,7 +541,7 @@
     "dog-walker": [
       "local independent dog walker midday recurring walks pet sitter",
       "Dog walkers or pet sitters offering insured local visits; prioritize first-party business listings over marketplace profiles.",
-      "Can you add a recurring lunchtime dog walk three weekdays a week?",
+      "Hey, do you have room for regular lunchtime dog walks on weekdays?",
       "recurring midday dog walking inquiries",
       "Which neighborhoods and midday time windows do you have open?|Do you do solo walks or small groups?|What meet-and-greet, leash and home access details do you need?",
       "An owner needs someone to walk a medium-sized dog on Mondays, Wednesdays and Fridays around noon. The dog does best on solo walks.",
@@ -551,7 +551,7 @@
     "life-coach": [
       "independent career transition life coach discovery session online local",
       "Coaches listing career transition or goal-setting programs with a clear discovery-call process; skip therapy practices and certification schools.",
-      "Are you taking discovery calls for people working through a career transition?",
+      "Hey, are you taking new coaching clients who are considering a career change?",
       "career transition coaching discovery inquiries",
       "Which goals or stages do you coach best?|Do you start with a discovery call, single session or package?|Do you meet online or in person, and what should a prospective client know first?",
       "Someone changing industries wants a six-week structure to compare options, set weekly actions and stay accountable while working full-time.",
@@ -561,7 +561,7 @@
     "meal-prep": [
       "local weekly prepared meal delivery high protein meal prep independent",
       "Meal prep businesses with a weekly menu, local delivery or pickup; skip grocery kits and one-off event catering.",
-      "Do you have room for new weekly meal prep customers looking for high-protein lunches?",
+      "Hey, do you have room for a weekly meal prep order for high-protein lunches?",
       "recurring high-protein meal prep inquiries",
       "How many meals is the weekly minimum?|What pickup or delivery zones and order cutoffs do you have?|Which dietary preferences can you accommodate, and how do you handle allergen questions?",
       "A customer wants five ready-to-heat lunches each week, prefers high-protein meals and needs Sunday delivery or Monday pickup.",
@@ -571,7 +571,7 @@
     "mental-health-clinician": [
       "licensed mental health clinician telehealth new patient office intake weekday",
       "Licensed clinician-led practices that publish an office intake channel and state coverage; skip emergency services and directories.",
-      "Is your office open to new adult intake inquiries for weekday telehealth appointments?",
+      "Hey, do you have weekday telehealth openings for new adult patients?",
       "weekday telehealth intake inquiries for clinician-led practices",
       "Which states can your clinicians serve by telehealth?|Do you have new adult intake slots, and what days are available?|Where should someone check eligibility and book or request an intake?",
       "An adult wants a weekday telehealth intake and needs to know whether the practice can see people in their state. They’re flexible about time and want to speak with intake.",
@@ -581,7 +581,7 @@
     "nail-lash-stylist": [
       "independent nail lash studio new clients hybrid lash full set gel appointments",
       "Independent nail or lash studios with a current service menu and booking contact; skip beauty supply and training-only pages.",
-      "Are you taking bookings for new clients who want a full hybrid lash set?",
+      "Hey, do you have an opening this week for a full hybrid lash set?",
       "new lash full-set and beauty appointment inquiries",
       "Which nail or lash services are you filling right now?|Do you accept new full sets, fills on outside work, or both?|What appointment length, deposit or consultation should clients expect?",
       "A new client wants a hybrid lash full set before a Saturday event. They have no existing extensions and prefer a Thursday evening appointment.",
@@ -591,7 +591,7 @@
     "personal-trainer": [
       "local independent personal trainer beginner strength in person sessions",
       "Trainers who book individual or small-group sessions; skip gyms selling only memberships and generic fitness directories.",
-      "Are you taking new clients who want two beginner strength sessions a week?",
+      "Hey, do you have room for a new personal training client starting strength work?",
       "beginner strength training consultation inquiries",
       "Do you offer one-on-one, small-group or online coaching?|Where do sessions take place, and what weekly time slots are open?|What does the first consult cover before someone commits?",
       "A beginner wants two early-morning strength sessions a week near home. They’d like form coaching and a realistic plan they can stick with.",
@@ -601,7 +601,7 @@
     "pet-grooming": [
       "local independent dog groomer doodle full groom bath trim appointment",
       "Groomers that publish dog sizes, coat services or breed examples; skip self-wash-only shops and boarding-only providers.",
-      "Could you fit in a medium doodle for a bath and full groom this week?",
+      "Hey, can you fit in a doodle for a full groom this week?",
       "doodle and full-groom appointment inquiries",
       "Which sizes and coat types do you accept?|How do you handle matting fees and first-visit requirements?|What vaccinations or drop-off windows should clients ask your shop about?",
       "An owner has a 45-pound doodle that needs a bath, haircut and nail trim. There may be mats behind the ears, and the owner can do a weekday drop-off.",
@@ -611,7 +611,7 @@
     "tutoring": [
       "independent algebra tutor middle high school after school virtual local",
       "Tutors offering algebra or secondary math with a public booking channel; skip homework-answer sites and test centers that don’t tutor.",
-      "Do you have an after-school slot for a student who needs weekly Algebra I tutoring?",
+      "Hey, do you have any after-school openings for weekly Algebra I tutoring?",
       "weekly Algebra I tutoring inquiries",
       "What subjects and grade levels do you cover?|Do you tutor online, in person, or both?|What session times and assessment process should a parent expect?",
       "A parent wants weekly Algebra I support for a ninth grader who is struggling with linear equations. They prefer after 4 p.m. on Tuesdays or Thursdays.",
