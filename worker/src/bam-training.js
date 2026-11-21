@@ -229,7 +229,7 @@ export async function handleBamTraining(request, env, auth, categories){
         const changed=await p("UPDATE bam_training_hitlist SET status='Signed up',followup='',updated_at=? WHERE id=? AND rep_id=? AND archived=0 AND status IN ('Link sent','Signed up')",when,d.id,id).run();
         if(!changed.meta.changes)return error("This business is not available for handoff.",404);
         activity=event(id,"Handoff email logged",String(d.id));
-      }else activity=event(id,step===1?"First outreach text confirmed":"Qualifying call confirmed");
+      }else activity=event(id,step===1?"First text response confirmed":"Qualifying call confirmed");
       statement=checkpoint;
     }else if(d.action==="prospecting_ready"){
       const market=await p("SELECT answers FROM bam_training_lessons WHERE rep_id=? AND lesson=0",id).first();
