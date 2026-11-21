@@ -21,13 +21,12 @@ function emailOf(data){
   return email;
 }
 const sessionToken = request => /(?:^|;\s*)__Host-shedlr_bam_training=([a-f0-9]{48})(?:;|$)/.exec(request.headers.get("Cookie")||"")?.[1];
-function trainingOffer(env){
+function trainingHandoffs(env){
   try{
-    const offer=JSON.parse(env.BAM_TRAINING_OFFER||"null");
-    if(typeof offer?.price!=="string"||typeof offer.code!=="string"||!offer.price||!offer.code||
-      !Array.isArray(offer.handoffs)||offer.handoffs.length!==2||!offer.handoffs.every(email=>typeof email==="string"&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)))return null;
-    return {price:offer.price,code:offer.code,handoffs:offer.handoffs};
-  }catch{return null;}
+    const emails=JSON.parse(env.BAM_TRAINING_HANDOFFS||"[]");
+    if(Array.isArray(emails)&&emails.length===2&&emails.every(email=>typeof email==="string"&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)))return emails;
+  }catch{}
+  return [];
 }
 
 export async function handleBamTraining(request, env, auth){
@@ -72,7 +71,7 @@ export async function handleBamTraining(request, env, auth){
              FROM bam_training_reps r ORDER BY last_activity DESC,r.name LIMIT 250`),
           p("SELECT e.kind,e.detail,e.happened_at,r.name FROM bam_training_events e JOIN bam_training_reps r ON r.id=e.rep_id ORDER BY e.id DESC LIMIT 80")
         ]);
-        return response({reps:reps.results,events:events.results,offerReady:!!trainingOffer(env)});
+        return response({reps:reps.results,events:events.results,handoffsReady:trainingHandoffs(env).length===2});
       }
       if(d.action==="invite"||d.action==="reset"){
         const email=emailOf(d);
@@ -157,7 +156,7 @@ export async function handleBamTraining(request, env, auth){
       ]);
       return response({user:{name:rep.name,email:rep.email},answers:Object.fromEntries(results.map(r=>[r.lesson,JSON.parse(r.answers)])),
         plan:work?.gameplan?JSON.parse(work.gameplan):null,blocker:work?.blocker||null,
-        offer:trainingOffer(env)});
+        handoffs:trainingHandoffs(env)});
     }
     if(d.action==="hitlist"){
       const rows=await p("SELECT id,business,contact,market,status,followup,notes,archived FROM bam_training_hitlist WHERE rep_id=? ORDER BY archived,followup='',followup,updated_at DESC LIMIT 1000",id).all();
