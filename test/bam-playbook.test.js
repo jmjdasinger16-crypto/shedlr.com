@@ -76,6 +76,10 @@ test("Step 4 uses the selected category link, personalized sign-off and separate
     assert.match(text, /Once you’re signed up, I’ll get our Lead Acquisition team/);
     assert.match(text, /It’s Patrick again.*you can text me right here/);
     assert.doesNotMatch(text, /EARNOURBUSINESS/);
-    assert.match(html, /id="promo-text"[^>]*>Use EARNOURBUSINESS/);
+    assert.equal(
+      html.match(/id="promo-text"[^>]*>([^<]*)<\/textarea>/)?.[1],
+      "Use EARNOURBUSINESS at checkout for the $199 offer.",
+      `${id}: exactly the promo sentence`
+    );
   }
 });
