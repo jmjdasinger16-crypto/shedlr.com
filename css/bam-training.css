@@ -10,3 +10,4 @@ main{padding-block:35px 56px;min-height:calc(100vh - 160px)}.eyebrow{text-transf
 .table-scroll thead th{background:var(--paper);white-space:nowrap}.table-scroll td .btn{white-space:nowrap;margin:0 4px 4px 0}.note code{overflow-wrap:anywhere}.note p{margin-top:9px}
 [data-action="hit-filter"][aria-pressed="true"]{background:var(--navy);color:var(--white);border-color:var(--navy)}
 @media(max-width:630px){.top nav{min-width:0;flex-wrap:wrap;column-gap:4px;row-gap:0}.top nav button{font-size:var(--xs)}}
+.script-box textarea{display:block;margin-top:8px}.script-box .actions{margin-top:8px}.script-box .message:empty{display:none}.labels .check-inline{display:flex;align-items:center;gap:9px}.check-inline input{width:18px;min-height:auto;flex:none}

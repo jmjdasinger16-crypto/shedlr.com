@@ -6,9 +6,10 @@ const OUTREACH = {text:"Text logged",call:"Call logged",followup:"Follow-up logg
 const HITLIST_SQL = `WITH activity AS (
   SELECT detail, MAX(CASE WHEN kind='Text logged' THEN happened_at END) last_text,
     MAX(CASE WHEN kind='Call logged' THEN happened_at END) last_call,
-    MAX(CASE WHEN kind='Follow-up logged' THEN happened_at END) last_followup
-  FROM bam_training_events WHERE rep_id=? AND kind IN ('Text logged','Call logged','Follow-up logged') GROUP BY detail
-) SELECT h.id,h.business,h.contact,h.market,h.status,h.followup,h.notes,h.archived,a.last_text,a.last_call,a.last_followup
+    MAX(CASE WHEN kind='Follow-up logged' THEN happened_at END) last_followup,
+    MAX(CASE WHEN kind='Program link sent' THEN happened_at END) last_link
+  FROM bam_training_events WHERE rep_id=? AND kind IN ('Text logged','Call logged','Follow-up logged','Program link sent') GROUP BY detail
+) SELECT h.id,h.business,h.contact,h.market,h.status,h.followup,h.notes,h.archived,a.last_text,a.last_call,a.last_followup,a.last_link
   FROM bam_training_hitlist h LEFT JOIN activity a ON a.detail=CAST(h.id AS TEXT)
   WHERE h.rep_id=? ORDER BY h.archived,h.followup='',h.followup,h.updated_at DESC LIMIT 1000`;
 const TOPICS = ["Picking a market","No replies yet","Nervous about calls","Clicks but no signups","Checkout or activation"];
@@ -72,7 +73,7 @@ export async function handleBamTraining(request, env, auth, categories){
       if(d.action==="team"){
         const [reps,events]=await db.batch([
           p(`SELECT r.id,r.name,r.email,r.active,r.last_login_at,
-             (SELECT COUNT(*) FROM bam_training_lessons l WHERE l.rep_id=r.id) completed,
+             (SELECT COUNT(*) FROM bam_training_lessons l WHERE l.rep_id=r.id AND (l.lesson=0 OR json_extract(l.answers,'$.workflow')=2)) completed,
              (SELECT COUNT(*) FROM bam_training_hitlist h WHERE h.rep_id=r.id AND h.archived=0) businesses,
              (SELECT COUNT(*) FROM bam_training_events e WHERE e.rep_id=r.id AND e.kind IN ('Signed in','Account activated','Access reset')) logins,
              (SELECT w.blocker FROM bam_training_work w WHERE w.rep_id=r.id) blocker,
@@ -199,7 +200,38 @@ export async function handleBamTraining(request, env, auth, categories){
       return response({added,skipped:d.rows.length-added});
     }
     let statement, activity;
-    if(d.action==="prospecting_ready"){
+    if(d.action==="workflow_step"||d.action==="record_link"){
+      const saved=await p("SELECT answers FROM bam_training_lessons WHERE rep_id=? AND lesson=0",id).first();
+      const market=saved&&JSON.parse(saved.answers);
+      const category=categories.find(c=>c.label.toLowerCase()===String(market?.industry||"").toLowerCase());
+      if(!category||!market.city)return error("Save a supported category and city first.",409);
+      const step=d.action==="record_link"?3:d.step;
+      const checkpoint=p("INSERT INTO bam_training_lessons VALUES(?,?,?,?) ON CONFLICT(rep_id,lesson) DO UPDATE SET answers=excluded.answers",id,step,JSON.stringify({workflow:2}),when);
+      if(step===3&&d.action==="record_link"){
+        const business=val(d,"business",140,true),location=val(d,"location",120,true),phone=val(d,"phone",40,true);
+        if(!/^[+()\d.\s-]+$/.test(phone)||!/^\d{10,15}$/.test(phone.replace(/\D/g,"")))return error("Enter a valid business phone number.");
+        const target=`${category.label} · ${location}`, original=`${market.industry} · ${market.city}`;
+        if(target.length>120)return error("Use a shorter business location.");
+        const similar="rep_id=? AND lower(business)=lower(?) AND lower(market) IN (lower(?),lower(?))";
+        const existing=await p(`SELECT id,status,archived FROM bam_training_hitlist WHERE ${similar} LIMIT 2`,id,business,target,original).all();
+        if(existing.results.length>1)return error("More than one matching business. Review your Hitlist before logging another link.",409);
+        const row=existing.results[0];
+        if(row&&(row.archived||["Signed up","Closed / not a fit","Do not contact"].includes(row.status)))return error("This business is not available for a new link. Review your Hitlist.",409);
+        const written=row?await p(`UPDATE bam_training_hitlist SET contact=?,market=?,status='Link sent',updated_at=? WHERE id=? AND rep_id=? AND archived=0 AND status NOT IN ('Signed up','Closed / not a fit','Do not contact')`,phone,target,when,row.id,id).run()
+          :await p(`INSERT INTO bam_training_hitlist(rep_id,business,contact,market,status,followup,notes,updated_at) SELECT ?,?,?,?,'Link sent','','',? WHERE (SELECT COUNT(*) FROM bam_training_hitlist WHERE rep_id=?)<1000 AND NOT EXISTS(SELECT 1 FROM bam_training_hitlist WHERE ${similar})`,id,business,phone,target,when,id,id,business,target,original).run();
+        if(!written.meta.changes)return error("The Hitlist changed or is full. Refresh and try again.",409);
+        await db.batch([checkpoint,event(id,"Program link sent",String(row?.id??written.meta.last_row_id))]);
+        return response({ok:true});
+      }
+      if(d.action!=="workflow_step"||![1,2,4].includes(step))return error("Select a workflow step.");
+      if(step===4){
+        if(!Number.isSafeInteger(d.id)||d.id<=0||d.verified!==true)return error("Select a business and verify signup and payment first.");
+        const changed=await p("UPDATE bam_training_hitlist SET status='Signed up',followup='',updated_at=? WHERE id=? AND rep_id=? AND archived=0 AND status IN ('Link sent','Signed up')",when,d.id,id).run();
+        if(!changed.meta.changes)return error("This business is not available for handoff.",404);
+        activity=event(id,"Handoff email logged",String(d.id));
+      }else activity=event(id,step===1?"First outreach text confirmed":"Qualifying call confirmed");
+      statement=checkpoint;
+    }else if(d.action==="prospecting_ready"){
       const market=await p("SELECT answers FROM bam_training_lessons WHERE rep_id=? AND lesson=0",id).first();
       if(!market)return error("Save your niche and city first.",409);
       const a=JSON.parse(market.answers);

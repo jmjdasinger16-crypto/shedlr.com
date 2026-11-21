@@ -85,7 +85,7 @@ test("BAM training uses the existing owner session and persists isolated rep wor
   const team=await bam("team",{},owner);
   assert.equal(team.handoffsReady,true);
   const ar=team.reps.find(r=>r.email===a);
-  assert.equal(ar.completed,5);assert.equal(ar.logins,2);assert.equal(ar.businesses,1);assert.ok(ar.last_login_at);
+  assert.equal(ar.completed,1);assert.equal(ar.logins,2);assert.equal(ar.businesses,1);assert.ok(ar.last_login_at);
   assert.ok(team.events.some(e=>e.kind==="Coaching requested"));
   assert.equal((await bam("team_hitlist",{id:ar.id},owner)).rows[0].business,"Alice Business");
   await bam("log_outreach",{id:row.id,channel:"text"},bob,404);
@@ -105,6 +105,19 @@ test("BAM training uses the existing owner session and persists isolated rep wor
   await bam("prospecting_ready",{},signed);
   assert.equal((await bam("progress",{},signed)).answers[1].market,market);
   assert.equal((await bam("hitlist",{},signed)).rows.find(r=>r.business===prospects[0].business).status,"Prospect");
+  await bam("workflow_step",{step:1},signed);
+  await bam("workflow_step",{step:2},signed);
+  await bam("record_link",{business:prospects[0].business,location:"Dallas",phone:"invalid"},signed,400);
+  await bam("record_link",{business:prospects[0].business,location:"Dallas",phone:"806-555-0100"},signed);
+  const linked=(await bam("hitlist",{},signed)).rows.filter(r=>r.business===prospects[0].business);
+  assert.equal(linked.length,1);assert.equal(linked[0].status,"Link sent");assert.ok(linked[0].last_link);
+  await bam("workflow_step",{step:4,id:linked[0].id,verified:true},bob,409);
+  await bam("complete",{lesson:0,answers:{industry:"Junk Removal",city:"Dallas"}},bob);
+  await bam("workflow_step",{step:4,id:linked[0].id,verified:true},bob,404);
+  await bam("workflow_step",{step:4,id:linked[0].id,verified:false},signed,400);
+  await bam("workflow_step",{step:4,id:linked[0].id,verified:true},signed);
+  assert.equal((await bam("hitlist",{},signed)).rows.find(r=>r.id===linked[0].id).status,"Signed up");
+  assert.equal((await bam("team",{},owner)).reps.find(r=>r.email===a).completed,5);
   await bam("save_business",{...prospect,id:row.id,status:"Do not contact"},signed);
   assert.equal((await bam("hitlist",{},signed)).rows.find(r=>r.id===row.id).followup,"");
   await bam("log_outreach",{id:row.id,channel:"call"},signed,404);

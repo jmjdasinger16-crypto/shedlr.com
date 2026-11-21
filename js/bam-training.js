@@ -2,42 +2,12 @@
 const main = document.querySelector("main");
 const state = { view: "home", lesson: 0, completed: new Set(), answers: {}, plan: null, checks: [], blocker: null };
 const promo = { price: "$199", code: "EARNOURBUSINESS" };
-const prospectMessage = `Here's the Shedlr program page we discussed: [insert the program link]. Use promo code ${promo.code} at checkout for the ${promo.price} offer. Please review the billing and renewal terms at checkout before signing up. Let me know if you have any questions.`;
 const lessons = [
-  {
-    title: "Choose a niche and city", time: 5, desc: "Pick a supported Shedlr category and the city you’ll work.",
-    steps: ["Start with a service you understand. Junk removal, cleaning, or auto detailing are good practice categories.", "Choose one city and open the Shedlr industry page you would share with an interested business owner.", "Know what you’re offering: a paid lead service. It is not a promise of a particular job or sale."],
-    question: "Where will you prospect?",
-    fields: [["industry","Shedlr category",""],["city","City and state","Lubbock, TX"]],
-  },
-  {
-    title: "Build your prospect list", time: 10, desc: "Find local businesses on Google and put your first three in the Hitlist.",
-    steps: ["Use Google Search or Google Maps to discover independent businesses that offer your service in your city.", "Open each business’s own website or official business page. Confirm the service area and published business contact details there before adding it.", "Check for duplicates and prior outreach. Save the business to your Hitlist, then log each call, text, or follow-up after it happens. Use only approved channels and don’t text without permission."],
-    question: "Ready to start outreach?",
-    fields: [],
-  },
-  {
-    title: "Practice the call", time: 8, desc: "Introduce Shedlr, use a job example, and find out what work fits.",
-    steps: ["Introduce yourself as a Shedlr representative. Explain that Shedlr connects service providers with prospective customers.", "Describe a specific type of request as an example, not as an available assignment. If there is a real request, share only verified, authorized details and say whether it’s a lead or a booking.", "Ask about the crew’s capacity and service area. If there’s a fit, offer the category page. If they decline, thank them and stop."],
-    quote: "Hi, I’m [name] with Shedlr. We help local providers connect with customers who need work done. For example, a homeowner might need a demolished shed hauled away before a rebuild. That’s an example of the work we’d look to match you with, not a job I’m assigning today. Is that the kind of work your crew takes?",
-    question: "Practice one discovery question and a clear next step.",
-    fields: [["discovery","Your discovery question","What types of loads can your crew handle?"],["next","Your suggested next step","Offer the matching page if they’re interested."]],
-    quiz: ["An owner asks, “Is that job already booked for me?”","Say yes so they know what they might get.","Say it’s an example, not a booked job.","Ask them to sign up before you answer."],
-  },
-  {
-    title: "Work your Hitlist", time: 5, desc: "Give every productive conversation a clear next step.",
-    steps: ["If they’re interested but not ready, use the existing approved Hitlist. Note what work they care about and any agreed follow-up.", "Send the matching program page and promo code when the prospect asks for details. Be clear that Shedlr is a paid lead service, and replace the placeholder in the sample message with the right program link.", "A click is not a signup and does not tell you why someone stopped. Ask what was unclear if follow-up was agreed, and honor any opt-out."],
-    question: "Record a practice outcome in one sentence.",
-    fields: [["outcome","Outcome and next action","Interested in light loads; agreed to follow up Thursday."]],
-  },
-  {
-    title: "Confirm and hand off", time: 7, desc: "Verify the purchase and introduce the customer to Acquisition.",
-    steps: ["Confirm the initial charge, renewal price, and billing terms at checkout; do not guess renewal terms.", "Verify that payment cleared through the approved record. Never take card details or passwords. Escalate a missing activation link through the approved internal process.", "Include business, category, service area, requested work, activation status and open questions in the handoff. Record the exact checkout email only in the approved operational tool."],
-    question: "An owner says they paid, but you can’t verify it. What do you do first?",
-    fields: [["verify","Your action","Ask the authorized team to verify payment."]],
-    quiz: ["Which counts as a confirmed purchase?","A visit to the landing page.","A prospect says they submitted the form.","A successful payment in the approved record."],
-    correct: 2,
-  }
+  {title:"Choose a niche and city",time:5,desc:"Save a market and copy a search prompt to find local businesses."},
+  {title:"Text businesses",time:10,desc:"Use a short, niche-specific inquiry on an approved texting channel."},
+  {title:"Call the replies",time:8,desc:"Open with the text conversation, qualify fit, and offer the program link."},
+  {title:"Send the link and follow up",time:5,desc:"Save only the businesses you sent a link to, then follow up if appropriate."},
+  {title:"Hand off to Lead Acquisition",time:7,desc:"Verify signup, then draft the internal email and customer update."}
 ];
 const tasks = ["Review the Hitlist for agreed follow-ups","Pick one niche and city for this session","Write one next action before signing off"];
 const blockers = {
@@ -79,24 +49,71 @@ function home(){
       }).join("")}</ol></section>
     </div><aside class="stack"><section class="panel"><h2>My Hitlist</h2><p class="muted">${esc(currentMarket()||"No market selected yet.")} Use the Hitlist to add prospects, log outreach, or check follow-ups.</p>${navBtn("hitlist","Open Hitlist")}</section>${progress()}<section class="panel"><h2>Daily Gameplan</h2><p class="muted">Set a focus and leave yourself a next action.</p>${navBtn("plan","Open gameplan →")}</section><section class="panel"><h2>Need a hand?</h2><p class="muted">Get a next step when a call, follow-up, or signup stalls.</p>${navBtn("coach","I’m blocked →")}</section></aside></div>`;
 }
+const scripts = {
+  "auto-detailing":["do an interior and exterior detail","An SUV needs pet hair removed from its interior and a wash and wax before a weekend trip."],
+  "auto-commercial-detailing":["detail fleet vehicles","A local company wants six work vans detailed on-site over two mornings."],
+  "junk-removal":["haul away shed debris","Jim needs a demolished 10×12 shed hauled off so he can begin construction on a new one."],
+  "house-cleaning":["handle a move-out clean","A renter needs a two-bedroom move-out clean after the furniture is removed."],
+  "dog-training":["take on a dog-training client","A dog owner wants help with leash pulling and door manners for an energetic young dog."],
+  "roofing":["schedule a roof inspection","A homeowner noticed water staining after a storm and wants an inspection and repair estimate."],
+  "landscaping":["handle a lawn cleanup","A homeowner wants an overgrown front yard trimmed and the clippings hauled away."],
+  "hvac":["take an A/C service call","A homeowner’s A/C runs but isn’t cooling and they want a diagnostic visit."],
+  "moving":["help with a local move","A resident is moving from a two-bedroom apartment to a nearby house and needs a crew and truck."]
+};
+const copyBox=(id,title,value,label="Copy text")=>`<div class="note script-box"><label for="${id}"><strong>${title}</strong></label><textarea id="${id}" rows="${value.split("\n").length>4?9:4}" readonly>${esc(value)}</textarea><div class="actions">${btn("copy-script",label,`data-target="${id}"`)}</div><p class="message" id="${id}-feedback" role="status"></p></div>`;
+const workflowDone=answers=>new Set(Object.keys(answers).map(Number).filter(i=>i===0||answers[i]?.workflow===2));
+const linkedBusinesses=()=> (state.rows||[]).filter(r=>!r.archived&&["Link sent","Signed up"].includes(r.status));
+const followupCandidates=()=>linkedBusinesses().filter(r=>r.status==="Link sent"&&r.last_link&&r.market.startsWith(`${activeCategory()?.label} · `)&&(!r.last_followup||r.last_followup<r.last_link));
 function lesson(){
-  const i=state.lesson, l=lessons[i], a=state.answers[i]??{}, done=state.completed.has(i);
-  const c=activeCategory();
-  const draft=c?.page?prospectMessage.replace("[insert the program link]",`https://shedlr.com${c.page}`):prospectMessage;
-  return `<div class="back">${navBtn("home","← My workspace")}</div>`+head(`Step ${String(i+1).padStart(2,"0")} / 05 · ${l.time} min`,l.title,l.desc)+
-    `<div class="layout"><div class="stack"><article class="panel lesson-content"><h2>What to do</h2>
-    <ol>${l.steps.map(s=>`<li>${s}</li>`).join("")}</ol>${l.quote?`<blockquote><p class="eyebrow">Practice script</p>${l.quote}</blockquote>`:""}
-    ${i===3?navBtn("hitlist","Open my Hitlist"):""}
-    ${i===3||i===4?`<div class="note"><strong>${promo.price} offer · <code>${promo.code}</code></strong><p>${c?.page?"The sample uses the program link for your saved niche. Confirm it matches the prospect before sending.":"Replace the placeholder with the matching Shedlr program link before sending."}</p><label for="prospect-message">Sample message</label><textarea id="prospect-message" rows="4" readonly>${esc(draft)}</textarea><div class="actions">${btn("copy-promo","Copy sample message")}</div><p class="message" id="promo-message" role="status"></p></div>`:""}
-    ${i===4?`<div class="note"><strong>Internal handoff only</strong>${state.handoffs?.length?`After verifying payment, send the handoff to both ${state.handoffs.map(esc).join(" and ")}.`:"Ask the owner for the internal handoff contacts after verifying payment."} Don’t include these contacts in the prospect message.</div>`:""}
-    ${i===0&&c?(c.page?`<a class="btn quiet-link" href="${esc(c.page)}" target="_blank" rel="noopener">Open the ${esc(c.label)} program ↗</a>`:`<p class="muted">No dedicated public page for this category. Confirm the right link with the owner before sharing the offer.</p>`):""}
-    ${i===1?`<div class="actions">${searchLinks()}${navBtn("hitlist","Open my Hitlist","primary")}</div>`:""}</article>
-    <section class="panel"><p class="eyebrow">Your checkpoint</p><h2>${l.question}</h2>
-    <form id="lesson-form" class="labels">${i===1?`<p class="muted">${esc(currentMarket()||"Save a niche and city first.")}. Add three active businesses with contact details in this market, then mark the list ready.</p>`:""}${l.fields.map(([id,label,placeholder])=>id==="industry"?`<label for="industry">${label}<select id="industry" name="industry" required><option value="">Choose from ${state.categories?.length||0} categories</option>${(state.categories||[]).map(item=>`<option ${item===c?"selected":""}>${esc(item.label)}</option>`).join("")}</select></label>${!state.categories?.length?'<p class="error">Category picker unavailable. Update the BAM Training Worker to load the list.</p>':""}`:`<label for="${id}">${label}<input id="${id}" name="${id}" required maxlength="${id==="city"?80:220}" placeholder="${placeholder}" value="${esc(a[id])}"></label>`).join("")}
-    ${l.quiz?`<label for="quiz">${l.quiz[0]}<select id="quiz" name="quiz" required><option value="">Choose an answer</option>${l.quiz.slice(1).map((opt,n)=>`<option value="${n}" ${a.quiz===String(n)?"selected":""}>${opt}</option>`).join("")}</select></label>`:""}
-    <div class="actions"><button class="btn primary" type="submit">${i===0?"Save market":i===1?"Mark prospect list ready":done?"Save checkpoint":"Complete checkpoint"}</button>${done ? (i<lessons.length-1 ? lessonBtn(i+1,"Next step →","secondary") : navBtn("plan","Open daily gameplan →")) : ""}</div></form>
-    <p class="message ${done?"success":""}" role="status" id="message">${done?"Checkpoint complete.":""}</p></section></div>
-    <aside class="stack">${progress()}<div class="note"><strong>${i<2?"Work your market":"Practice checkpoint"}</strong>${i<2?"Your market and prospect list are saved to your account. Keep public business contact details in the Hitlist.":"Use fictional details in this checkpoint. Saved answers stay with your BAM account."}</div></aside></div>`;
+  const i=state.lesson,l=lessons[i],a=state.answers[0]||{},c=activeCategory(),done=state.completed.has(i);
+  const niche=c?.label||a.industry||"your service",city=a.city||"your city";
+  const [service,scenario]=scripts[c?.id]||[`take on ${niche.toLowerCase()} work`,`Jim is looking for a local ${niche.toLowerCase()} provider, wants a clear quote, and hopes to get started within two weeks.`];
+  const name=String(state.user?.name||"").trim().split(/\s+/)[0]||"[your name]";
+  const phoneField='<label>Business phone<input name="phone" type="tel" autocomplete="tel" required maxlength="40" placeholder="Public business number"></label>';
+  let content;
+  if(i===0){
+    content=`<form id="lesson-form" class="labels"><label for="industry">Shedlr category<select id="industry" name="industry" required><option value="">Choose from ${state.categories?.length||0} categories</option>${(state.categories||[]).map(item=>`<option ${item===c?"selected":""}>${esc(item.label)}</option>`).join("")}</select></label>
+      ${!state.categories?.length?'<p class="error">Category picker unavailable. Deploy the updated BAM Worker.</p>':""}
+      <label for="city">City and state<input id="city" name="city" required maxlength="80" placeholder="Dallas, TX" value="${esc(a.city)}"></label><div class="actions"><button class="btn primary">Save market</button></div></form>
+      ${c&&a.city?`${copyBox("google-query","Google search",`small independent ${niche.toLowerCase()} businesses in ${city}`,"Copy Google search")}
+      ${copyBox("ai-query","AI research prompt",`Find 10 small independent ${niche.toLowerCase()} businesses serving ${city}. Use the businesses’ own websites or official pages. Return business name, city, public business phone, and the source URL in a table. Exclude chains, duplicate listings, and businesses that do not clearly offer the service. Do not guess missing details.`,"Copy AI prompt")}<div class="actions">${searchLinks()}</div>`:""}`;
+  }else if(!c||!a.city){
+    content=`<p>Save a supported category and city to generate your scripts.</p>${lessonBtn(0,"Choose my niche and city")}`;
+  }else if(i===1){
+    content=`<p>Use an approved texting channel only where you have permission. Introduce yourself as Shedlr, ask about availability, and honor opt-outs.</p>
+      ${copyBox("intro-text","First text",`Hey, this is ${name} with Shedlr. Are you available to ${service} in ${city} this week or next? I’m checking availability for our local provider network. If you’re open to hearing about it, is there a good time for a quick call?`)}
+      <div class="actions">${btn("workflow-done","I’ve sent my first text")}</div>`;
+  }else if(i===2){
+    content=`<p>Call businesses that replied and are open to talking. Confirm fit before sending a link.</p>
+      <div class="note"><strong>Roleplay job brief</strong><p>Jim Stanly · ${esc(city)} · Practice site: 100 Example Lane (not a real address)</p><p>${esc(scenario)}</p><p>Use this to illustrate the kind of request Shedlr may match. Share a real address only for a verified lead when authorized.</p></div>
+      ${copyBox("call-script","Phone call flow",`OPEN: Hey, this is ${name} with Shedlr. I was the one texting you about ${niche.toLowerCase()} work in ${city}. Is now a good time for a quick call?\n\nEXAMPLE: Here’s the kind of request we look to match: ${scenario} Is that the kind of work you take?\n\nQUALIFY: Which ZIP codes do you cover? What types or sizes of jobs are a good fit? What’s your availability? Who’s the best person to contact about a new lead?\n\nCLOSE: You sound like a good fit. Can I send you our Shedlr program page? It’s a paid lead service. If it looks right for your business, you can sign up there. I can share a promo code if you’d like.`, "Copy call flow")}
+      <div class="actions">${btn("workflow-done","I’ve made a qualifying call")}</div>`;
+  }else if(i===3){
+    content=`<p>Send the program link only after the conversation went well and the business agreed to receive it.</p>
+      ${c.page?copyBox("send-link","Landing-page text",`Here’s the Shedlr program page we discussed: https://shedlr.com${c.page}. It explains how our paid lead service works. Just let me know when you need the promo code.`):'<div class="note">This category has no dedicated public page. Ask the owner for the approved link before sending it.</div>'}
+      ${copyBox("promo-text","When they ask for the code",`Use ${promo.code} at checkout for the ${promo.price} offer. Please review the billing and renewal terms at checkout before signing up. Let me know if you have any questions.`)}
+      ${copyBox("followup-text","Follow-up after about two hours",`Hey, just following up on the Shedlr link I sent. Are you still interested in the ${niche.toLowerCase()} program in ${city}? If you have questions or want the promo code, I’m happy to help. If it’s not a fit, no worries.`)}
+      <p class="muted">Follow up once if they agreed to hear from you and haven’t replied after about two hours. Stop if they decline or opt out. Nothing sends automatically.</p>
+      ${followupCandidates().length?`<div class="note"><strong>Check for replies</strong>${followupCandidates().slice(0,12).map(r=>{const due=new Date(Date.parse(r.last_link)+7200000);return `<div class="mini-item">${esc(r.business)} · ${due.getTime()<=Date.now()?"Review now if no reply":`Review at ${esc(date(due))}`}${due.getTime()<=Date.now()?` <button type="button" class="btn secondary" data-action="log-outreach" data-id="${r.id}" data-channel="followup">Log follow-up sent</button>`:""}</div>`;}).join("")}</div>`:""}
+      <form id="link-record-form" class="labels"><h2>Log a link you sent</h2><label>Business name<input name="business" required maxlength="140"></label><label>Business location<input name="location" required maxlength="${120-niche.length-3}" placeholder="${esc(city)}"></label>${phoneField}<div class="actions"><button class="btn primary">Record link sent</button>${navBtn("hitlist","Open Hitlist")}</div></form>`;
+  }else{
+    const recipients=state.handoffs||[];
+    const draft=state.handoffDraft;
+    content=`<p>Verify signup and payment in the approved system first. Then send the handoff email. Give an end-of-business commitment only if Acquisition confirms it.</p>
+      <div class="note"><strong>Internal recipients</strong>${recipients.length?recipients.map(esc).join(" and "):"Internal routing isn’t configured. Ask the owner to confirm the two email addresses."}</div>
+      <form id="handoff-form" class="labels"><label>Business<select name="row" required><option value="">Choose a business with a sent link</option>${linkedBusinesses().map(r=>`<option value="${r.id}" ${draft?.row===r.id?"selected":""}>${esc(r.business)} · ${esc(r.market)}</option>`).join("")}</select></label>
+      <label>Industry<input name="industry" required maxlength="140" value="${esc(draft?.industry||niche)}"></label>
+      <label>Work discussed and any verified commitments<textarea name="work" required maxlength="1000" placeholder="Services, job types, scope, and any specific commitments. Write “none” if no specific jobs were committed.">${esc(draft?.work)}</textarea></label>
+      <label class="check-inline"><input name="verified" type="checkbox" required ${draft?"checked":""}> I verified signup and payment.</label>
+      <label class="check-inline"><input name="confirmed" type="checkbox" ${draft?.confirmed?"checked":""}> Acquisition confirmed contact by end of business today.</label>
+      <div class="actions"><button class="btn primary" ${linkedBusinesses().length?"":"disabled"}>Prepare handoff</button>${lessonBtn(3,"Back to link and follow-up","secondary")}</div></form>
+      ${draft?`${copyBox("handoff-email","Internal email draft",draft.email,"Copy handoff email")}${copyBox("customer-update","Customer update",draft.customer)}
+      <div class="actions">${btn("workflow-done","I sent the handoff email")}</div>`:""}`;
+  }
+  return `<div class="back">${navBtn("home","← My workspace")}</div>`+head(`Step ${String(i+1).padStart(2,"0")} / 05`,l.title,l.desc)+
+    `<div class="layout"><article class="panel stack lesson-content">${content}${feedback}
+    ${done?`<div class="actions">${i===4?navBtn("hitlist","Work my Hitlist"):lessonBtn(i+1,"Next step →","secondary")}</div>`:""}</article>
+    <aside class="stack">${progress()}<div class="note"><strong>Saved market</strong>${esc(currentMarket()||"No market saved yet.")}${i!==0?`<div class="actions">${lessonBtn(0,"Change market","secondary")}</div>`:""}</div></aside></div>`;
 }
 function plan(){
   const p=state.plan??{};
@@ -134,17 +151,6 @@ const msg=(text,fail=false,target="message")=>{
 const feedback='<p class="message" id="message" role="status"></p>';
 const btn=(act,label,attrs="")=>`<button type="button" class="btn secondary" data-action="${act}" ${attrs}>${label}</button>`;
 const businessLink='<a class="btn secondary" href="/admin.html">Back to Business</a>';
-function parseProspects(value){
-  let lines=value.split(/\r?\n/).filter(line=>line.trim());
-  if(/^(business|business name)\t/i.test(lines[0]||"")&&/\tsource url(?:\t|$)/i.test(lines[0]))lines=lines.slice(1);
-  if(!lines.length||lines.length>20)throw new Error("Paste 1 to 20 business rows at a time.");
-  return lines.map((line,i)=>{
-    const cells=line.split("\t").map(v=>v.trim());
-    const [business,contact,source,notes=""]=cells;
-    if(cells.length<3||cells.length>4||!business||!contact||!/^https?:\/\/\S+$/i.test(source))throw new Error(`Row ${i+1}: include business, contact, and an https:// or http:// source URL in separate columns.`);
-    return {business,contact,source,notes};
-  });
-}
 async function api(action, values={}){
   let res;
   try{res=await fetch("/api/bam-training",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({...values,action})});}
@@ -158,7 +164,7 @@ async function api(action, values={}){
 }
 async function loadRep(){
   const d=await api("progress");
-  Object.assign(state,{user:d.user,answers:d.answers,completed:new Set(Object.keys(d.answers).map(Number)),plan:d.plan,checks:d.plan?.checks||[],blocker:d.blocker,handoffs:d.handoffs,categories:d.categories,view:"home",rows:[],editing:null,hitFilter:"all"});
+  Object.assign(state,{user:d.user,answers:d.answers,completed:workflowDone(d.answers),plan:d.plan,checks:d.plan?.checks||[],blocker:d.blocker,handoffs:d.handoffs,categories:d.categories,view:"home",rows:[],editing:null,hitFilter:"all",handoffDraft:null});
 }
 function authView(){
   const join=state.view==="join";
@@ -178,13 +184,12 @@ function hitlist(){
   const r=state.editing||{};
   const filters={all:"All active",due:"Due follow-ups",archive:"Archived"};
   const rows=(state.rows||[]).filter(row=>state.hitFilter==="archive"?row.archived:!row.archived&&(state.hitFilter!=="due"||row.followup&&row.followup<=localDay()&&!terminal.has(row.status)));
-  return head("Your pipeline","Hitlist","Add verified business contacts and log outreach you’ve already done. These buttons do not send texts or place calls.")+
+  return head("Your pipeline","Hitlist","Keep track of businesses you sent a link to. Outreach buttons record what you’ve done; they do not send texts or place calls.")+
     `<div class="stack">
     <section class="panel"><div class="section-head"><h2>${filters[state.hitFilter]||filters.all}</h2><span>${rows.length} businesses</span></div>
-    <div class="actions" aria-label="Filter Hitlist">${Object.entries(filters).map(([k,label])=>btn("hit-filter",label,`data-filter="${k}" aria-pressed="${k===state.hitFilter}"`)).join("")}</div><p class="muted">Due follow-ups include dates through today. Don’t text without permission, and mark opt-outs Do not contact.</p>${feedback}
+    <div class="actions" aria-label="Filter Hitlist">${Object.entries(filters).map(([k,label])=>btn("hit-filter",label,`data-filter="${k}" aria-pressed="${k===state.hitFilter}"`)).join("")}${lessonBtn(3,"Record a link sent","primary")}</div><p class="muted">Due follow-ups include dates through today. Don’t text without permission, and mark opt-outs Do not contact.</p>${feedback}
     ${table(rows,true)}</section>
-    <section class="panel"><div class="section-head"><h2>${r.id?"Edit business":"Add a business"}</h2><span>${esc(currentMarket()||"No market chosen")}</span></div>
-    <div class="actions">${searchLinks()}</div>
+    ${r.id?`<section class="panel"><h2>Edit business</h2>
     <form id="hit-form" class="labels"><div class="fields">
     <label>Business<input name="business" required maxlength="140" value="${esc(r.business)}"></label>
     <label>Business contact<input name="contact" maxlength="200" placeholder="Name, work email or business phone" value="${esc(r.contact)}"></label>
@@ -192,9 +197,7 @@ function hitlist(){
     <label>Status<select name="status">${statuses.map(s=>`<option ${s===r.status?"selected":""}>${s}</option>`).join("")}</select></label>
     <label>Agreed follow-up date<input name="followup" type="date" value="${esc(r.followup)}"></label></div>
     <label>Notes<textarea name="notes" maxlength="1000">${esc(r.notes)}</textarea></label>
-    <div class="actions"><button class="btn primary">Save business</button>${r.id?btn("cancel-edit","Cancel edit"):""}</div></form><p id="hit-form-message" class="message" role="status"></p></section>
-    <section class="panel"><h2>Paste spreadsheet rows</h2><p class="muted">Use business-owned or licensed sources. Copy up to 20 rows at a time: Business, Contact, Source URL, and optional Notes. All rows go into your saved market. Don’t export Google Maps listings into the tracker.</p>
-    <form id="import-form" class="labels"><label>Spreadsheet rows<textarea name="rows" required maxlength="12000" placeholder="Paste tab-separated cells here"></textarea></label><div class="actions"><button class="btn primary" ${!currentMarket()?"disabled":""}>Add rows to Hitlist</button>${!currentMarket()?lessonBtn(0,"Choose a niche and city","secondary"):""}</div></form><p id="import-message" class="message" role="status"></p></section></div>`;
+    <div class="actions"><button class="btn primary">Save business</button>${btn("cancel-edit","Cancel edit")}</div></form><p id="hit-form-message" class="message" role="status"></p></section>`:""}</div>`;
 }
 function team(){
   const d=state.team;
@@ -222,7 +225,7 @@ function render(focus=false){
 }
 function handleError(e){
   if(e.status===401&&state.user&&!teamMode){
-    Object.assign(state,{user:null,view:"signin",rows:[],editing:null,answers:{},handoffs:null,plan:null,checks:[],blocker:null,completed:new Set()});render(true);
+    Object.assign(state,{user:null,view:"signin",rows:[],editing:null,answers:{},handoffs:null,handoffDraft:null,plan:null,checks:[],blocker:null,completed:new Set()});render(true);
   }
   msg(e.message,true);
 }
@@ -262,10 +265,18 @@ document.addEventListener("click",(event)=>{
     }
     if(!state.user){state.view=button.dataset.view==="join"?"join":"signin";render(true);return;}
     if(button.id==="sign-out"){await api("signout");location.assign("/bam-training");return;}
-    if(action==="copy-promo"){
-      const status=document.querySelector("#promo-message");
-      try{await navigator.clipboard.writeText(document.querySelector("#prospect-message").value);status.textContent=activeCategory()?.page?"Message copied. Confirm the program matches the prospect before sending.":"Message copied. Replace the link placeholder before sending.";}
-      catch{const field=document.querySelector("#prospect-message");field.focus();field.select();status.textContent="Copy the selected text, then replace the link placeholder.";}
+    if(action==="copy-script"){
+      const field=document.getElementById(button.dataset.target), status=document.getElementById(`${button.dataset.target}-feedback`);
+      try{await navigator.clipboard.writeText(field.value);status.textContent="Copied.";}
+      catch{field.focus();field.select();status.textContent="Copy the selected text manually.";}
+      return;
+    }
+    if(action==="workflow-done"){
+      const step=state.lesson,d=state.handoffDraft;
+      if(step===4&&!d)return;
+      await api("workflow_step",{step,...(step===4?{id:d.row,verified:true}:{})});
+      if(step===4){await loadRows();state.handoffDraft=null;}
+      state.completed.add(step);render();msg(step===4?"Handoff logged.":"Action marked complete.");
       return;
     }
     if(action==="resolve"){await api("clear_blocker");state.blocker=null;render();return;}
@@ -282,7 +293,11 @@ document.addEventListener("click",(event)=>{
       if(!window.confirm("Archive this business? It will move out of the active Hitlist."))return;
       await api("archive_business",{id});if(state.editing?.id===id)state.editing=null;await loadRows();render();msg("Business archived.");return;
     }
-    if(button.dataset.lesson!==undefined){state.view="lesson";state.lesson=Number(button.dataset.lesson);}
+    if(button.dataset.lesson!==undefined){
+      const step=Number(button.dataset.lesson);
+      if(step===3||step===4)await loadRows();
+      state.view="lesson";state.lesson=step;state.handoffDraft=null;
+    }
     else if(button.dataset.view){if(button.dataset.view==="hitlist")await loadRows();state.view=button.dataset.view;}
     render(true);
   });
@@ -301,22 +316,20 @@ main.addEventListener("submit",(event)=>{
   } else if(form.id==="hit-form"){
     try{await api("save_business",{...values,id:state.editing?.id});}catch(e){if(e.status===401)throw e;msg(e.message,true,"hit-form-message");return;}
     state.editing=null;state.hitFilter="all";await loadRows();render();msg("Business saved.",false,"hit-form-message");
-  } else if(form.id==="import-form"){
-    let output;
-    try{output=await api("import_prospects",{market:currentMarket(),rows:parseProspects(String(fd.get("rows")||""))});}
-    catch(e){if(e.status===401)throw e;msg(e.message,true,"import-message");return;}
-    state.hitFilter="all";await loadRows();render();msg(`${output.added} added. ${output.skipped} skipped (duplicates or Hitlist limit).`,false,"import-message");
   } else if(form.id==="lesson-form"){
-    const i=state.lesson,l=lessons[i],message=document.querySelector("#message");
-    if(l.fields.some(([key])=>!values[key]) || (l.quiz && values.quiz!==String(l.correct??1))){
-      message.className="message error";
-      message.textContent=l.fields.some(([key])=>!values[key])?"Fill in each practice field before continuing.":"Not quite. Review the steps above and try again.";
-      return;
-    }
-    if(i===1)await api("prospecting_ready");
-    else await api("complete",{lesson:i,answers:values});
-    state.answers[i]=i===1?{market:currentMarket()}:values;state.completed.add(i);render();
-    document.querySelector("#message").setAttribute("tabindex","-1");document.querySelector("#message").focus();
+    if(!values.city||!state.categories?.some(c=>c.label===values.industry)){msg("Choose a category and enter your city and state.",true);return;}
+    await api("complete",{lesson:0,answers:values});
+    state.answers[0]=values;state.completed.add(0);render();msg("Market saved. Your search prompts are ready.");
+  } else if(form.id==="link-record-form"){
+    await api("record_link",values);await loadRows();state.completed.add(3);render();msg("Business saved as Link sent.");
+  } else if(form.id==="handoff-form"){
+    const row=linkedBusinesses().find(r=>r.id===Number(values.row));
+    if(!row||!/^[+()\d.\s-]+$/.test(row.contact)||!/^\d{10,15}$/.test(row.contact.replace(/\D/g,""))||!values.industry||!values.work||!fd.has("verified")){msg("Use a business with a valid phone number in the Hitlist and complete all handoff fields.",true);return;}
+    const confirmed=fd.has("confirmed");
+    const email=[`To: ${(state.handoffs||[]).join(", ")||"[confirm Lead Acquisition recipients with owner]"}`,`Subject: Shedlr signup handoff: ${row.business.replace(/[\r\n]+/g," ")}`,"","Hi Lead Acquisition,","I verified signup and payment for this business. Please reach out to confirm service fit and next steps.","",`Business: ${row.business}`,`Business phone: ${row.contact}`,`Market/location: ${row.market}`,`Industry: ${values.industry}`,`Work discussed and verified commitments: ${values.work}`,"",confirmed?"Please reach out by end of business today, as confirmed.":"Please confirm the expected contact time so I can update the business.",`Thanks, ${state.user.name}`].join("\n");
+    const customer=confirmed?"Thanks for signing up with Shedlr. I’m sending your information to Lead Acquisition, and they’ve confirmed they’ll contact you by end of business today to go over the work you’re looking for and next steps.":"Thanks for signing up with Shedlr. I’m sending your information to Lead Acquisition. They’ll be in touch to go over the work you’re looking for and next steps. I’ll follow up once I have a confirmed timeframe.";
+    state.handoffDraft={row:row.id,industry:values.industry,work:values.work,confirmed,email,customer};render();
+    document.getElementById("handoff-email")?.focus();
   } else if(form.id==="plan-form"){
     if(!values.market||!values.goal||!values.next){const m=document.querySelector("#message");m.className="message error";m.textContent="Enter a market, a goal, and a next action.";return;}
     const checks=fd.getAll("task");await api("gameplan",{...values,checks});
