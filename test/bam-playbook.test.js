@@ -66,6 +66,12 @@ function loadLessonView() {
   return view;
 }
 
+test("BAM sign-in directs reps to a Shedlr supervisor for access", () => {
+  const view = loadLessonView();
+  assert.match(runInContext('state.view="signin";authView()',view), /Contact a Shedlr supervisor for access\./);
+  assert.doesNotMatch(runInContext('state.view="join";authView()',view), /Shedlr owner/i);
+});
+
 test("Step 3 keeps category job examples, checks next-week availability and uses a direct close", async () => {
   const { bamCategories } = await import("../worker/src/category-programs.mjs");
   const view = loadLessonView();
