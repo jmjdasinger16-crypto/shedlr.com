@@ -71,7 +71,7 @@ async function loadLeadNotes(leadId) {
     list.innerHTML = notes.length ? notes.map(note => `
       <div class="note-item">
         <div>${esc(note.content)}</div>
-        <div class="meta">${esc(note.author === 'business' ? 'You' : 'Shedlr')} · ${fmt(note.created_at)}</div>
+        <div class="meta">${esc(note.author === 'shedlr_follow_up' ? 'Shedlr follow-up prep' : note.author === 'business' ? 'You' : 'Shedlr')} · ${fmt(note.created_at)}</div>
       </div>
     `).join('') : '<p class="empty-hint">No notes yet. Add one below.</p>';
   } catch (error) {
