@@ -1,5 +1,6 @@
 import { handleBamTraining } from "./bam-training.js";
 import { addRecentFollowUpNotes } from "./lead-follow-up.mjs";
+import { logContactAttempt, getPortalActivity } from "./lead-activity.mjs";
 import { programs, categoryIds as CATEGORIES, categoryLabels as CATEGORY_LABELS, bamCategories as BAM_CATEGORIES } from "./category-programs.mjs";
 
 const SESSION_COOKIE = "shedlr_admin";
@@ -1015,6 +1016,7 @@ export default {
     if (url.pathname.startsWith("/api/portal/") && !["/api/portal/activate", "/api/portal/set-password", "/api/portal/login", "/api/portal/logout", "/api/portal/checkout-activation"].includes(url.pathname)) {
       const business = await getAuthedBusiness(request, env);
       if (!business) return json({ error: "Unauthorized." }, 401);
+      if (request.method === "GET" && url.pathname === "/api/portal/activity") return json(await getPortalActivity(env.DB, business.id));
       if (request.method === "GET" && url.pathname === "/api/portal/me") return json({ business: { id: business.id, email: business.email, name: business.name, phone: business.phone, company_name: business.company_name, address: business.address, preferred_category: business.preferred_category, status: business.status, leads_locked: isLeadsLocked(business) } });
       if (request.method === "PATCH" && url.pathname === "/api/portal/me") {
         let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); }
@@ -1403,6 +1405,14 @@ export default {
         if (session.role !== "admin") return json({ error: "Only the owner admin can generate follow-up notes." }, 403);
         let data = {}; try { data = await request.json(); } catch {}
         return json(await addRecentFollowUpNotes(env.DB, data));
+      }
+      /* Log a real contact attempt typed by a person (owner admin only). */
+      const attemptMatch = url.pathname.match(/^\/api\/admin\/leads\/(\d+)\/attempts$/);
+      if (request.method === "POST" && attemptMatch) {
+        if (session.role !== "admin") return json({ error: "Only the owner admin can log contact attempts." }, 403);
+        let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); }
+        const { status, ...body } = await logContactAttempt(env.DB, Number(attemptMatch[1]), data);
+        return json(status === 201 ? { success: true, ...body } : body, status);
       }
       const leadNotesAdminMatch = url.pathname.match(/^\/api\/admin\/leads\/(\d+)\/notes$/);
       if (request.method === "GET" && leadNotesAdminMatch) { const leadId = Number(leadNotesAdminMatch[1]); const notes = await env.DB.prepare(`SELECT ln.id, ln.author, ln.content, ln.created_at, ln.updated_at, b.company_name, b.name AS business_name FROM lead_notes ln LEFT JOIN businesses b ON b.id = ln.business_id WHERE ln.lead_id=? ORDER BY ln.created_at DESC LIMIT 200`).bind(leadId).all(); return json({ notes: notes.results || [] }); }

@@ -71,7 +71,7 @@ async function loadLeadNotes(leadId) {
     list.innerHTML = notes.length ? notes.map(note => `
       <div class="note-item">
         <div>${esc(note.content)}</div>
-        <div class="meta">${esc(note.author === 'shedlr_follow_up' ? 'Shedlr follow-up prep' : note.author === 'business' ? 'You' : 'Shedlr')} · ${fmt(note.created_at)}</div>
+        <div class="meta">${esc(note.author === 'shedlr_follow_up' ? 'Shedlr follow-up prep' : note.author === 'shedlr_attempt' ? 'Shedlr team' : note.author === 'business' ? 'You' : 'Shedlr')} · ${fmt(note.created_at)}</div>
       </div>
     `).join('') : '<p class="empty-hint">No notes yet. Add one below.</p>';
   } catch (error) {
@@ -169,6 +169,19 @@ $('[data-profile-save]').addEventListener('click', async () => {
   btn.textContent = 'Save profile';
 });
 
+async function loadActivity() {
+  const a = await api('/api/portal/activity');
+  const panel = $('[data-activity-panel]');
+  const when = (v) => v ? fmt(v) : 'None yet';
+  panel.hidden = false;
+  $('[data-activity-body]').innerHTML = `<div class="detail-grid">
+    <div><strong>Leads delivered</strong>${esc(a.leads_delivered)}</div>
+    <div><strong>Contact attempts logged</strong>${esc(a.attempts_logged)}</div>
+    <div><strong>Last delivery</strong>${esc(when(a.last_delivery_at))}</div>
+    <div><strong>Last contact attempt</strong>${esc(when(a.last_attempt_at))}</div>
+  </div>`;
+}
+
 async function loadDashboard() {
   const { business } = await api('/api/portal/me');
   $('[data-business-name-suffix]').textContent = business.name ? `, ${business.name}` : '';
@@ -191,6 +204,7 @@ async function loadDashboard() {
   }
   renderOrders(ordersRes.orders || []);
   loadBusinessNotes().catch(() => {});
+  loadActivity().catch(() => {});
 }
 
 loadDashboard().catch((error) => {

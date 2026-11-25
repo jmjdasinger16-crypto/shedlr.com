@@ -29,6 +29,17 @@ test("every service category has three distinct follow-up examples; intake facts
   assert.match(buildFollowUpNote({ category: "constructor" }), /Confirm the job scope/);
 });
 
+test("notes vary across leads and repeat check-ins and never claim a call happened", async () => {
+  const { buildFollowUpNote } = await import("../worker/src/lead-follow-up.mjs");
+  for (const category of ["appliance-repair", "roofing", "tax-prep"]) {
+    const sameIntake = Array.from({ length: 200 }, (_, id) => buildFollowUpNote({ id: id + 1, category, message: "Need help this week" }));
+    assert.ok(new Set(sameIntake).size >= 190, `${category}: ${new Set(sameIntake).size} distinct of 200`);
+    const sameLead = Array.from({ length: 12 }, (_, prior) => buildFollowUpNote({ id: 7, category, message: "Need help this week", prior }));
+    assert.equal(new Set(sameLead).size, 12);
+    for (const note of [...sameIntake, ...sameLead]) assert.doesNotMatch(note, /\b(?:called|left a voicemail|rang out|spoke with|reached|went to voicemail)\b/i);
+  }
+});
+
 test("owner action adds notes only to recent assignments for active businesses in D1", async t => {
   const root = path.resolve(__dirname, "..");
   const mf = new Miniflare({
@@ -57,43 +68,57 @@ test("owner action adds notes only to recent assignments for active businesses i
       .bind(index + 1, `test-${index}@example.com`, status, iso(-100), iso(-100)).run();
   }
   const fixtures = [
-    [1, 1, -5, "assigned", "appliance-repair", "Whirlpool fridge is not cooling"],
-    [2, 1, -60.5, "assigned", "roofing", "Older assignment"],
-    [3, 2, -1, "assigned", "roofing", "Canceled account"],
-    [4, 3, -1, "assigned", "roofing", "Past-due account"],
-    [5, 4, -1, "assigned", "roofing", "Suspended account"],
-    [6, 1, -10, "archived", "roofing", "Archived lead"],
+    [1, 1, -5000, "assigned", "appliance-repair", "Whirlpool fridge is not cooling"],
+    [2, 1, -120, "assigned", "roofing", "Older assignment with a fresh note"],
+    [3, 2, -1000, "assigned", "roofing", "Canceled account"],
+    [4, 3, -1000, "assigned", "roofing", "Past-due account"],
+    [5, 4, -1000, "assigned", "roofing", "Suspended account"],
+    [6, 1, -1000, "archived", "roofing", "Archived lead"],
     [7, 1, 10, "assigned", "roofing", "Future assignment"],
     [8, null, -3, "new", "roofing", "No assignment"],
-    [9, 1, -59.5, "assigned", "fencing", "Need a new fence"],
+    [9, 1, -59, "assigned", "fencing", "Assigned minutes ago"],
+    [10, 1, -61, "assigned", "fencing", "Need a new fence"],
+    [11, 1, -300, "assigned", "roofing", "Last note is old"],
   ];
   for (const [id, account, minutes, status, category, message] of fixtures) {
     await db.prepare("INSERT INTO leads(id,name,status,category,message,submitted_at) VALUES (?,'Test lead',?,?,?,?)")
-      .bind(id, status, category, message, iso(-120)).run();
+      .bind(id, status, category, message, iso(-6000)).run();
     if (account) await db.prepare("INSERT INTO lead_assignments(id,lead_id,business_id,assigned_at) VALUES (?,?,?,?)")
       .bind(id, id, account, iso(minutes)).run();
   }
-  await db.prepare("INSERT INTO lead_notes(assignment_id,business_id,lead_id,content,created_at,updated_at) VALUES (1,1,1,'Existing human note',?,?)")
-    .bind(iso(-2), iso(-2)).run();
+  await db.prepare("INSERT INTO lead_notes(assignment_id,business_id,lead_id,content,created_at,updated_at) VALUES (2,1,2,'Fresh human note',?,?)")
+    .bind(iso(-30), iso(-30)).run();
+  await db.prepare("INSERT INTO lead_notes(assignment_id,business_id,lead_id,content,created_at,updated_at) VALUES (11,1,11,'Old human note',?,?)")
+    .bind(iso(-200), iso(-200)).run();
 
   await post(endpoint, {}, null, 401);
   const staff = (await post("/api/admin/login", { password: "staff-test-only" })).cookie;
   await post(endpoint, {}, staff, 403);
   const owner = (await post("/api/admin/login", { password: "owner-test-only" })).cookie;
   await post("/api/admin/leads/backfill-notes", {}, owner, 404);
-  const dry = (await post(endpoint, { dryRun: true, minGapHours: 720 }, owner)).data;
-  assert.deepEqual(dry, { scanned: 2, backfilled_leads: 0, notes_created: 0, dry_run: true });
-  assert.equal((await db.prepare("SELECT COUNT(*) AS total FROM lead_notes").first()).total, 1);
+  const dry = (await post(endpoint, { dryRun: true }, owner)).data;
+  assert.deepEqual(dry, { scanned: 3, backfilled_leads: 0, notes_created: 0, has_more: false, dry_run: true });
+  const limited = (await post(endpoint, { dryRun: true, maxLeads: 2 }, owner)).data;
+  assert.deepEqual([limited.scanned, limited.has_more], [2, true]);
+  assert.equal((await db.prepare("SELECT COUNT(*) AS total FROM lead_notes").first()).total, 2);
 
   const runs = await Promise.all([post(endpoint, {}, owner), post(endpoint, {}, owner)]);
-  assert.equal(runs.reduce((sum, { data }) => sum + data.notes_created, 0), 2);
+  assert.equal(runs.reduce((sum, { data }) => sum + data.notes_created, 0), 3);
   assert.equal((await post(endpoint, {}, owner)).data.notes_created, 0);
   const { results } = await db.prepare("SELECT lead_id, business_id, author, content, created_at FROM lead_notes ORDER BY id").all();
-  const [existing, ...added] = results;
-  assert.equal(existing.content, "Existing human note");
-  assert.equal(existing.author, "business");
-  assert.deepEqual(added.map(row => row.lead_id).sort(), [1, 9]);
-  assert.ok(added.every(row => row.author === "shedlr_follow_up" && row.business_id === 1 && Date.parse(row.created_at) >= now));
+  const added = results.filter(row => row.author === "shedlr_follow_up");
+  assert.deepEqual(results.filter(row => row.author === "business").map(row => row.content), ["Fresh human note", "Old human note"]);
+  assert.deepEqual(added.map(row => row.lead_id).sort((a, b) => a - b), [1, 10, 11]);
+  assert.ok(added.every(row => row.business_id === 1 && Date.parse(row.created_at) >= now));
   assert.match(added.find(row => row.lead_id === 1).content, /Whirlpool fridge is not cooling.*current temperatures/);
-  assert.match(added.find(row => row.lead_id === 9).content, /footage and gates/);
+  assert.match(added.find(row => row.lead_id === 10).content, /footage and gates/);
+
+  // A later catch-up (after another hour) rotates to a different question for the same lead.
+  const later = new Date(now + 61 * 60_000);
+  const { addRecentFollowUpNotes } = await import("../worker/src/lead-follow-up.mjs");
+  const rerun = await addRecentFollowUpNotes(db, {}, later);
+  assert.equal(rerun.notes_created, 5);
+  const second = await db.prepare("SELECT content FROM lead_notes WHERE lead_id=10 AND author='shedlr_follow_up' ORDER BY id DESC").first();
+  assert.match(second.content, /fence|Need a new fence/);
+  assert.doesNotMatch(second.content, /called|left a voicemail|went to voicemail|spoke with/i);
 });

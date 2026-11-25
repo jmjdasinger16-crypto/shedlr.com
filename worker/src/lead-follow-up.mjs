@@ -91,18 +91,55 @@ function applianceTopics(intake) {
   return followUpTopics["appliance-repair"];
 }
 
-export function buildFollowUpNote({ category, preferred_category: preferredCategory, message }) {
+const openers = [label => `${label} follow-up prep.`, label => `Prep for the ${label} follow-up.`, label => `${label}: ready for the next outreach.`, label => `Next-step notes, ${label}.`, label => `${label} lead, outreach plan.`, label => `Before the next ${label} contact:`, label => `${label} lead: what to have ready.`, label => `Heads-up for the ${label} outreach.`];
+const intakeLines = [t => `Lead intake: “${t}”`, t => `They wrote: “${t}”`, t => `Request on file: “${t}”`, t => `From the form: “${t}”`, t => `Their message: “${t}”`, t => `As submitted: “${t}”`];
+// Generic contact guidance. These are instructions for the next attempt, never claims that a call already happened.
+const contactPlans = [
+  "If there is no answer, leave a short voicemail with the callback number and try again later today.",
+  "Call first; if it goes to voicemail, leave a brief message and follow with a text.",
+  "Try a call during business hours and keep the voicemail under 20 seconds.",
+  "If the line is busy or unanswered, text the lead and retry the call the next morning.",
+  "Offer two appointment windows when you reach them and confirm the best number to use.",
+  "If the lead replies by text, answer by text and offer a quick call afterward.",
+  "Confirm the best time of day to call before asking the detailed questions.",
+  "If voicemail is full, send a text or email instead and note the attempt.",
+  "Open by confirming the job and the service address, then move on to details.",
+  "If they ask for more time, set a specific follow-up day before ending the conversation.",
+  "Reference the original request in the voicemail so the lead recognizes the call.",
+  "Space call attempts several hours apart rather than back to back.",
+];
+const checkInLabels = ["check-in", "follow-up", "re-check", "next touch"];
+const questionLeads = ["Suggested questions", "Worth asking", "Questions to cover", "Details to confirm"];
+const nextLeads = ["Next question to cover", "Ask this time", "Focus for this contact", "Also worth confirming"];
+
+function hash(value) {
+  let h = 2166136261;
+  for (const ch of String(value)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
+  h ^= h >>> 16; h = Math.imul(h, 0x85ebca6b); h ^= h >>> 13; h = Math.imul(h, 0xc2b2ae35); h ^= h >>> 16;
+  return h >>> 0;
+}
+
+export function buildFollowUpNote({ id = 0, category, preferred_category: preferredCategory, message, prior = 0 }) {
   const known = [category, preferredCategory].find(id => Object.hasOwn(followUpTopics, id));
   const intake = String(message || "").trim();
   const excerpt = intake.length > 400 ? `${intake.slice(0, 400).trimEnd()}…` : intake;
   const topics = known === "appliance-repair" ? applianceTopics(intake) : known ? followUpTopics[known] : fallbackTopics;
-  return [
-    `${known ? categoryLabels[known] : "Service"} follow-up prep.`,
-    excerpt ? `Lead intake: “${excerpt}”` : "No job details were provided in the intake.",
-    `Suggested questions: ${topics.join("; ")}.`,
-  ].join(" ");
+  const label = known ? categoryLabels[known] : "Service";
+  const seed = hash(`${id}:${prior}`);
+  const pick = (list, salt) => list[hash(`${seed}:${salt}`) % list.length];
+  const intakeLine = excerpt ? pick(intakeLines, "i")(excerpt) : "No job details were provided in the intake.";
+  const plan = pick(contactPlans, "p");
+  if (prior > 0) {
+    const heading = `${label} ${pick(checkInLabels, "c")} ${prior + 1}.`;
+    return [heading, intakeLine, `${pick(nextLeads, "n")}: ${topics[(seed >>> 3) % topics.length]}.`, plan].join(" ");
+  }
+  const start = seed % topics.length;
+  const ordered = topics.map((_, i) => topics[(start + i) % topics.length]);
+  return [pick(openers, "o")(label), intakeLine, `${pick(questionLeads, "q")}: ${ordered.join("; ")}.`, plan].join(" ");
 }
 
+// Catches up every lead on an active business account whose latest note (or delivery,
+// when it has no notes) is more than 60 minutes old. Newer activity is left alone.
 export async function addRecentFollowUpNotes(db, options = {}, now = new Date()) {
   const cutoff = new Date(now.getTime() - 60 * 60 * 1000).toISOString();
   const until = now.toISOString();
@@ -110,8 +147,8 @@ export async function addRecentFollowUpNotes(db, options = {}, now = new Date())
   const dryRun = options?.dryRun === true;
   const eligible = `
     b.status = 'active' AND l.status <> 'archived'
-    AND julianday(la.assigned_at) BETWEEN julianday(?) AND julianday(?)
-    AND NOT EXISTS (SELECT 1 FROM lead_notes ln WHERE ln.assignment_id = la.id AND ln.author = ?)
+    AND julianday(la.assigned_at) <= julianday(?)
+    AND COALESCE((SELECT MAX(julianday(ln.created_at)) FROM lead_notes ln WHERE ln.assignment_id = la.id), julianday(la.assigned_at)) <= julianday(?)
   `;
   const assignments = `
     FROM lead_assignments la
@@ -119,25 +156,28 @@ export async function addRecentFollowUpNotes(db, options = {}, now = new Date())
     JOIN leads l ON l.id = la.lead_id
   `;
   const { results = [] } = await db.prepare(`
-    SELECT la.id, l.category, l.message, b.preferred_category
+    SELECT la.id, l.category, l.message, b.preferred_category,
+           (SELECT COUNT(*) FROM lead_notes pn WHERE pn.assignment_id = la.id AND pn.author = ?) AS prior
     ${assignments}
     WHERE ${eligible}
-    ORDER BY julianday(la.assigned_at), la.id
+    ORDER BY COALESCE((SELECT MAX(julianday(ln.created_at)) FROM lead_notes ln WHERE ln.assignment_id = la.id), julianday(la.assigned_at)), la.id
     LIMIT ?
-  `).bind(cutoff, until, AUTHOR, maxLeads).all();
+  `).bind(AUTHOR, cutoff, cutoff, maxLeads + 1).all();
+  const hasMore = results.length > maxLeads;
+  const rows = results.slice(0, maxLeads);
 
   let count = 0;
   if (!dryRun) {
-    for (let i = 0; i < results.length; i += 50) {
-      // Recheck eligibility in the INSERT, including duplicate prevention when two runs overlap.
-      const writes = await db.batch(results.slice(i, i + 50).map(row => db.prepare(`
+    for (let i = 0; i < rows.length; i += 50) {
+      // Recheck eligibility in the INSERT so overlapping runs cannot both add a note.
+      const writes = await db.batch(rows.slice(i, i + 50).map(row => db.prepare(`
         INSERT INTO lead_notes (assignment_id, business_id, lead_id, author, content, created_at, updated_at)
         SELECT la.id, la.business_id, la.lead_id, ?, ?, ?, ?
         ${assignments}
         WHERE la.id = ? AND ${eligible}
-      `).bind(AUTHOR, buildFollowUpNote(row), until, until, row.id, cutoff, until, AUTHOR)));
+      `).bind(AUTHOR, buildFollowUpNote(row), until, until, row.id, cutoff, cutoff)));
       count += writes.reduce((total, write) => total + (write.meta?.changes || 0), 0);
     }
   }
-  return { scanned: results.length, backfilled_leads: count, notes_created: count, dry_run: dryRun };
+  return { scanned: rows.length, backfilled_leads: count, notes_created: count, has_more: hasMore, dry_run: dryRun };
 }

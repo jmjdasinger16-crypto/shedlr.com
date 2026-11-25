@@ -180,12 +180,12 @@ $('[data-leads-delete-selected]')?.addEventListener('click',()=>{deleteSelectedL
 /* Owner-only follow-up prep. Never changes existing lead notes. */
 $('[data-leads-backfill-notes]')?.addEventListener('click',async()=>{
   const button=$('[data-leads-backfill-notes]');
-  if(!confirm('Add follow-up notes?\n\nThis adds a category-specific prep note to eligible leads assigned to active business accounts in the last 60 minutes. These are suggestions, not records of calls or bookings.\n\nExisting notes will not change.'))return;
+  if(!confirm('Add follow-up notes?\n\nThis catches up every lead on an active business account that has had no note in the last 60 minutes, adding one category-specific prep note per lead. These are suggestions, not records of calls or bookings.\n\nExisting notes will not change.'))return;
   const originalLabel=button.textContent;
   button.disabled=true;button.textContent='Adding…';
   try{
     const result=await api('/api/admin/leads/follow-up-notes',{method:'POST',body:JSON.stringify({})});
-    alert(result.notes_created ? `Follow-up prep complete.\n\nNotes added: ${result.notes_created}` : 'No new leads qualified for a follow-up note in the last 60 minutes.');
+    alert(result.notes_created ? `Follow-up prep complete.\n\nNotes added: ${result.notes_created}${result.has_more?'\n\nMore leads are waiting. Click again to continue.':''}` : 'All leads on active accounts already have a note from the last 60 minutes.');
     await loadLeads().catch(()=>{});
   }catch(error){alert(error.message);}finally{button.disabled=false;button.textContent=originalLabel;}
 });
@@ -516,6 +516,7 @@ function fillLeadDialog(lead,metaText){
   $('[data-lead-message]').value=lead.message||'';
   $('[data-lead-status]').value=lead.status||'new';
   $('[data-lead-save-message]').hidden=true;
+  attemptLeadId=lead.id;$('[data-attempt-message]').hidden=true;
   loadAdminLeadNotes(lead.id);
 
   const assignSelect=$('[data-lead-assign-business]');
@@ -545,10 +546,26 @@ async function loadAdminLeadNotes(leadId){
     const res=await api(`/api/admin/leads/${leadId}/notes`);
     const notes=res.notes||[];
     list.innerHTML=notes.length
-      ? notes.map(n=>`<div class="note-item"><strong>${esc(n.author==='shedlr_follow_up'?'Shedlr follow-up prep':n.author==='business'?`Business${n.company_name?` · ${n.company_name}`:''}`:'Admin')}</strong><div>${esc(n.content)}</div><div class="meta">${fmt(n.created_at)}</div></div>`).join('')
+      ? notes.map(n=>`<div class="note-item"><strong>${esc(n.author==='shedlr_follow_up'?'Shedlr follow-up prep':n.author==='shedlr_attempt'?'Team contact log':n.author==='business'?`Business${n.company_name?` · ${n.company_name}`:''}`:'Admin')}</strong><div>${esc(n.content)}</div><div class="meta">${fmt(n.created_at)}</div></div>`).join('')
       :'<p class="empty-hint">No notes yet.</p>';
   }catch(error){list.innerHTML=`<p class="empty-hint">${esc(error.message)}</p>`;}
 }
+
+let attemptLeadId=null;
+$('[data-attempt-log]')?.addEventListener('click',async()=>{
+  const leadId=attemptLeadId;if(!leadId)return;
+  const button=$('[data-attempt-log]'),message=$('[data-attempt-message]');
+  const rep=$('[data-attempt-rep]'),comment=$('[data-attempt-comment]');
+  message.hidden=false;
+  if(!rep.value.trim()){message.textContent='Enter the name of the person who made the attempt.';rep.focus();return;}
+  button.disabled=true;message.textContent='Saving…';
+  try{
+    const result=await api(`/api/admin/leads/${leadId}/attempts`,{method:'POST',body:JSON.stringify({rep:rep.value,outcome:$('[data-attempt-outcome]').value,comment:comment.value})});
+    message.textContent=`Logged on ${result.notes_created} business account${result.notes_created===1?'':'s'}.`;
+    comment.value='';
+    await loadAdminLeadNotes(leadId);
+  }catch(error){message.textContent=error.message;}finally{button.disabled=false;}
+});
 
 function openLead(id){
   const lead=leads.find(l=>String(l.id)===String(id));

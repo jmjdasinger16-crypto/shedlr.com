@@ -68,7 +68,8 @@ This worker powers the Shedlr API: admin authentication, business portal auth, l
 - `GET  /api/admin/orders` — list orders (optional `?status=` filter)
 - `PATCH /api/admin/orders/:id` — update order status
 - `GET  /api/admin/leads/:id/notes` — view notes for a lead
-- `POST /api/admin/leads/follow-up-notes` — owner admin only: add one labeled follow-up prep note per non-archived lead assignment made in the previous 60 minutes to a business whose portal account status is `active`. Notes quote intake text when available and suggest category-specific questions; they do not record contact attempts. Replaces `/api/admin/leads/backfill-notes`; existing notes are never modified. Optional body: `{ "maxLeads": 500, "dryRun": false }`. In dry runs, `scanned` is the eligible count (up to the requested limit) and `notes_created` is zero.
+- `POST /api/admin/leads/follow-up-notes` — owner admin only: catch up every non-archived lead assignment on a business whose portal account status is `active` and whose latest note (or delivery date, when it has none) is more than 60 minutes old, adding one labeled follow-up note per lead. The first note quotes intake text and suggests category-specific questions; later catch-ups rotate to a different question. Notes do not record contact attempts. Existing notes are never modified. Optional body: `{ "maxLeads": 500, "dryRun": false }`. `has_more` is true when more leads remain. In dry runs, `scanned` is the eligible count (up to the requested limit) and `notes_created` is zero.
+- `POST /api/admin/leads/:id/attempts` — owner admin only: log a real contact attempt typed by a person. Body: `{ "rep": "Name", "outcome": "no_answer_voicemail|no_answer|text_sent|spoke_follow_up|spoke_scheduled|spoke_declined|wrong_number", "comment": "optional" }`. Adds one note stamped with the current time to each active business account assigned the lead; nothing is backdated or generated.
 
 ### Business Portal (public activation endpoints)
 - `GET  /api/portal/checkout-activation?session_id=cs_...` — verifies a Stripe Checkout
@@ -83,6 +84,7 @@ This worker powers the Shedlr API: admin authentication, business portal auth, l
 - `GET  /api/portal/me` — business profile
 - `GET  /api/portal/orders` — business orders
 - `GET  /api/portal/leads` — assigned leads
+- `GET  /api/portal/activity` — last 7 days of leads delivered and logged contact attempts, with last delivery and last attempt times, counted from stored records
 - `GET  /api/portal/leads/:id` — lead notes
 - `POST /api/portal/leads/:id/notes` — add note to lead
 
