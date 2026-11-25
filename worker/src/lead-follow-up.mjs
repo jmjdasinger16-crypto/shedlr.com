@@ -91,18 +91,51 @@ function applianceTopics(intake) {
   return followUpTopics["appliance-repair"];
 }
 
-export function buildFollowUpNote({ category, preferred_category: preferredCategory, message, prior = 0 }) {
+const openers = [label => `${label} follow-up prep.`, label => `Prep for the ${label} follow-up.`, label => `${label}: ready for the next outreach.`, label => `Next-step notes, ${label}.`, label => `${label} lead, outreach plan.`, label => `Before the next ${label} contact:`, label => `${label} lead: what to have ready.`, label => `Heads-up for the ${label} outreach.`];
+const intakeLines = [t => `Lead intake: “${t}”`, t => `They wrote: “${t}”`, t => `Request on file: “${t}”`, t => `From the form: “${t}”`, t => `Their message: “${t}”`, t => `As submitted: “${t}”`];
+// Generic contact guidance. These are instructions for the next attempt, never claims that a call already happened.
+const contactPlans = [
+  "If there is no answer, leave a short voicemail with the callback number and try again later today.",
+  "Call first; if it goes to voicemail, leave a brief message and follow with a text.",
+  "Try a call during business hours and keep the voicemail under 20 seconds.",
+  "If the line is busy or unanswered, text the lead and retry the call the next morning.",
+  "Offer two appointment windows when you reach them and confirm the best number to use.",
+  "If the lead replies by text, answer by text and offer a quick call afterward.",
+  "Confirm the best time of day to call before asking the detailed questions.",
+  "If voicemail is full, send a text or email instead and note the attempt.",
+  "Open by confirming the job and the service address, then move on to details.",
+  "If they ask for more time, set a specific follow-up day before ending the conversation.",
+  "Reference the original request in the voicemail so the lead recognizes the call.",
+  "Space call attempts several hours apart rather than back to back.",
+];
+const checkInLabels = ["check-in", "follow-up", "re-check", "next touch"];
+const questionLeads = ["Suggested questions", "Worth asking", "Questions to cover", "Details to confirm"];
+const nextLeads = ["Next question to cover", "Ask this time", "Focus for this contact", "Also worth confirming"];
+
+function hash(value) {
+  let h = 2166136261;
+  for (const ch of String(value)) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
+  h ^= h >>> 16; h = Math.imul(h, 0x85ebca6b); h ^= h >>> 13; h = Math.imul(h, 0xc2b2ae35); h ^= h >>> 16;
+  return h >>> 0;
+}
+
+export function buildFollowUpNote({ id = 0, category, preferred_category: preferredCategory, message, prior = 0 }) {
   const known = [category, preferredCategory].find(id => Object.hasOwn(followUpTopics, id));
   const intake = String(message || "").trim();
   const excerpt = intake.length > 400 ? `${intake.slice(0, 400).trimEnd()}…` : intake;
   const topics = known === "appliance-repair" ? applianceTopics(intake) : known ? followUpTopics[known] : fallbackTopics;
   const label = known ? categoryLabels[known] : "Service";
-  const intakeLine = excerpt ? `Lead intake: “${excerpt}”` : "No job details were provided in the intake.";
+  const seed = hash(`${id}:${prior}`);
+  const pick = (list, salt) => list[hash(`${seed}:${salt}`) % list.length];
+  const intakeLine = excerpt ? pick(intakeLines, "i")(excerpt) : "No job details were provided in the intake.";
+  const plan = pick(contactPlans, "p");
   if (prior > 0) {
-    // Later catch-ups rotate through the category questions instead of repeating the first note.
-    return [`${label} follow-up check-in ${prior + 1}.`, intakeLine, `Next question to cover: ${topics[prior % topics.length]}.`].join(" ");
+    const heading = `${label} ${pick(checkInLabels, "c")} ${prior + 1}.`;
+    return [heading, intakeLine, `${pick(nextLeads, "n")}: ${topics[(seed >>> 3) % topics.length]}.`, plan].join(" ");
   }
-  return [`${label} follow-up prep.`, intakeLine, `Suggested questions: ${topics.join("; ")}.`].join(" ");
+  const start = seed % topics.length;
+  const ordered = topics.map((_, i) => topics[(start + i) % topics.length]);
+  return [pick(openers, "o")(label), intakeLine, `${pick(questionLeads, "q")}: ${ordered.join("; ")}.`, plan].join(" ");
 }
 
 // Catches up every lead on an active business account whose latest note (or delivery,

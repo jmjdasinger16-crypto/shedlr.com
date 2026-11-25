@@ -29,6 +29,17 @@ test("every service category has three distinct follow-up examples; intake facts
   assert.match(buildFollowUpNote({ category: "constructor" }), /Confirm the job scope/);
 });
 
+test("notes vary across leads and repeat check-ins and never claim a call happened", async () => {
+  const { buildFollowUpNote } = await import("../worker/src/lead-follow-up.mjs");
+  for (const category of ["appliance-repair", "roofing", "tax-prep"]) {
+    const sameIntake = Array.from({ length: 200 }, (_, id) => buildFollowUpNote({ id: id + 1, category, message: "Need help this week" }));
+    assert.ok(new Set(sameIntake).size >= 190, `${category}: ${new Set(sameIntake).size} distinct of 200`);
+    const sameLead = Array.from({ length: 12 }, (_, prior) => buildFollowUpNote({ id: 7, category, message: "Need help this week", prior }));
+    assert.equal(new Set(sameLead).size, 12);
+    for (const note of [...sameIntake, ...sameLead]) assert.doesNotMatch(note, /\b(?:called|left a voicemail|rang out|spoke with|reached|went to voicemail)\b/i);
+  }
+});
+
 test("owner action adds notes only to recent assignments for active businesses in D1", async t => {
   const root = path.resolve(__dirname, "..");
   const mf = new Miniflare({
@@ -108,5 +119,6 @@ test("owner action adds notes only to recent assignments for active businesses i
   const rerun = await addRecentFollowUpNotes(db, {}, later);
   assert.equal(rerun.notes_created, 5);
   const second = await db.prepare("SELECT content FROM lead_notes WHERE lead_id=10 AND author='shedlr_follow_up' ORDER BY id DESC").first();
-  assert.match(second.content, /check-in 2.*Next question to cover: For repair/);
+  assert.match(second.content, /fence|Need a new fence/);
+  assert.doesNotMatch(second.content, /called|left a voicemail|went to voicemail|spoke with/i);
 });
