@@ -1,5 +1,6 @@
 import { handleBamTraining } from "./bam-training.js";
 import { addRecentFollowUpNotes } from "./lead-follow-up.mjs";
+import { addDailyContactLogs, isDailyRunTime } from "./demo-contact-logs.mjs";
 import { logContactAttempt, getPortalActivity } from "./lead-activity.mjs";
 import { programs, categoryIds as CATEGORIES, categoryLabels as CATEGORY_LABELS, bamCategories as BAM_CATEGORIES } from "./category-programs.mjs";
 
@@ -882,6 +883,10 @@ async function handleCareerApplication(request, env) {
 /* ══════════════════════════════ MAIN HANDLER ══════════════════════════════ */
 
 export default {
+  async scheduled(event, env) {
+    const at = new Date(event.scheduledTime);
+    if (isDailyRunTime(at)) await addDailyContactLogs(env, at);
+  },
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if (request.method === "GET" && url.pathname === "/api/health") return json({ ok: true, service: "shedlr-api" });
@@ -1400,6 +1405,10 @@ export default {
       if (request.method === "GET" && url.pathname === "/api/admin/orders") { const status = clean(url.searchParams.get("status"), 30); const clause = status ? " WHERE status = ?" : ""; const bindings = status ? [status] : []; const orders = await env.DB.prepare(`SELECT * FROM lead_orders${clause} ORDER BY submitted_at DESC LIMIT 500`).bind(...bindings).all(); return json({ orders: orders.results || [] }); }
       const orderMatch = url.pathname.match(/^\/api\/admin\/orders\/(\d+)$/);
       if (request.method === "PATCH" && orderMatch) { let data; try { data = await request.json(); } catch { return json({ error: "Invalid request body." }, 400); } const id = Number(orderMatch[1]); const allowedStatuses = ["pending_payment", "paid", "fulfilling", "completed", "canceled", "refunded"]; const status = allowedStatuses.includes(clean(data.status,30)) ? clean(data.status,30) : "pending_payment"; await env.DB.prepare("UPDATE lead_orders SET status=?, updated_at=? WHERE id=?").bind(status, new Date().toISOString(), id).run(); return json({ success: true }); }
+      if (request.method === "POST" && url.pathname === "/api/admin/leads/daily-contact-logs") {
+        if (session.role !== "admin") return json({ error: "Owner access required." }, 403);
+        return json(await addDailyContactLogs(env));
+      }
       /* Add follow-up prep for recently assigned leads (owner admin only). */
       if (request.method === "POST" && url.pathname === "/api/admin/leads/follow-up-notes") {
         if (session.role !== "admin") return json({ error: "Only the owner admin can generate follow-up notes." }, 403);

@@ -190,6 +190,19 @@ $('[data-leads-backfill-notes]')?.addEventListener('click',async()=>{
   }catch(error){alert(error.message);}finally{button.disabled=false;button.textContent=originalLabel;}
 });
 
+$('[data-daily-contact-logs]')?.addEventListener('click', async event => {
+  const button = event.currentTarget;
+  button.disabled = true;
+  try {
+    const result = await api('/api/admin/leads/daily-contact-logs', { method: 'POST', body: '{}' });
+    alert(`Contact logs added today: ${result.notes_created}`);
+  } catch (error) {
+    alert(error.message);
+  } finally {
+    button.disabled = false;
+  }
+});
+
 function renderBusinesses(rows){
   businessesTable.innerHTML=rows.map(b=>`<tr><td><strong>${esc(b.name||'—')}</strong></td><td>${esc(b.email)}<br>${esc(b.phone||'')}</td><td>${esc(b.company_name||'—')}</td><td>${esc(catLabel(b.preferred_category))}</td><td><span class="status">${esc(b.status)}</span>${b.leads_locked?'<span class="status locked" title="Killswitch on: client portal cannot see leads">Leads locked</span>':''}</td><td>${salesmanCell(b)}</td><td>${b.total_leads||0}</td><td>${fmt(b.last_login_at)}</td><td><button type="button" data-open-business="${b.id}">View</button></td></tr>`).join('')||'<tr><td colspan="9">No business accounts yet.</td></tr>';
 }

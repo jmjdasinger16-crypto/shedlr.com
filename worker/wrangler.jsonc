@@ -4,6 +4,7 @@
   "main": "src/index.js",
   "compatibility_date": "2026-08-10",
   "workers_dev": true,
+  "triggers": { "crons": ["0 19,20 * * *"] },
   "routes": [
     {
       "pattern": "shedlr.com/api/*",
