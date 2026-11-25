@@ -177,19 +177,15 @@ $('[data-leads-delete-selected]')?.addEventListener('click',()=>{deleteSelectedL
   if(button)button.disabled=false;
 });});
 
-/* ── Contact-log catch-up (owner admin): fills the gap between a lead's last
-      note (or its delivery date) and now with contact-attempt notes — no-answer
-      calls, voicemails left, and short conversations that end in a reschedule,
-      refusal, or other non-book. Each note is attributed to a fictitious rep
-      and existing notes are never modified. ── */
+/* Owner-only follow-up prep. Never changes existing lead notes. */
 $('[data-leads-backfill-notes]')?.addEventListener('click',async()=>{
   const button=$('[data-leads-backfill-notes]');
-  if(!confirm('Catch up lead notes?\n\nFor every assigned lead whose last note (or delivery date) is more than 18 hours old, this fills the gap up to now with contact-attempt notes: no-answer calls, voicemails left, and short conversations that end in a reschedule, refusal, or other non-book. Each attempt is attributed to a fictitious rep.\n\nExisting notes are never changed.'))return;
+  if(!confirm('Add follow-up notes?\n\nThis adds a category-specific prep note to eligible leads assigned to active business accounts in the last 60 minutes. These are suggestions, not records of calls or bookings.\n\nExisting notes will not change.'))return;
   const originalLabel=button.textContent;
-  button.disabled=true;button.textContent='Filling…';
+  button.disabled=true;button.textContent='Adding…';
   try{
-    const result=await api('/api/admin/leads/backfill-notes',{method:'POST',body:JSON.stringify({})});
-    alert(`Contact-log catch-up complete.\n\nLeads backfilled: ${result.backfilled_leads}\nNotes created: ${result.notes_created}`);
+    const result=await api('/api/admin/leads/follow-up-notes',{method:'POST',body:JSON.stringify({})});
+    alert(result.notes_created ? `Follow-up prep complete.\n\nNotes added: ${result.notes_created}` : 'No new leads qualified for a follow-up note in the last 60 minutes.');
     await loadLeads().catch(()=>{});
   }catch(error){alert(error.message);}finally{button.disabled=false;button.textContent=originalLabel;}
 });
@@ -549,7 +545,7 @@ async function loadAdminLeadNotes(leadId){
     const res=await api(`/api/admin/leads/${leadId}/notes`);
     const notes=res.notes||[];
     list.innerHTML=notes.length
-      ? notes.map(n=>`<div class="note-item"><strong>${esc(n.author==='business'?`Business${n.company_name?` · ${n.company_name}`:''}`:'Admin')}</strong><div>${esc(n.content)}</div><div class="meta">${fmt(n.created_at)}</div></div>`).join('')
+      ? notes.map(n=>`<div class="note-item"><strong>${esc(n.author==='shedlr_follow_up'?'Shedlr follow-up prep':n.author==='business'?`Business${n.company_name?` · ${n.company_name}`:''}`:'Admin')}</strong><div>${esc(n.content)}</div><div class="meta">${fmt(n.created_at)}</div></div>`).join('')
       :'<p class="empty-hint">No notes yet.</p>';
   }catch(error){list.innerHTML=`<p class="empty-hint">${esc(error.message)}</p>`;}
 }
