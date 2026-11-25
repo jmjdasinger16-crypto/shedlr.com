@@ -104,3 +104,5 @@ Activation tokens live for 72 hours. Delivery order:
 
 Cloudflare's `send_email` binding cannot reach unverified addresses, so it is used only
 for internal alerts — never for customer mail.
+
+Daily contact logs run at 2 p.m. America/Chicago or from the owner admin’s Add daily contact logs button. Set the Worker binding `DEMO_BUSINESS_IDS` to comma-separated demo business IDs. An empty binding disables generation. Each active demo account receives one random contact note per non-archived assignment per local day. Repeated runs include newly assigned leads. Generated notes are excluded from human contact-attempt totals.
