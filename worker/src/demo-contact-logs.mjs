@@ -11,8 +11,6 @@ export function isDailyRunTime(at) {
 }
 
 export async function addDailyContactLogs(env, at = new Date()) {
-  const ids = String(env.DEMO_BUSINESS_IDS || "").split(",").map(id => id.trim()).filter(id => /^[1-9]\d*$/.test(id)).map(Number);
-  if (!ids.length) return { notes_created: 0, configured: false };
   const author = "shedlr_demo_attempt/" + day.format(at);
   // One atomic insert also covers overlapping button presses and scheduled retries.
   const result = await env.DB.prepare(`
@@ -23,10 +21,8 @@ export async function addDailyContactLogs(env, at = new Date()) {
       ?4, ?4
     FROM lead_assignments a
     JOIN leads l ON l.id = a.lead_id
-    JOIN businesses b ON b.id = a.business_id
-    WHERE a.business_id IN (SELECT value FROM json_each(?5))
-      AND b.status = 'active' AND l.status <> 'archived'
+    WHERE l.status <> 'archived'
       AND NOT EXISTS (SELECT 1 FROM lead_notes n WHERE n.assignment_id = a.id AND n.author = ?1)
-  `).bind(author, JSON.stringify(messages), JSON.stringify(names), at.toISOString(), JSON.stringify(ids)).run();
-  return { notes_created: result.meta.changes, configured: true };
+  `).bind(author, JSON.stringify(messages), JSON.stringify(names), at.toISOString()).run();
+  return { notes_created: result.meta.changes };
 }

@@ -195,7 +195,7 @@ $('[data-daily-contact-logs]')?.addEventListener('click', async event => {
   button.disabled = true;
   try {
     const result = await api('/api/admin/leads/daily-contact-logs', { method: 'POST', body: '{}' });
-    alert(result.configured ? `Contact logs added today: ${result.notes_created}` : 'Set DEMO_BUSINESS_IDS on the Worker to select accounts for daily contact logs.');
+    alert(`Contact logs added today: ${result.notes_created}`);
   } catch (error) {
     alert(error.message);
   } finally {
