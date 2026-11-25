@@ -92,3 +92,7 @@ tr.sales-inactive td{color:#8993a0}
 .biz-lead-body{flex:1;min-width:0}
 .note-item.row-selected{background:#fff8e6;outline:1px solid #f0d890}
 @media(max-width:600px){.biz-leads-select-all input,.biz-lead-check input{width:22px!important;height:22px}}
+
+.attempt-log{margin-top:16px;padding-top:12px;border-top:1px solid #e3e6eb;display:grid;gap:10px}
+.attempt-log h3{margin:0}
+.attempt-log label{display:grid;gap:4px;font-size:13px}

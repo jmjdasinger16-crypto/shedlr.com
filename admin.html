@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/admin.css?v=11">
+  <link rel="stylesheet" href="css/admin.css?v=12">
 </head>
 <body class="auth-shell">
   <main class="admin-shell">
@@ -423,6 +423,25 @@
         <section class="business-subsection">
           <h3>Notes</h3>
           <div data-admin-lead-notes-list></div>
+          <div class="attempt-log" data-admin-only>
+            <h3>Log a contact attempt</h3>
+            <p class="empty-hint">Record only attempts that actually happened. The note is stamped with the current time and shows in the client portal.</p>
+            <label>Rep name<input type="text" maxlength="60" data-attempt-rep autocomplete="off"></label>
+            <label>What happened
+              <select data-attempt-outcome>
+                <option value="no_answer_voicemail">Called, no answer, voicemail left</option>
+                <option value="no_answer">Called, no answer, no voicemail</option>
+                <option value="text_sent">Sent a text message</option>
+                <option value="spoke_follow_up">Spoke with lead, follow-up planned</option>
+                <option value="spoke_scheduled">Spoke with lead, appointment scheduled</option>
+                <option value="spoke_declined">Spoke with lead, not interested</option>
+                <option value="wrong_number">Wrong or unreachable number</option>
+              </select>
+            </label>
+            <label>Comment (optional)<input type="text" maxlength="300" data-attempt-comment autocomplete="off"></label>
+            <button type="button" data-attempt-log>Log attempt</button>
+            <p class="form-message" data-attempt-message hidden></p>
+          </div>
         </section>
       </div>
       <button type="button" data-lead-save style="margin-top:10px">Save Changes</button>
