@@ -180,12 +180,12 @@ $('[data-leads-delete-selected]')?.addEventListener('click',()=>{deleteSelectedL
 /* Owner-only follow-up prep. Never changes existing lead notes. */
 $('[data-leads-backfill-notes]')?.addEventListener('click',async()=>{
   const button=$('[data-leads-backfill-notes]');
-  if(!confirm('Add follow-up notes?\n\nThis adds a category-specific prep note to eligible leads assigned to active business accounts in the last 60 minutes. These are suggestions, not records of calls or bookings.\n\nExisting notes will not change.'))return;
+  if(!confirm('Add follow-up notes?\n\nThis catches up every lead on an active business account that has had no note in the last 60 minutes, adding one category-specific prep note per lead. These are suggestions, not records of calls or bookings.\n\nExisting notes will not change.'))return;
   const originalLabel=button.textContent;
   button.disabled=true;button.textContent='Adding…';
   try{
     const result=await api('/api/admin/leads/follow-up-notes',{method:'POST',body:JSON.stringify({})});
-    alert(result.notes_created ? `Follow-up prep complete.\n\nNotes added: ${result.notes_created}` : 'No new leads qualified for a follow-up note in the last 60 minutes.');
+    alert(result.notes_created ? `Follow-up prep complete.\n\nNotes added: ${result.notes_created}${result.has_more?'\n\nMore leads are waiting. Click again to continue.':''}` : 'All leads on active accounts already have a note from the last 60 minutes.');
     await loadLeads().catch(()=>{});
   }catch(error){alert(error.message);}finally{button.disabled=false;button.textContent=originalLabel;}
 });

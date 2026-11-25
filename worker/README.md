@@ -68,7 +68,7 @@ This worker powers the Shedlr API: admin authentication, business portal auth, l
 - `GET  /api/admin/orders` — list orders (optional `?status=` filter)
 - `PATCH /api/admin/orders/:id` — update order status
 - `GET  /api/admin/leads/:id/notes` — view notes for a lead
-- `POST /api/admin/leads/follow-up-notes` — owner admin only: add one labeled follow-up prep note per non-archived lead assignment made in the previous 60 minutes to a business whose portal account status is `active`. Notes quote intake text when available and suggest category-specific questions; they do not record contact attempts. Replaces `/api/admin/leads/backfill-notes`; existing notes are never modified. Optional body: `{ "maxLeads": 500, "dryRun": false }`. In dry runs, `scanned` is the eligible count (up to the requested limit) and `notes_created` is zero.
+- `POST /api/admin/leads/follow-up-notes` — owner admin only: catch up every non-archived lead assignment on a business whose portal account status is `active` and whose latest note (or delivery date, when it has none) is more than 60 minutes old, adding one labeled follow-up note per lead. The first note quotes intake text and suggests category-specific questions; later catch-ups rotate to a different question. Notes do not record contact attempts. Existing notes are never modified. Optional body: `{ "maxLeads": 500, "dryRun": false }`. `has_more` is true when more leads remain. In dry runs, `scanned` is the eligible count (up to the requested limit) and `notes_created` is zero.
 
 ### Business Portal (public activation endpoints)
 - `GET  /api/portal/checkout-activation?session_id=cs_...` — verifies a Stripe Checkout
